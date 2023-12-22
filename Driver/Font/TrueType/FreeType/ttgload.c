@@ -380,7 +380,7 @@
           exec->is_composite     = FALSE;
           exec->pedantic_hinting = load_flags & TTLOAD_PEDANTIC;
 
-          error = Context_Run( exec, FALSE );
+          error = Context_Run( exec );
           if (error && exec->pedantic_hinting)
             return error;
         }
@@ -480,7 +480,7 @@
       exec->is_composite     = TRUE;
       exec->pedantic_hinting = load_flags & TTLOAD_PEDANTIC;
 
-      error = Context_Run( exec, FALSE );
+      error = Context_Run( exec );
       if (error && exec->pedantic_hinting)
         return error;
     }
