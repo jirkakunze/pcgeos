@@ -611,11 +611,7 @@
     glyph_offset = face->dirTables[table].Offset;
 
     /* query new execution context */
-
-    if ( instance && instance->debug )
-      exec = instance->context;
-    else
-      exec = New_Context( face );
+    exec = New_Context( face );
 
     if ( !exec )
       return TT_Err_Could_Not_Find_Context;
@@ -1256,10 +1252,7 @@
 
     /* reset the execution context */
     exec->pts = base_pts;
-
-    if ( !instance || !instance->debug )
-      Done_Context( exec );
-
+    Done_Context( exec );
     return error;
   }
 

@@ -658,13 +658,6 @@
     if ( !_instance )
       return TT_Err_Ok;
 
-    if ( ins->debug )
-    {
-      /* the debug context must be deleted by the debugger itself */
-      ins->context = NULL;
-      ins->debug   = FALSE;
-    }
-
     FREE( ins->cvt );
     ins->cvtSize = 0;
 
@@ -789,11 +782,7 @@
     PFace     face = ins->owner;
 
 
-    if ( ins->debug )
-      exec = ins->context;
-    else
-      exec = New_Context( face );
-    /* debugging instances have their own context */
+    exec = New_Context( face );
 
     if ( !exec )
       return TT_Err_Could_Not_Find_Context;
@@ -863,12 +852,8 @@
   Fin:
     Context_Save( exec, ins );
 
-    if ( !ins->debug )
-      Done_Context( exec );
-    /* debugging instances keep their context */
-
+    Done_Context( exec );
     ins->valid = FALSE;
-
     return error;
   }
 
@@ -955,12 +940,7 @@
     ins->GS = Default_GraphicsState;
 
     /* get execution context and run prep program */
-
-    if ( ins->debug )
-      exec = ins->context;
-    else
-      exec = New_Context(face);
-    /* debugging instances have their own context */
+    exec = New_Context(face);
 
     if ( !exec )
       return TT_Err_Could_Not_Find_Context;
@@ -985,8 +965,7 @@
       if ( error )
         goto Fin;
 
-      if ( !ins->debug )
-        error = RunIns( exec );
+      error = RunIns( exec );
     }
     else
       error = TT_Err_Ok;
@@ -996,10 +975,7 @@
 
   Fin:
     Context_Save( exec, ins );
-
-    if ( !ins->debug )
-      Done_Context( exec );
-    /* debugging instances keep their context */
+    Done_Context( exec );
 
     if ( !error )
       ins->valid = TRUE;
