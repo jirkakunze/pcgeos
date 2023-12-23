@@ -336,7 +336,7 @@
     }
 
     ras.precision       = 1 << ras.precision_bits;
-    ras.precision_half  = ras.precision / 2;
+    ras.precision_half  = ras.precision >> 1;
     ras.precision_shift = ras.precision_bits - Pixel_Bits;
   }
 
@@ -1188,8 +1188,8 @@
         /* if both first and last points are off the curve, */
         /* start at their middle and record its position    */
         /* for closure                                      */
-        ras.lastX = (ras.lastX + x_last)/2;
-        ras.lastY = (ras.lastY + y_last)/2;
+        ras.lastX = (ras.lastX + x_last) >> 1;
+        ras.lastY = (ras.lastY + y_last) >> 1;
 
         x_last = ras.lastX;
         y_last = ras.lastY;
@@ -1233,8 +1233,8 @@
         else
         {
           /* two successive `off' points => create middle point */
-          mx = ( cx + x ) / 2;
-          my = ( cy + y ) / 2;
+          mx = ( cx + x ) >> 1;
+          my = ( cy + y ) >> 1;
 
           if ( Bezier_To( RAS_VARS  mx, my, cx, cy ) ) return FAILURE;
 
@@ -1579,7 +1579,7 @@
           break;
 
         case 4:
-          e1 = CEILING( (x1 + x2 + 1) / 2 );
+          e1 = CEILING( (x1 + x2 + 1) >> 1 );
           break;
 
         case 2:
@@ -1634,7 +1634,7 @@
           if ( ras.dropOutControl == 2 )
             e1 = e2;
           else
-            e1 = CEILING( (x1 + x2 + 1) / 2 );
+            e1 = CEILING( (x1 + x2 + 1) >> 1 );
 
           break;
 
@@ -1860,7 +1860,7 @@
           break;
 
         case 4:
-          e1 = CEILING( (x1 + x2 + 1) / 2 );
+          e1 = CEILING( (x1 + x2 + 1) >> 1 );
           break;
 
         case 2:
@@ -1898,7 +1898,7 @@
           if ( ras.dropOutControl == 2 )
             e1 = e2;
           else
-            e1 = CEILING( (x1 + x2 + 1) / 2 );
+            e1 = CEILING( (x1 + x2 + 1) >> 1 );
 
           break;
 
