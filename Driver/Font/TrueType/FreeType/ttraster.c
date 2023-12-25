@@ -473,7 +473,7 @@
 
     /* look for first y value that is <= */
     while ( n >= 0 && y < y_turns[n] )
-      n--;
+      --n;
 
     /* if it is <, simply insert it, ignore if == */
     if ( n >= 0 && y > y_turns[n] )
@@ -482,7 +482,7 @@
         y2 = y_turns[n];
         y_turns[n] = y;
         y = y2;
-        n--;
+        --n;
       }
 
     if ( n < 0 )
@@ -553,7 +553,7 @@
           return FAILURE;
 
         p = p->link;
-        n--;
+        --n;
       }
     }
     else
@@ -744,7 +744,7 @@
         Ax -= Dy;
         x1 += Dx;
       }
-      size--;
+      --size;
     }
 
     ras.top = top;
@@ -822,7 +822,7 @@
       {
         if ( ras.joint )
         {
-          top--;
+          --top;
           ras.joint = FALSE;
         }
 
@@ -1196,7 +1196,7 @@
     /* now process each contour point individually */
     while ( index < last )
     {
-      index++;
+      ++index;
       x = SCALED( ras.coords[index].x );
       y = SCALED( ras.coords[index].y );
 
@@ -1295,7 +1295,7 @@
 
     start = 0;
 
-    for ( i = 0; i < ras.nContours; i++ )
+    for ( i = 0; i < ras.nContours; ++i )
     {
       ras.state    = Unknown;
       ras.gProfile = NULL;
@@ -2273,7 +2273,7 @@
 
               /* mark profile for drop-out processing */
               P_Left->countL = 1;
-              dropouts++;
+              ++dropouts;
 
               goto Skip_To_Next;
             }
@@ -2297,7 +2297,7 @@
 
         ras.Proc_Sweep_Step( RAS_VARS y );
 
-        y++;
+        ++y;
 
         if ( y < y_change )
         {
@@ -2333,12 +2333,14 @@
       }
     }
 
+#ifdef TT_CONFIG_OPTION_GRAY_SCALING
     /* for gray-scaling, flushes the bitmap scanline cache */
     while ( y <= max_Y )
     {
       ras.Proc_Sweep_Step( RAS_VARS y );
       y++;
     }
+#endif  /* TT_CONFIG_OPTION_GRAY_SCALING */
 
     ras.Proc_Sweep_Finish( RAS_VAR );
     return SUCCESS;
@@ -2406,7 +2408,7 @@ Scan_DropOuts :
         i = ras.band_stack[ras.band_top].y_min;
         j = ras.band_stack[ras.band_top].y_max;
 
-        k = ( i + j ) / 2;
+        k = ( i + j ) >> 1;
 
         if ( ras.band_top >= 7 || k < i )
         {
