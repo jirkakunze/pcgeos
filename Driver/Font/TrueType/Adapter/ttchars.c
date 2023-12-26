@@ -94,6 +94,7 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
 
         trueTypeOutline = LMemDerefHandles( MemPtrToHandle( (void*)fontInfo ), outlineEntry->OE_handle );
 EC(     ECCheckBounds( (void*)trueTypeOutline ) );
+EC(     ECCheckBounds( (void*)trueTypeOutline ) );
 
         /* open face, create instance and glyph */
         if( TrueType_Lock_Face(trueTypeVars, trueTypeOutline) )
@@ -150,6 +151,7 @@ EC(             ECCheckBounds( (void*)charData ) );
                 TT_Transform_Outline( &OUTLINE, &flipmatrix );
                 TT_Translate_Outline( &OUTLINE, -GLYPH_BBOX.xMin, GLYPH_BBOX.yMax );
                 TT_Get_Outline_Region( &OUTLINE, &RASTER_MAP );
+EC_ERROR_IF(    size < RASTER_MAP.size, -1 );
 
                 /* fill header of charData */
                 ((RegionCharData*)charData)->RCD_xoff = transformMatrix->TM_scriptX + 
@@ -162,7 +164,6 @@ EC(             ECCheckBounds( (void*)charData ) );
                 ((RegionCharData*)charData)->RCD_bounds.R_top    = 0;
                 ((RegionCharData*)charData)->RCD_bounds.R_bottom = height;
 
-EC_ERROR_IF(    size < RASTER_MAP.size, -1 );
 
                 size = RASTER_MAP.size + SIZE_REGION_HEADER;
 
@@ -185,6 +186,7 @@ EC(             ECCheckBounds( (void*)charData ) );
                 /* translate outline and render it */
                 TT_Translate_Outline( &OUTLINE, -GLYPH_BBOX.xMin, -GLYPH_BBOX.yMin );
                 TT_Get_Outline_Bitmap( &OUTLINE, &RASTER_MAP );
+EC_ERROR_IF(    size < RASTER_MAP.size, -1 );
 
                 /* fill header of charData */
                 ((CharData*)charData)->CD_pictureWidth = width;
@@ -193,6 +195,7 @@ EC(             ECCheckBounds( (void*)charData ) );
                                                          transformMatrix->TM_heightX + ( GLYPH_BBOX.xMin >> 6 );
                 ((CharData*)charData)->CD_yoff         = transformMatrix->TM_scriptY + 
                                                          transformMatrix->TM_heightY - ( GLYPH_BBOX.yMax >> 6 );
+
         }
 
         TT_Done_Glyph( GLYPH );
@@ -461,6 +464,9 @@ static word ShiftRegionCharData( FontBuf* fontBuf, RegionCharData* charData )
 {
         word size = charData->RCD_size + SIZE_REGION_HEADER;
 
+
+EC(     ECCheckBounds( (void*)charData ) );
+EC(     ECCheckBounds( (void*)((((byte*)fontBuf) + fontBuf->FB_dataSize) - ((byte*)charData) + size )) );
 
         memmove( charData, 
                 ((byte*)charData) + size, 
