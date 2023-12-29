@@ -1275,7 +1275,7 @@
     switch ( (Int)(selector & 0xC0) )
     {
       case 0:
-        CUR.period = GridPeriod / 2;
+        CUR.period = GridPeriod >> 1;
         break;
 
       case 0x40:
@@ -1283,7 +1283,7 @@
         break;
 
       case 0x80:
-        CUR.period = GridPeriod * 2;
+        CUR.period = GridPeriod << 1;
         break;
 
       /* This opcode is reserved, but... */
@@ -1300,11 +1300,11 @@
       break;
 
     case 0x10:
-      CUR.phase = CUR.period / 4;
+      CUR.phase = CUR.period >> 2;
       break;
 
     case 0x20:
-      CUR.phase = CUR.period / 2;
+      CUR.phase = CUR.period >> 1;
       break;
 
     case 0x30:
@@ -1315,11 +1315,11 @@
     if ( (selector & 0x0F) == 0 )
       CUR.threshold = CUR.period - 1;
     else
-      CUR.threshold = ( (Int)(selector & 0x0F) - 4 ) * CUR.period / 8;
+      CUR.threshold = ( (Int)(selector & 0x0F) - 4 ) * CUR.period >> 3;
 
-    CUR.period    /= 256;
-    CUR.phase     /= 256;
-    CUR.threshold /= 256;
+    CUR.period    >>= 8;
+    CUR.phase     >>= 8;
+    CUR.threshold >>= 8;
   }
 
 
@@ -3064,7 +3064,7 @@
       switch ( CUR.opcode )
       {
       case 0x58:      /* IF */
-        nIfs++;
+        ++nIfs;
         break;
 
       case 0x1b:      /* ELSE */
@@ -3072,7 +3072,7 @@
         break;
 
       case 0x59:      /* EIF */
-        nIfs--;
+        --nIfs;
         Out = (nIfs == 0);
         break;
       }
@@ -3100,11 +3100,11 @@
       switch ( CUR.opcode )
       {
       case 0x58:    /* IF */
-        nIfs++;
+        ++nIfs;
         break;
 
       case 0x59:    /* EIF */
-        nIfs--;
+        --nIfs;
         break;
       }
     } while ( nIfs != 0 );
@@ -3370,7 +3370,7 @@
     /* First of all, look for the same instruction in our table */
     def   = CUR.IDefs;
     limit = def + CUR.numIDefs;
-    for ( ; def < limit; def++ )
+    for ( ; def < limit; ++def )
       if ( def->Opc == opcode )
         break;
     
@@ -3438,7 +3438,7 @@
       return;
     }
 
-    for ( K = 1; K <= L; K++ )
+    for ( K = 1; K <= L; ++K )
       args[K - 1] = CUR.code[CUR.IP + K + 1];
 
     CUR.new_top += L;
@@ -3465,7 +3465,7 @@
 
     CUR.IP += 2;
 
-    for ( K = 0; K < L; K++ )
+    for ( K = 0; K < L; ++K )
       args[K] = GET_ShortIns();
 
     CUR.step_ins = FALSE;
@@ -3491,7 +3491,7 @@
       return;
     }
 
-    for ( K = 1; K <= L; K++ )
+    for ( K = 1; K <= L; ++K )
       args[K - 1] = CUR.code[CUR.IP + K];
   }
 
@@ -3516,7 +3516,7 @@
 
     CUR.IP++;
 
-    for ( K = 0; K < L; K++ )
+    for ( K = 0; K < L; ++K )
       args[K] = GET_ShortIns();
 
     CUR.step_ins = FALSE;
@@ -3994,7 +3994,7 @@
       return;
     }
 
-    for ( I = L; I <= K; I++ )
+    for ( I = L; I <= K; ++I )
       CUR.pts.touch[I] |= TT_Flag_On_Curve;
   }
 
@@ -4021,7 +4021,7 @@
       return;
     }
 
-    for ( I = L; I <= K; I++ )
+    for ( I = L; I <= K; ++I )
       CUR.pts.touch[I] &= ~TT_Flag_On_Curve;
   }
 
@@ -4184,7 +4184,7 @@
     }
 
     /* UNDOCUMENTED! SHC doesn't touch the points */
-    for ( i = first_point; i <= last_point; i++ )
+    for ( i = first_point; i <= last_point; ++i )
     {
       if ( zp.cur != CUR.zp2.cur || refp != i )
         MOVE_Zp2_Point( i, dx, dy, FALSE );
@@ -4223,7 +4223,7 @@
       last_point = 0;
 
     /* UNDOCUMENTED! SHZ doesn't touch the points */
-    for ( i = 0; i <= last_point; i++ )
+    for ( i = 0; i <= last_point; ++i )
     {
       if ( zp.cur != CUR.zp2.cur || refp != i )
         MOVE_Zp2_Point( i, dx, dy, FALSE );
@@ -4756,11 +4756,11 @@
       CUR.zp2.cur[point].x = ( CUR.zp1.cur[a0].x +
                                CUR.zp1.cur[a1].x +
                                CUR.zp0.cur[b0].x +
-                               CUR.zp0.cur[b1].x ) / 4;
+                               CUR.zp0.cur[b1].x ) >> 2;
       CUR.zp2.cur[point].y = ( CUR.zp1.cur[a0].y +
                                CUR.zp1.cur[a1].y +
                                CUR.zp0.cur[b0].y +
-                               CUR.zp0.cur[b1].y ) / 4;
+                               CUR.zp0.cur[b1].y ) >> 2;
     }
   }
 
@@ -4788,7 +4788,7 @@
     }
 
     distance = CUR_Func_project( CUR.zp0.cur + p2,
-                                 CUR.zp1.cur + p1 ) / 2;
+                                 CUR.zp1.cur + p1 ) >> 1;
 
     CUR_Func_move( &CUR.zp1, p1, distance );
     CUR_Func_move( &CUR.zp0, p2, -distance );
@@ -4932,10 +4932,10 @@
 
     x = LINK->curs[p].x - LINK->orgs[p].x;
 
-    for ( i = p1; i < p; i++ )
+    for ( i = p1; i < p; ++i )
       LINK->curs[i].x += x;
 
-    for ( i = p + 1; i <= p2; i++ )
+    for ( i = p + 1; i <= p2; ++i )
       LINK->curs[i].x += x;
   }
 
@@ -4960,7 +4960,7 @@
 
     if ( x1 == x2 )
     {
-      for ( i = p1; i <= p2; i++ )
+      for ( i = p1; i <= p2; ++i )
       {
         x = LINK->orgs[i].x;
 
@@ -4976,7 +4976,7 @@
 
     if ( x1 < x2 )
     {
-      for ( i = p1; i <= p2; i++ )
+      for ( i = p1; i <= p2; ++i )
       {
         x = LINK->orgs[i].x;
 
@@ -5061,14 +5061,14 @@
       first_point = point;
 
       while ( point <= end_point && (CUR.pts.touch[point] & mask) == 0 )
-        point++;
+        ++point;
 
       if ( point <= end_point )
       {
         first_touched = point;
         cur_touched   = point;
 
-        point++;
+        ++point;
 
         while ( point <= end_point )
         {
@@ -5083,7 +5083,7 @@
             cur_touched = point;
           }
 
-          point++;
+          ++point;
         }
 
         if ( cur_touched == first_touched )
@@ -5104,7 +5104,7 @@
                     &V );
         }
       }
-      contour++;
+      ++contour;
     } while ( contour < CUR.pts.n_contours );
   }
 
@@ -5168,7 +5168,7 @@
         {
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
-            B++;
+            ++B;
           B = B * 64L / (1L << CUR.GS.delta_shift);
 
           CUR_Func_move( &CUR.zp0, A, B );
@@ -5242,7 +5242,7 @@
         {
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
-            B++;
+            ++B;
           B = B * 64L / (1L << CUR.GS.delta_shift);
 
           CUR_Func_move_cvt( A, B );
@@ -6303,7 +6303,7 @@
             }
             else
             {
-              A++;
+              ++A;
               continue;
             }
           }
