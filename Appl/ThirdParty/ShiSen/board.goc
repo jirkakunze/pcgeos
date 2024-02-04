@@ -1,0 +1,642 @@
+/********************************************************************
+ *
+ * PROJECT::	ShiSen-Sho Game for PC/Geos
+ *
+ * DESCRIPTION:	a japanese game similar to mahjongg
+ *
+ * FILE:	board.goc
+ *
+ * REMARK:	this code is ported from the KDE project "KSHISEN"
+ *		created by Mario Weilguni <mweilguni@sime.com>
+ *
+ *		SHISEN is free software; you can redistribute it
+ *		and/or modify it under the terms of the
+ *		GNU General Public License as published by the
+ * 		Free Software Foundation; either version 2, or
+ *		(at your option) any later version.
+ *
+ * 		SHISEN is distributed in the hope that it will be
+ *		useful, but WITHOUT ANY WARRANTY; without even the
+ *		implied warranty of MERCHANTABILITY or FITNESS FOR A
+ *		PARTICULAR PURPOSE. See the GNU General Public
+ *		License for more details.
+ *
+ * HISTORY:	08/08/00   JKunze	initial version
+ *
+ *******************************************************************/
+@define _SHISEN_BOARD_GOC_
+
+@include "shisen.goh"
+@include "Art/craks.goh"
+@include "Art/dots.goh"
+@include "Art/bamboo.goh"
+@include "Art/season.goh"
+@include "Art/dragons.goh"
+@include "Art/direc.goh"
+@include "Art/flowers.goh"
+
+@classdecl ShisenBoardClass;
+
+/********************************************************************
+ *		MSG_VIS_DRAW
+ ********************************************************************
+ *
+ * SYNOPSIS:	draw game board
+ *
+ * PARAMETER:	DrawFlags drawFlags, GStateHandle gstate
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_VIS_DRAW
+{
+  char		x, y, num;
+  byte* 	data;
+  word* 	last;
+  GStateHandle 	string;
+  optr	tileList[] =
+        {@Crak1, @Crak2, @Crak3,	/* defined in craks.goh    */
+         @Crak4, @Crak5, @Crak6,
+         @Crak7, @Crak8, @Crak9,
+         @Dot1, @Dot2, @Dot3,		/* defined in dots.goh     */
+         @Dot4, @Dot5, @Dot6,
+         @Dot7, @Dot8, @Dot9,
+         @Bamboo1, @Bamboo2, @Bamboo3,
+         @Bamboo4, @Bamboo5, @Bamboo6,
+         @Bamboo7, @Bamboo8, @Bamboo9,
+         @Winter, @Autumn, @Summer, @Spring,
+         @DragonC, @DragonF, @DragonP,
+         @North, @South, @West, @East,
+         @Bamboo, @Plum, @Orchid, @Mum};
+
+  GrSetAreaColor(gstate, CF_INDEX, C_GREEN, 0, 0);
+
+  for(x=0; x<=pself->SBI_fieldWidth; x++)
+  {
+    for(y=0; y<=pself->SBI_fieldHeight; y++)
+    {
+      if(pself->SBI_playField[x][y] != EMPTY)
+      {
+        /* lock gametile and draw it at position x, y */
+        MemLock(OptrToHandle(tileList[pself->SBI_playField[x][y]]));
+        data = LMemDeref(tileList[pself->SBI_playField[x][y]]);
+        string = GrLoadGString(PtrToSegment(data), GST_PTR, PtrToOffset(data));
+        GrDrawGString(gstate, string, x * TILE_WIDTH,
+                                      y * TILE_HEIGHT, 0, &last);
+        GrDestroyGString(string, NULL, GSKT_LEAVE_DATA);
+        MemUnlock(OptrToHandle(tileList[pself->SBI_playField[x][y]]));
+
+        /* draw game tile as selected if needed */
+        if((pself->SBI_selectX1 == x && pself->SBI_selectY1 == y) ||
+           (pself->SBI_selectX2 == x && pself->SBI_selectY2 == y))
+        {
+          GrSaveState(gstate);
+	  GrSetMixMode(gstate, MM_INVERT);
+	  GrFillRect(gstate, x * TILE_WIDTH + 4, y * TILE_HEIGHT + 1,
+	                     x * TILE_WIDTH + TILE_WIDTH - 1,
+	                     y * TILE_HEIGHT + TILE_HEIGHT - 4);
+          GrRestoreState(gstate);
+        }
+      }else{
+        /* if position x, y empty draw a rectangle in background color */
+        GrFillRect(gstate, x * TILE_WIDTH, y * TILE_HEIGHT,
+                           x * TILE_WIDTH + TILE_WIDTH,
+                           y * TILE_HEIGHT + TILE_HEIGHT);
+      }
+    }
+  }
+
+  /* draw path between two tiles if needed */
+  GrSetLineWidth(gstate, MakeWWFixed(3));
+  GrSetLineColor(gstate, CF_INDEX, C_RED, 0, 0);
+  for(num=0; num < 3; num++)
+  {
+    if(pself->SBI_historyX[num+1] || pself->SBI_historyY[num+1])
+    {
+      GrDrawLine(gstate,
+                 pself->SBI_historyX[num] * TILE_WIDTH + TILE_WIDTH / 2,
+                 pself->SBI_historyY[num] * TILE_HEIGHT + TILE_HEIGHT / 2,
+                 pself->SBI_historyX[num+1] * TILE_WIDTH + TILE_WIDTH / 2,
+                 pself->SBI_historyY[num+1] * TILE_HEIGHT + TILE_HEIGHT / 2);
+    }
+  }
+}
+
+/********************************************************************
+ *		MSG_META_START_SELECT
+ ********************************************************************
+ *
+ * SYNOPSIS:	calc the selected position and mark this position
+ *
+ * PARAMETER:	MouseReturnParams *retVal,
+ *		word xPosition, word yPosition, word inputState
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_META_START_SELECT
+{
+  char		x1, y1, x2, y2;
+  char		selX, selY;
+  word		timerId;
+
+  /* get current selected positions */
+  @call self::MSG_SHISEN_GET_SELECTION(&x1, &y1, &x2, &y2);
+
+  /* calc play field position of mouse event */
+  selX = xPosition / TILE_WIDTH;
+  selY = yPosition / TILE_HEIGHT;
+
+  /* if mouse event in permission area? */
+  if(pself->SBI_playField[selX][selY] != EMPTY)
+  {
+    /* if this the first selection? */
+    if(x1 == 0 && y1 == 0)
+    {
+      @call self::MSG_SHISEN_SET_SELECTION(selX, selY, 0, 0);
+    }else{
+      /* if this the secoud selection? */
+      if(x2 == 0 && y2 == 0)
+      {
+        /* if the secound selected tile = the first selected tile? */
+        if(selX == x1 && selY == y1)
+        {
+          /* delete all selections */
+          @call self::MSG_SHISEN_SET_SELECTION(0, 0, 0, 0);
+        }else{
+          /* set position as selected, test path between two selected
+             tiles and update the playfield after 1 second */
+          @call self::MSG_SHISEN_SET_SELECTION(x1, y1, selX, selY);
+          @call self::MSG_SHISEN_TEST_PATH(x1, y1, selX, selY);
+          pself->SBI_timerHan = TimerStart(TIMER_EVENT_ONE_SHOT,
+                             oself, 60, MSG_SHISEN_UPDATE_BOARD, 60, &timerId);
+        }
+      }
+    }
+  }
+
+  @call self::MSG_VIS_REDRAW_ENTIRE_OBJECT();
+  retVal->flags = MRF_PROCESSED | MRF_CLEAR_POINTER_IMAGE;
+}
+
+/********************************************************************
+ *		MSG_SHISEN_CLEAR_HISTORY
+ ********************************************************************
+ *
+ * SYNOPSIS:	delete all entrys in the history buffer
+ *
+ * PARAMETER:	void
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_CLEAR_HISTORY
+{
+  word	i;
+
+  for(i=0; i<4; i++)
+  {
+    pself->SBI_historyX[i] = 0;
+    pself->SBI_historyY[i] = 0;
+  }
+}
+
+/********************************************************************
+ *		MSG_SHISEN_SET_SELECTION
+ ********************************************************************
+ *
+ * SYNOPSIS:	mark tiles at position x1, y1 and x2, y2 as select
+ *
+ * PARAMETER:	char x1, char y1, char x2, char y2
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_SET_SELECTION
+{
+  pself->SBI_selectX1 = x1;
+  pself->SBI_selectY1 = y1;
+  pself->SBI_selectX2 = x2;
+  pself->SBI_selectY2 = y2;
+}
+
+/********************************************************************
+ *		MSG_SHISEN_BOARD_GET_SELECTION
+ ********************************************************************
+ *
+ * SYNOPSIS:	get positions which marked as selected
+ *
+ * PARAMETER:	char* x1, char* y1, char* x2, char* y2
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_GET_SELECTION
+{
+  *x1 = pself->SBI_selectX1;
+  *y1 = pself->SBI_selectY1;
+  *x2 = pself->SBI_selectX2;
+  *y2 = pself->SBI_selectY2;
+}
+
+/********************************************************************
+ *		MSG_SHISEN_GET_HINT
+ ********************************************************************
+ *
+ * SYNOPSIS:	look for an allowed move and mark this
+ *
+ * PARAMETER:	void
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_GET_HINT
+{
+  char 		x1, y1, x2, y2;
+  word		timerId;
+
+  /* get position for allowed move */
+  @call self::MSG_SHISEN_GET_MOVE(&x1, &y1, &x2, &y2);
+
+  if(x1 && y1 && x2 && y2)
+  {
+    @call self::MSG_SHISEN_SET_SELECTION(x1, y1, x2, y2);
+    @call self::MSG_VIS_REDRAW_ENTIRE_OBJECT();
+
+    /* update playfield after 1 second */
+    pself->SBI_timerHan = TimerStart(TIMER_EVENT_ONE_SHOT,
+                          oself, 60, MSG_SHISEN_UPDATE_BOARD, 60, &timerId);
+  }
+}
+
+/********************************************************************
+ *		MSG_SHISEN_GET_MOVE
+ ********************************************************************
+ *
+ * SYNOPSIS:	get the position of a possible move
+ *
+ * PARAMETER:	char* startX, char* startY, char* endX, char endY
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_GET_MOVE
+{
+  char 		x1, y1, x2, y2;
+
+  /* clear selections and buffer */
+  @call self::MSG_SHISEN_SET_SELECTION(0, 0, 0, 0);
+  @call self::MSG_SHISEN_CLEAR_HISTORY();
+
+  /* look first allowed gametile */
+  for(x1 = 1; x1 < pself->SBI_fieldWidth; x1++)
+  {
+    for(y1 = 1; y1 < pself->SBI_fieldHeight; y1++)
+    {
+      if(pself->SBI_playField[x1][y1] != EMPTY)
+      {
+         /* look matching secound gametile */
+        for(x2 = pself->SBI_fieldWidth - 1; x2 > 0; x2--)
+        {
+          for(y2 = 1; y2 < pself->SBI_fieldHeight; y2++)
+          {
+            if((x1 != x2 || y1 != y2) && pself->SBI_playField[x2][y2] != EMPTY)
+            {
+              /* can do a path between gametile at position x1, y1 and
+                 gametile at position x2, y2 ? */
+              if(@call self::MSG_SHISEN_TEST_PATH(x1, y1, x2, y2))
+              {
+                @call self::MSG_SHISEN_CLEAR_HISTORY();
+
+                /* save move positions and return */
+                *startX = x1;
+                *startY = y1;
+                *endX = x2;
+                *endY = y2;
+
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  *startX = 0;
+  *startY = 0;
+  *endX = 0;
+  *endY = 0;
+}
+
+/********************************************************************
+ *		MSG_SHISEN_NEW_BOARD
+ ********************************************************************
+ *
+ * SYNOPSIS:	create new playfield with dimensations width, height
+ *
+ * PARAMETER:	char width, char height
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_NEW_BOARD
+{
+  char	x1, y1;
+  char	tile = 0;
+  word	numTiles;
+  word	maxTileIndex;
+
+  /* save board dimension */
+  pself->SBI_fieldWidth = width;
+  pself->SBI_fieldHeight = height;
+
+  /* clear instance data */
+  @call self::MSG_SHISEN_SET_SELECTION(0, 0, 0, 0);
+  @call self::MSG_SHISEN_CLEAR_HISTORY();
+
+  /* mark all field entrys as empty */
+  for(x1=0; x1 <= pself->SBI_fieldWidth; x1++)
+    for(y1=0; y1 <= pself->SBI_fieldHeight; y1++)
+      pself->SBI_playField[x1][y1] = EMPTY;
+
+  /* set object size */
+  @call self::MSG_VIS_SET_SIZE(TILE_WIDTH + TILE_WIDTH * width,
+                               TILE_HEIGHT + TILE_HEIGHT * height);
+
+  /* calc number of tiles in playfield and get the maximal tileindex */
+  numTiles = (width - 1) * (height - 1) / 2;
+  maxTileIndex = @call ShisenBoardSizeList::MSG_GEN_ITEM_GROUP_GET_SELECTION();
+
+  /* fill playField with random tiles */
+  while(numTiles--)
+  {
+    /* get first random position for tile */
+    x1 = GameRandom(width - 1) + 1;
+    y1 = GameRandom(height - 1) + 1;
+    while(pself->SBI_playField[x1][y1] != EMPTY)
+    {
+      x1++;
+      if(x1 == width)
+      {
+        x1 = 1;
+        y1++;
+        if(y1 == height) y1 = 1;
+      }
+    }
+    pself->SBI_playField[x1][y1] = tile;
+
+    /* get secound random position for tile */
+    x1 = GameRandom(width - 1) + 1;
+    y1 = GameRandom(height - 1) + 1;
+    while(pself->SBI_playField[x1][y1] != EMPTY)
+    {
+      x1++;
+      if(x1 == width)
+      {
+        x1 = 1;
+        y1++;
+        if(y1 == height) y1 = 1;
+      }
+    }
+    pself->SBI_playField[x1][y1] = tile;
+
+    tile++;
+    if(tile == maxTileIndex) tile = 0;
+  }
+
+  /* draw playField */
+  @send self::MSG_VIS_REDRAW_ENTIRE_OBJECT();
+}
+
+/********************************************************************
+ *		MSG_SHISEN_TEST_PATH
+ ********************************************************************
+ *
+ * SYNOPSIS:	test a path between two gametiles
+ *
+ * PARAMETER:	char startX, char startY, char endX, char endY
+ *
+ * RETURN:	Boolean
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_TEST_PATH
+{
+  sword dx[4] = {-1, 0, 1, 0};
+  sword dy[4] = {0, -1, 0, 1};
+  word  i;
+  Boolean ret = FALSE;
+
+  @call self::MSG_SHISEN_CLEAR_HISTORY();
+
+  /* if first selected tile == secound selected tile? */
+  if(pself->SBI_playField[startX][startY] == pself->SBI_playField[endX][endY])
+  {
+    if(@call self::MSG_SHISEN_FIND_2WAY_PATH(startX, startY, endX, endY))
+    {
+      ret = TRUE;
+    }else{
+      for(i = 0; i < 4; i++)
+      {
+        sword newx = startX + dx[i];
+        sword newy = startY + dy[i];
+        while(pself->SBI_playField[newx][newy] == EMPTY &&
+              newx >= 0 && newx <= pself->SBI_fieldWidth &&
+              newy >= 0 && newy <= pself->SBI_fieldHeight && ret == FALSE)
+        {
+          if(@call self::MSG_SHISEN_FIND_2WAY_PATH(newx, newy, endX, endY))
+          {
+            ret = TRUE;
+          }
+
+          newx += dx[i];
+          newy += dy[i];
+        }
+      }
+
+      if(ret)
+      {
+        pself->SBI_historyX[3] = pself->SBI_historyX[2];
+        pself->SBI_historyY[3] = pself->SBI_historyY[2];
+        pself->SBI_historyX[2] = pself->SBI_historyX[1];
+        pself->SBI_historyY[2] = pself->SBI_historyY[1];
+        pself->SBI_historyX[1] = pself->SBI_historyX[0];
+        pself->SBI_historyY[1] = pself->SBI_historyY[0];
+        pself->SBI_historyX[0] = startX;
+        pself->SBI_historyY[0] = startY;
+      }
+    }
+  }
+
+  return(ret);
+}
+
+/********************************************************************
+ *		MSG_SHISEN_FIND_2WAY_PATH
+ ********************************************************************
+ *
+ * SYNOPSIS:	find a two way path between two gametiles
+ *
+ * PARAMETER:	char startX, char startY, char endX, char endY
+ *
+ * RETURN:	Boolean
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_FIND_2WAY_PATH
+{
+  Boolean ret = FALSE;
+
+  /* if a simple path possible? */
+  if(@call self::MSG_SHISEN_FIND_1WAY_PATH(startX, startY, endX, endY))
+  {
+    pself->SBI_historyX[0] = startX;
+    pself->SBI_historyY[0] = startY;
+    pself->SBI_historyX[1] = endX;
+    pself->SBI_historyY[1] = endY;
+    ret = TRUE;
+  }else{
+    if(!(startX == endX || startY == endY))
+    {
+      if(pself->SBI_playField[endX][startY] == EMPTY &&
+  	 @call self::MSG_SHISEN_FIND_1WAY_PATH(startX, startY, endX, startY) &&
+  	 @call self::MSG_SHISEN_FIND_1WAY_PATH(endX, startY, endX, endY))
+      {
+        pself->SBI_historyX[0] = startX;
+  	pself->SBI_historyY[0] = startY;
+  	pself->SBI_historyX[1] = endX;
+  	pself->SBI_historyY[1] = startY;
+  	pself->SBI_historyX[2] = endX;
+  	pself->SBI_historyY[2] = endY;
+  	ret = TRUE;
+      }else{
+        if(pself->SBI_playField[startX][endY] == EMPTY &&
+  	   @call self::MSG_SHISEN_FIND_1WAY_PATH(startX, startY, startX, endY) &&
+  	   @call self::MSG_SHISEN_FIND_1WAY_PATH(startX, endY, endX, endY))
+  	{
+	  pself->SBI_historyX[0] = startX;
+	  pself->SBI_historyY[0] = startY;
+	  pself->SBI_historyX[1] = startX;
+	  pself->SBI_historyY[1] = endY;
+	  pself->SBI_historyX[2] = endX;
+  	  pself->SBI_historyY[2] = endY;
+          ret = TRUE;
+        }
+      }
+    }
+  }
+  return(ret);
+}
+
+/********************************************************************
+ *		MSG_SHISEN_FIND_1WAY_PATH
+ ********************************************************************
+ *
+ * SYNOPSIS:	find a direct way between two game tiles
+ *
+ * PARAMETER:	char startX, char startY, char endX, char endY
+ *
+ * RETURN:	Boolean
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_FIND_1WAY_PATH
+{
+  char	i;
+
+  if(startX == endX)
+  {
+    for(i = MIN(startY, endY)+1; i < MAX(startY, endY); i++)
+    {
+      if(pself->SBI_playField[startX][i] != EMPTY) return FALSE;
+    }
+    return TRUE;
+  }
+
+  if(startY == endY)
+  {
+    for(i = MIN(startX, endX)+1; i < MAX(startX, endX); i++)
+    {
+      if(pself->SBI_playField[i][startY] != EMPTY) return FALSE;
+    }
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/********************************************************************
+ *		MSG_SHISEN_GAME_END
+ ********************************************************************
+ *
+ * SYNOPSIS:	test whether game is finished
+ *
+ * PARAMETER:	void
+ *
+ * RETURN:	word
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_GAME_END
+{
+  char		x, y;
+  word		numTiles = 0;
+
+  for(x=1; x<=pself->SBI_fieldWidth; x++)
+  {
+    for(y=1; y<=pself->SBI_fieldHeight; y++)
+    {
+      if(pself->SBI_playField[x][y] != EMPTY) numTiles++;
+    }
+  }
+
+  return numTiles;
+}
+
+/********************************************************************
+ *		MSG_SHISEN_UPDATE_BOARD
+ ********************************************************************
+ *
+ * SYNOPSIS:	clear history and selection and redraw playfield,
+ *              test whether the game is finished and an eiterer
+ *              move is possible
+ *
+ * PARAMETER:	void
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenBoardClass, MSG_SHISEN_UPDATE_BOARD
+{
+  char	x1, y1, x2, y2;
+
+  /* delete selected tiles when needed */
+  if(pself->SBI_historyX[0] && pself->SBI_historyY[0])
+  {
+    @call self::MSG_SHISEN_GET_SELECTION(&x1, &y1, &x2, &y2);
+
+    pself->SBI_playField[x1][y1] = EMPTY;
+    pself->SBI_playField[x2][y2] = EMPTY;
+  }
+
+  /* clear selection and history and redraw playfield */
+  @call self::MSG_SHISEN_SET_SELECTION(0, 0, 0, 0);
+  @call self::MSG_SHISEN_CLEAR_HISTORY();
+  @call self::MSG_VIS_REDRAW_ENTIRE_OBJECT();
+
+  /* if game finished? */
+  if(@call self::MSG_SHISEN_GAME_END() == 0)
+  {
+    UserStandardDialog(NULL, NULL, NULL, NULL,
+                       "All tiles killed!",
+                       ((GIT_AFFIRMATION << CDBF_INTERACTION_TYPE_OFFSET) |
+                       (CDT_WARNING << CDBF_DIALOG_TYPE_OFFSET)));
+  }else{
+    /* look for an allowed move */
+    @call self::MSG_SHISEN_GET_MOVE(&x1, &y1, &x2, &y2);
+    if(!(x1 || y1 || x2 || y2))
+    {
+      UserStandardDialog(NULL, NULL, NULL, NULL,
+                       "Sorry, no more moves!",
+                       ((GIT_AFFIRMATION << CDBF_INTERACTION_TYPE_OFFSET) |
+                       (CDT_WARNING << CDBF_DIALOG_TYPE_OFFSET)));
+    }
+  }
+}

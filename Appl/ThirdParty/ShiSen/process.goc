@@ -1,0 +1,93 @@
+/********************************************************************
+ *
+ * PROJECT::	ShiSen-Sho Game for PC/Geos
+ *
+ * DESCRIPTION:	a japanese game similar to mahjongg
+ *
+ * FILE:	process.goc
+ *
+ * REMARK:	this code is ported from the KDE project "KSHISEN"
+ *		created by Mario Weilguni <mweilguni@sime.com>
+ *
+ *		SHISEN is free software; you can redistribute it
+ *		and/or modify it under the terms of the
+ *		GNU General Public License as published by the
+ * 		Free Software Foundation; either version 2, or
+ *		(at your option) any later version.
+ *
+ * 		SHISEN is distributed in the hope that it will be
+ *		useful, but WITHOUT ANY WARRANTY; without even the
+ *		implied warranty of MERCHANTABILITY or FITNESS FOR A
+ *		PARTICULAR PURPOSE. See the GNU General Public
+ *		License for more details.
+ *
+ * HISTORY:	08/08/00   JKunze	initial version
+ *
+ *******************************************************************/
+@define _SHISEN_PROCESS_GOC_
+
+@include "shisen.goh"
+
+@classdecl ShisenProcessClass;
+
+/********************************************************************
+ *		MSG_GEN_PROCESS_OPEN_APPLICATION
+ ********************************************************************
+ *
+ * SYNOPSIS:	initialise application
+ *
+ * PARAMETER:	AppAttachFlags attachFlags,
+ *		MemHandle lauchBlock,
+ *		MemHandle extraState
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenProcessClass, MSG_GEN_PROCESS_OPEN_APPLICATION
+{
+  @callsuper();
+
+  @call self::MSG_SHISEN_PROCESS_NEW_GAME();
+}
+
+/********************************************************************
+ *		MSG_SHISEN_NEW_GAME
+ ********************************************************************
+ *
+ * SYNOPSIS:	get current size and create a new board with this
+ *
+ * PARAMETER:	void
+ *
+ * RETURN:	void
+ *
+ *******************************************************************/
+@method ShisenProcessClass, MSG_SHISEN_PROCESS_NEW_GAME
+{
+  switch(@call ShisenBoardSizeList::MSG_GEN_ITEM_GROUP_GET_SELECTION())
+  {
+    case SBS_BOARD_SMALL:
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(15, 7);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 7,
+                             TILE_WIDTH * 15, 0 ,0);
+           break;
+
+    case SBS_BOARD_NORMAL:
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(19, 9);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 9,
+                             TILE_WIDTH * 19, 0 ,0);
+           break;
+
+    case SBS_BOARD_LARGE:
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(23, 11);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 11,
+                             TILE_WIDTH * 23, 0 ,0);
+           break;
+
+    case SBS_BOARD_VERY_LARGE:
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(27, 13);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 13,
+                                 TILE_WIDTH * 27, 0 ,0);
+           break;
+  }
+
+}
