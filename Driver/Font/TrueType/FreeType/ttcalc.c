@@ -204,7 +204,6 @@
     return ( s < 0 ) ? -a : a;
   }
 
-
   LOCAL_FUNC
   void  Neg64( TT_Int64*  x )
   {
@@ -224,12 +223,53 @@
         x->hi--;  /* We return 0x7FFFFFFF! */
       }
     }
-  }
+  } 
+
+#if 0
+void Neg64(TT_Int64* x)
+{
+    __asm {
+        mov esi, x        ; Load address of x into esi
+        mov eax, [esi]    ; Load x->lo into eax
+        mov edx, [esi+4]  ; Load x->hi into edx
+
+        neg eax           ; Negate the low dword
+        adc edx, 0        ; Add carry to high dword
+        neg edx           ; Negate the high dword
+
+        ; Handle the special case of -MaxInt64 (0x8000000000000000)
+        jno done          ; Jump if no overflow (common case)
+        
+        ; If overflow, it was -MaxInt64, so set to MaxInt64
+        mov eax, 0FFFFFFFFh
+        mov edx, 7FFFFFFFh
+
+    done:
+        mov [esi], eax    ; Store the result back to x->lo
+        mov [esi+4], edx  ; Store the result back to x->hi
+    }
+}
+#endif
 
 
   LOCAL_FUNC
   void  Add64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z )
   {
+#ifdef __GEOS__
+        __asm {
+        mov eax, x
+        mov ecx, y
+        mov edx, z
+        
+        mov esi, [eax]      ;load x->lo
+        add esi, [ecx]      ;add y->lo
+        mov [edx], esi      ;store result in z->lo
+        
+        mov esi, [eax+4]    ;load x->hi
+        adc esi, [ecx+4]    ;add y->hi with carry
+        mov [edx+4], esi    ;store result in z->hi
+    }
+#else  /* original FreeType implementation */
     register TT_Word32  lo, hi;
 
 
@@ -238,12 +278,29 @@
 
     z->lo = lo;
     z->hi = hi;
+#endif
   }
 
 
   LOCAL_FUNC
   void  Sub64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z )
   {
+#ifdef __GEOS__
+    __asm {
+        mov esi, x        ;load address of x into esi
+        mov edi, y        ;load address of y into edi
+        mov ebx, z        ;load address of z into ebx
+
+        mov eax, [esi]    ;load x->lo into eax
+        mov edx, [esi+4]  ;load x->hi into edx
+
+        sub eax, [edi]    ;subtract y->lo from x->lo
+        sbb edx, [edi+4]  ;subtract y->hi from x->hi with borrow
+
+        mov [ebx], eax    ;store result to z->lo
+        mov [ebx+4], edx  ;store result to z->hi
+    }
+#else  /* original FreeType implementation */
     register TT_Word32  lo, hi;
 
 
@@ -252,6 +309,7 @@
 
     z->lo = lo;
     z->hi = hi;
+#endif
   }
 
 
