@@ -89,7 +89,6 @@
     return j - 1;
   }
 
-
   LOCAL_FUNC
   TT_Int32  Sqrt64( TT_Int64  l )
   {
@@ -251,25 +250,10 @@ void Neg64(TT_Int64* x)
 }
 #endif
 
-
+#ifndef __GEOS__
   LOCAL_FUNC
   void  Add64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z )
   {
-#ifdef __GEOS__
-        __asm {
-        mov eax, x
-        mov ecx, y
-        mov edx, z
-        
-        mov esi, [eax]      ;load x->lo
-        add esi, [ecx]      ;add y->lo
-        mov [edx], esi      ;store result in z->lo
-        
-        mov esi, [eax+4]    ;load x->hi
-        adc esi, [ecx+4]    ;add y->hi with carry
-        mov [edx+4], esi    ;store result in z->hi
-    }
-#else  /* original FreeType implementation */
     register TT_Word32  lo, hi;
 
 
@@ -278,29 +262,14 @@ void Neg64(TT_Int64* x)
 
     z->lo = lo;
     z->hi = hi;
-#endif
   }
+#endif
 
 
+#ifndef __GEOS__
   LOCAL_FUNC
   void  Sub64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z )
   {
-#ifdef __GEOS__
-    __asm {
-        mov esi, x        ;load address of x into esi
-        mov edi, y        ;load address of y into edi
-        mov ebx, z        ;load address of z into ebx
-
-        mov eax, [esi]    ;load x->lo into eax
-        mov edx, [esi+4]  ;load x->hi into edx
-
-        sub eax, [edi]    ;subtract y->lo from x->lo
-        sbb edx, [edi+4]  ;subtract y->hi from x->hi with borrow
-
-        mov [ebx], eax    ;store result to z->lo
-        mov [ebx+4], edx  ;store result to z->hi
-    }
-#else  /* original FreeType implementation */
     register TT_Word32  lo, hi;
 
 
@@ -309,8 +278,8 @@ void Neg64(TT_Int64* x)
 
     z->lo = lo;
     z->hi = hi;
-#endif
   }
+#endif
 
 
   LOCAL_FUNC

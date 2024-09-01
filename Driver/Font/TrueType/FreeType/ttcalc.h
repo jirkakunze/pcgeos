@@ -61,8 +61,13 @@
 #define SQRT_64( x )       Sqrt64( &x )
 #define SQRT_32( x )       Sqrt32( x )
 
+#ifndef __GEOS__
   LOCAL_DEF void  Add64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z );
   LOCAL_DEF void  Sub64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z );
+#else
+  void _pascal Add64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z );
+  void _pascal Sub64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z );
+#endif
 
   LOCAL_DEF void  MulTo64( TT_Int32  x, TT_Int32  y, TT_Int64*  z );
 
@@ -86,6 +91,8 @@ LOCAL_DEF void  TransVecList( TT_Vector*  vec, UShort  n, TT_Matrix*  matrix );
 
 #define ROUND_F26DOT6( x )     ( x >= 0 ? (   ((x) + 32) & -64) \
                                         : ( -((32 - (x)) & -64) ) )
+
+
 
 #ifdef __cplusplus
   }
