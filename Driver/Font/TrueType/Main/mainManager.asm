@@ -129,6 +129,7 @@ include		truetypeEC.asm
 include	    ansic_runtime.asm
 include		ansic_memory.asm
 include		ttmemory_asm.asm
+include		ttcalc_asm.asm
 
 Resident segment resource	;MODULE_FIXED
 
