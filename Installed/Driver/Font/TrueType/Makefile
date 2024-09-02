@@ -4,11 +4,12 @@
 # If you edit it, you will lose your changes, should it be regenerated.
 #
 GEODE           = truetype
-MAIN            = truetypeEscape.asm ansic_runtime.asm mainManager.asm\
-                  ttmemory_asm.asm truetypeWidths.asm ansic_memory.asm\
-                  truetypeMetrics.asm truetypeInit.asm truetypeEC.asm\
-                  truetypeChars.asm truetypePath.asm truetypeMacros.def\
-                  truetypeVariable.def truetypeConstant.def
+MAIN            = truetypeEscape.asm ttcalc_asm.asm ansic_runtime.asm\
+                  mainManager.asm ttmemory_asm.asm truetypeWidths.asm\
+                  ansic_memory.asm truetypeMetrics.asm truetypeInit.asm\
+                  truetypeEC.asm truetypeChars.asm truetypePath.asm\
+                  truetypeMacros.def truetypeVariable.def\
+                  truetypeConstant.def
 ADAPTER         = ttchars.c ttinit.c ttmetrics.c ttcharmapper.c ttadapter.c\
                   ttwidths.c ttpath.c ttcharmapper.h ttpath.h ttchars.h\
                   ttwidths.h ttinit.h ttmetrics.h ttadapter.h
