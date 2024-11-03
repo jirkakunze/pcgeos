@@ -6061,9 +6061,11 @@
           DO_WS
           break;
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS
     Set_Invalid_Ref:
           CUR.error = TT_Err_Invalid_Reference;
           break;
+#endif
 
         case 0x43:  /* RS */
           DO_RS

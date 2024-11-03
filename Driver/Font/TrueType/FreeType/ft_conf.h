@@ -247,6 +247,13 @@
 #define TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
 
 
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS if you want to  */
+/* support obsolete instructions in bytecode interpreter.                */
+
+#undef TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS
+
+
 /**********************************************************************/
 /*                                                                    */
 /*  The following macros are used to define the debug level, as well  */
