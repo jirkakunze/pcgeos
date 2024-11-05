@@ -5338,6 +5338,8 @@
 /****************************************************************/
 
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS
+
 /**********************************************/
 /* GETINFO[]   : GET INFOrmation              */
 /* CodeRange   : $88                          */
@@ -5368,6 +5370,8 @@
 
     args[0] = K;
   }
+
+#endif  /* TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS */
 
 
   static void  Ins_UNKNOWN( EXEC_OP )
@@ -6061,12 +6065,6 @@
           DO_WS
           break;
 
-#ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS
-    Set_Invalid_Ref:
-          CUR.error = TT_Err_Invalid_Reference;
-          break;
-#endif
-
         case 0x43:  /* RS */
           DO_RS
           break;
@@ -6302,7 +6300,9 @@
           break;
 
         case 0x88:  /* GETINFO */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLETE_INSTRUCTIONS
           Ins_GETINFO( EXEC_ARGS  args );
+#endif
           break;
 
         case 0x89:  /* IDEF */
