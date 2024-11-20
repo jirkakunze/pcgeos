@@ -259,8 +259,8 @@
     /*  SZP2      */  PACK( 1, 0 ),
     /*  SZPS      */  PACK( 1, 0 ),
     /*  SLOOP     */  PACK( 1, 0 ),
-    /*  RTG       */  PACK( 0, 0 ),
-    /*  RTHG      */  PACK( 0, 0 ),
+    /*  RTG       */  PACK( 0, 0 ),   //to shift
+    /*  RTHG      */  PACK( 0, 0 ),   //to shift
     /*  SMD       */  PACK( 1, 0 ),
     /*  ELSE      */  PACK( 0, 0 ),
     /*  JMPR      */  PACK( 1, 0 ),
@@ -270,20 +270,20 @@
 
     /*  DUP       */  PACK( 1, 2 ),
     /*  POP       */  PACK( 1, 0 ),
-    /*  CLEAR     */  PACK( 0, 0 ),
+    /*  CLEAR     */  PACK( 0, 0 ),   //to shift
     /*  SWAP      */  PACK( 2, 2 ),
     /*  DEPTH     */  PACK( 0, 1 ),
     /*  CINDEX    */  PACK( 1, 1 ),
     /*  MINDEX    */  PACK( 1, 0 ),
-    /*  AlignPTS  */  PACK( 2, 0 ),
+    /*  AlignPTS  */  PACK( 2, 0 ),   //to shift
     /*  INS_$28   */  PACK( 0, 0 ),
-    /*  UTP       */  PACK( 1, 0 ),
+    /*  UTP       */  PACK( 1, 0 ),   //to shift
     /*  LOOPCALL  */  PACK( 2, 0 ),
     /*  CALL      */  PACK( 1, 0 ),
     /*  FDEF      */  PACK( 1, 0 ),
     /*  ENDF      */  PACK( 0, 0 ),
-    /*  MDAP[0]   */  PACK( 1, 0 ),
-    /*  MDAP[1]   */  PACK( 1, 0 ),
+    /*  MDAP[0]   */  PACK( 1, 0 ),   //to shift
+    /*  MDAP[1]   */  PACK( 1, 0 ),   //to shift
 
     /*  IUP[0]    */  PACK( 0, 0 ),
     /*  IUP[1]    */  PACK( 0, 0 ),
@@ -310,14 +310,14 @@
     /*  RCvt      */  PACK( 1, 1 ),
     /*  GC[0]     */  PACK( 1, 1 ),
     /*  GC[1]     */  PACK( 1, 1 ),
-    /*  SCFS      */  PACK( 2, 0 ),
+    /*  SCFS      */  PACK( 2, 0 ),   //to shift
     /*  MD[0]     */  PACK( 2, 1 ),
     /*  MD[1]     */  PACK( 2, 1 ),
     /*  MPPEM     */  PACK( 0, 1 ),
-    /*  MPS       */  PACK( 0, 1 ),
-    /*  FlipON    */  PACK( 0, 0 ),
-    /*  FlipOFF   */  PACK( 0, 0 ),
-    /*  DEBUG     */  PACK( 1, 0 ),
+    /*  MPS       */  PACK( 0, 1 ),   //to shift
+    /*  FlipON    */  PACK( 0, 0 ),   //to shift
+    /*  FlipOFF   */  PACK( 0, 0 ),   //to shift
+    /*  DEBUG     */  PACK( 1, 0 ),   //to shift
 
     /*  LT        */  PACK( 2, 1 ),
     /*  LTEQ      */  PACK( 2, 1 ),
@@ -332,7 +332,7 @@
     /*  AND       */  PACK( 2, 1 ),
     /*  OR        */  PACK( 2, 1 ),
     /*  NOT       */  PACK( 1, 1 ),
-    /*  DeltaP1   */  PACK( 1, 0 ),
+    /*  DeltaP1   */  PACK( 1, 0 ),   //to shift
     /*  SDB       */  PACK( 1, 0 ),
     /*  SDS       */  PACK( 1, 0 ),
 
@@ -348,27 +348,27 @@
     /*  ROUND[1]  */  PACK( 1, 1 ),
     /*  ROUND[2]  */  PACK( 1, 1 ),
     /*  ROUND[3]  */  PACK( 1, 1 ),
-    /*  NROUND[0] */  PACK( 1, 1 ),
-    /*  NROUND[1] */  PACK( 1, 1 ),
-    /*  NROUND[2] */  PACK( 1, 1 ),
-    /*  NROUND[3] */  PACK( 1, 1 ),
+    /*  NROUND[0] */  PACK( 1, 1 ),   //to shift
+    /*  NROUND[1] */  PACK( 1, 1 ),   //to shift
+    /*  NROUND[2] */  PACK( 1, 1 ),   //to shift
+    /*  NROUND[3] */  PACK( 1, 1 ),   //to shift
 
     /*  WCvtF     */  PACK( 2, 0 ),
-    /*  DeltaP2   */  PACK( 1, 0 ),
-    /*  DeltaP3   */  PACK( 1, 0 ),
-    /*  DeltaCn[0] */ PACK( 1, 0 ),
-    /*  DeltaCn[1] */ PACK( 1, 0 ),
-    /*  DeltaCn[2] */ PACK( 1, 0 ),
-    /*  SROUND    */  PACK( 1, 0 ),
+    /*  DeltaP2   */  PACK( 1, 0 ),   //to shift
+    /*  DeltaP3   */  PACK( 1, 0 ),   //to shift
+    /*  DeltaCn[0] */ PACK( 1, 0 ),   //to shift
+    /*  DeltaCn[1] */ PACK( 1, 0 ),   //to shift
+    /*  DeltaCn[2] */ PACK( 1, 0 ),   //to shift
+    /*  SROUND    */  PACK( 1, 0 ),   //to shift
     /*  S45Round  */  PACK( 1, 0 ),
     /*  JROT      */  PACK( 2, 0 ),
     /*  JROF      */  PACK( 2, 0 ),
-    /*  ROFF      */  PACK( 0, 0 ),
+    /*  ROFF      */  PACK( 0, 0 ),   //to shift
     /*  INS_$7B   */  PACK( 0, 0 ),
     /*  RUTG      */  PACK( 0, 0 ),
     /*  RDTG      */  PACK( 0, 0 ),
-    /*  SANGW     */  PACK( 1, 0 ),
-    /*  AA        */  PACK( 1, 0 ),
+    /*  SANGW     */  PACK( 1, 0 ),   //to shift
+    /*  AA        */  PACK( 1, 0 ),   //to shift
 
     /*  FlipPT    */  PACK( 0, 0 ),
     /*  FlipRgON  */  PACK( 2, 0 ),
@@ -376,15 +376,15 @@
     /*  INS_$83   */  PACK( 0, 0 ),
     /*  INS_$84   */  PACK( 0, 0 ),
     /*  ScanCTRL  */  PACK( 1, 0 ),
-    /*  SDVPTL[0] */  PACK( 2, 0 ),
-    /*  SDVPTL[1] */  PACK( 2, 0 ),
+    /*  SDVPTL[0] */  PACK( 2, 0 ),   //to shift
+    /*  SDVPTL[1] */  PACK( 2, 0 ),   //to shift
     /*  GetINFO   */  PACK( 1, 1 ),
     /*  IDEF      */  PACK( 1, 0 ),
     /*  ROLL      */  PACK( 3, 3 ),
     /*  MAX       */  PACK( 2, 1 ),
     /*  MIN       */  PACK( 2, 1 ),
-    /*  ScanTYPE  */  PACK( 1, 0 ),
-    /*  InstCTRL  */  PACK( 2, 0 ),
+    /*  ScanTYPE  */  PACK( 1, 0 ),   //to shift
+    /*  InstCTRL  */  PACK( 2, 0 ),   //to shift
     /*  INS_$8F   */  PACK( 0, 0 ),
 
     /*  INS_$90  */   PACK( 0, 0 ),
