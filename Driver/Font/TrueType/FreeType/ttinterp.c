@@ -6092,7 +6092,9 @@
           break;
 
         case 0x4F:  /* DEBUG */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
           DO_DEBUG
+#endif
           break;
 
         case 0x50:  /* LT */

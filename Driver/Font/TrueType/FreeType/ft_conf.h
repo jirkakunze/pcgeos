@@ -247,6 +247,9 @@
 #define TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
 
 
+#undef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
+
+
 /**********************************************************************/
 /*                                                                    */
 /*  The following macros are used to define the debug level, as well  */
