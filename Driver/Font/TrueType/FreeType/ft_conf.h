@@ -247,7 +247,19 @@
 #define TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
 
 
+/*************************************************************************/
+/* Define this option to enable support for obsolete bytecode            */
+/* instructions. These instructions are no longer commonly used.         */
+
 #undef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
+
+
+/*************************************************************************/
+/* Define this option to move rarely used interpreter instructions into  */ 
+/* separate code segment. This helps reduce the size of code segment of  */
+/* the core interpreter by isolating less common operations.             */
+
+#define TT_CONFIG_OPTION_SEPARATE_RARE_INTERPRETER_INSTRUCTIONS
 
 
 /**********************************************************************/

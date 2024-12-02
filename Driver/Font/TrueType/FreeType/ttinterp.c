@@ -259,8 +259,8 @@
     /*  SZP2      */  PACK( 1, 0 ),
     /*  SZPS      */  PACK( 1, 0 ),
     /*  SLOOP     */  PACK( 1, 0 ),
-    /*  RTG       */  PACK( 0, 0 ),   //to shift
-    /*  RTHG      */  PACK( 0, 0 ),   //to shift
+    /*  RTG       */  PACK( 0, 0 ),
+    /*  RTHG      */  PACK( 0, 0 ),
     /*  SMD       */  PACK( 1, 0 ),
     /*  ELSE      */  PACK( 0, 0 ),
     /*  JMPR      */  PACK( 1, 0 ),
@@ -268,22 +268,22 @@
     /*  SSwCi     */  PACK( 1, 0 ),
     /*  SSW       */  PACK( 1, 0 ),
 
-    /*  DUP       */  PACK( 1, 2 ),
+    /*  DUP       */  PACK( 1, 2 ), 
     /*  POP       */  PACK( 1, 0 ),
-    /*  CLEAR     */  PACK( 0, 0 ),   //to shift
+    /*  CLEAR     */  PACK( 0, 0 ),
     /*  SWAP      */  PACK( 2, 2 ),
     /*  DEPTH     */  PACK( 0, 1 ),
     /*  CINDEX    */  PACK( 1, 1 ),
     /*  MINDEX    */  PACK( 1, 0 ),
-    /*  AlignPTS  */  PACK( 2, 0 ),   //to shift
+    /*  AlignPTS  */  PACK( 2, 0 ),
     /*  INS_$28   */  PACK( 0, 0 ),
-    /*  UTP       */  PACK( 1, 0 ),   //to shift
+    /*  UTP       */  PACK( 1, 0 ),
     /*  LOOPCALL  */  PACK( 2, 0 ),
     /*  CALL      */  PACK( 1, 0 ),
     /*  FDEF      */  PACK( 1, 0 ),
     /*  ENDF      */  PACK( 0, 0 ),
-    /*  MDAP[0]   */  PACK( 1, 0 ),   //to shift
-    /*  MDAP[1]   */  PACK( 1, 0 ),   //to shift
+    /*  MDAP[0]   */  PACK( 1, 0 ),
+    /*  MDAP[1]   */  PACK( 1, 0 ),
 
     /*  IUP[0]    */  PACK( 0, 0 ),
     /*  IUP[1]    */  PACK( 0, 0 ),
@@ -294,7 +294,7 @@
     /*  SHZ[0]    */  PACK( 1, 0 ),
     /*  SHZ[1]    */  PACK( 1, 0 ),
     /*  SHPIX     */  PACK( 1, 0 ),
-    /*  IP        */  PACK( 0, 0 ),
+    /*  IP        */  PACK( 0, 0 ), 
     /*  MSIRP[0]  */  PACK( 2, 0 ),
     /*  MSIRP[1]  */  PACK( 2, 0 ),
     /*  AlignRP   */  PACK( 0, 0 ),
@@ -310,14 +310,14 @@
     /*  RCvt      */  PACK( 1, 1 ),
     /*  GC[0]     */  PACK( 1, 1 ),
     /*  GC[1]     */  PACK( 1, 1 ),
-    /*  SCFS      */  PACK( 2, 0 ),   //to shift
+    /*  SCFS      */  PACK( 2, 0 ),
     /*  MD[0]     */  PACK( 2, 1 ),
     /*  MD[1]     */  PACK( 2, 1 ),
     /*  MPPEM     */  PACK( 0, 1 ),
-    /*  MPS       */  PACK( 0, 1 ),   //to shift
-    /*  FlipON    */  PACK( 0, 0 ),   //to shift
-    /*  FlipOFF   */  PACK( 0, 0 ),   //to shift
-    /*  DEBUG     */  PACK( 1, 0 ),   //to shift
+    /*  MPS       */  PACK( 0, 1 ),
+    /*  FlipON    */  PACK( 0, 0 ),
+    /*  FlipOFF   */  PACK( 0, 0 ),
+    /*  DEBUG     */  PACK( 1, 0 ),
 
     /*  LT        */  PACK( 2, 1 ),
     /*  LTEQ      */  PACK( 2, 1 ),
@@ -332,7 +332,7 @@
     /*  AND       */  PACK( 2, 1 ),
     /*  OR        */  PACK( 2, 1 ),
     /*  NOT       */  PACK( 1, 1 ),
-    /*  DeltaP1   */  PACK( 1, 0 ),   //to shift
+    /*  DeltaP1   */  PACK( 1, 0 ),
     /*  SDB       */  PACK( 1, 0 ),
     /*  SDS       */  PACK( 1, 0 ),
 
@@ -348,27 +348,27 @@
     /*  ROUND[1]  */  PACK( 1, 1 ),
     /*  ROUND[2]  */  PACK( 1, 1 ),
     /*  ROUND[3]  */  PACK( 1, 1 ),
-    /*  NROUND[0] */  PACK( 1, 1 ),   //to shift
-    /*  NROUND[1] */  PACK( 1, 1 ),   //to shift
-    /*  NROUND[2] */  PACK( 1, 1 ),   //to shift
-    /*  NROUND[3] */  PACK( 1, 1 ),   //to shift
+    /*  NROUND[0] */  PACK( 1, 1 ),
+    /*  NROUND[1] */  PACK( 1, 1 ),
+    /*  NROUND[2] */  PACK( 1, 1 ),
+    /*  NROUND[3] */  PACK( 1, 1 ),
 
     /*  WCvtF     */  PACK( 2, 0 ),
-    /*  DeltaP2   */  PACK( 1, 0 ),   //to shift
-    /*  DeltaP3   */  PACK( 1, 0 ),   //to shift
-    /*  DeltaCn[0] */ PACK( 1, 0 ),   //to shift
-    /*  DeltaCn[1] */ PACK( 1, 0 ),   //to shift
-    /*  DeltaCn[2] */ PACK( 1, 0 ),   //to shift
-    /*  SROUND    */  PACK( 1, 0 ),   //to shift
+    /*  DeltaP2   */  PACK( 1, 0 ),
+    /*  DeltaP3   */  PACK( 1, 0 ),
+    /*  DeltaCn[0] */ PACK( 1, 0 ),
+    /*  DeltaCn[1] */ PACK( 1, 0 ),
+    /*  DeltaCn[2] */ PACK( 1, 0 ),
+    /*  SROUND    */  PACK( 1, 0 ),
     /*  S45Round  */  PACK( 1, 0 ),
     /*  JROT      */  PACK( 2, 0 ),
     /*  JROF      */  PACK( 2, 0 ),
-    /*  ROFF      */  PACK( 0, 0 ),   //to shift
+    /*  ROFF      */  PACK( 0, 0 ),
     /*  INS_$7B   */  PACK( 0, 0 ),
     /*  RUTG      */  PACK( 0, 0 ),
     /*  RDTG      */  PACK( 0, 0 ),
-    /*  SANGW     */  PACK( 1, 0 ),   //to shift
-    /*  AA        */  PACK( 1, 0 ),   //to shift
+    /*  SANGW     */  PACK( 1, 0 ),
+    /*  AA        */  PACK( 1, 0 ),
 
     /*  FlipPT    */  PACK( 0, 0 ),
     /*  FlipRgON  */  PACK( 2, 0 ),
@@ -376,15 +376,15 @@
     /*  INS_$83   */  PACK( 0, 0 ),
     /*  INS_$84   */  PACK( 0, 0 ),
     /*  ScanCTRL  */  PACK( 1, 0 ),
-    /*  SDVPTL[0] */  PACK( 2, 0 ),   //to shift
-    /*  SDVPTL[1] */  PACK( 2, 0 ),   //to shift
+    /*  SDVPTL[0] */  PACK( 2, 0 ),
+    /*  SDVPTL[1] */  PACK( 2, 0 ),
     /*  GetINFO   */  PACK( 1, 1 ),
     /*  IDEF      */  PACK( 1, 0 ),
     /*  ROLL      */  PACK( 3, 3 ),
     /*  MAX       */  PACK( 2, 1 ),
     /*  MIN       */  PACK( 2, 1 ),
-    /*  ScanTYPE  */  PACK( 1, 0 ),   //to shift
-    /*  InstCTRL  */  PACK( 2, 0 ),   //to shift
+    /*  ScanTYPE  */  PACK( 1, 0 ),
+    /*  InstCTRL  */  PACK( 2, 0 ),
     /*  INS_$8F   */  PACK( 0, 0 ),
 
     /*  INS_$90  */   PACK( 0, 0 ),
@@ -4948,11 +4948,9 @@
 
   static void  Ins_UTP( INS_ARG )
   {
-    UShort  point;
-    Byte    mask;
+    UShort  point = (UShort)args[0];
+    Byte    mask  = 0xFF;
 
-
-    point = (UShort)args[0];
 
     if ( BOUNDS( point, CUR.zp0.n_points ) )
     {
@@ -4962,8 +4960,6 @@
 #endif
       return;
     }
-
-    mask = 0xFF;
 
     if ( CUR.GS.freeVector.x != 0 )
       mask &= ~TT_Flag_Touched_X;
@@ -5796,11 +5792,9 @@
         case 0x04:  /* SFvTCA y */
         case 0x05:  /* SFvTCA x */
           {
-            Short AA, BB;
+            Short AA = (Short)(opcode & 1) << 14;
+            Short BB = (Short)(AA ^ 0x4000);
 
-
-            AA = (Short)(opcode & 1) << 14;
-            BB = AA ^ (Short)0x4000;
 
             if ( opcode < 4 )
             {
@@ -5811,7 +5805,7 @@
               CUR.GS.dualVector.y = BB;
             }
 
-            if ( (opcode & 2) == 0 )
+            if (!(opcode & 2))
             {
               CUR.GS.freeVector.x = AA;
               CUR.GS.freeVector.y = BB;
@@ -6355,11 +6349,8 @@
 
               goto LSuiteLabel_;
             }
-            else
-            {
-              ++A;
-              continue;
-            }
+            
+            ++A;
           }
 
           CUR.error = TT_Err_Invalid_Opcode;
