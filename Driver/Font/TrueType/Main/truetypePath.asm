@@ -3,7 +3,7 @@ COMMENT @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	Copyright (c) GeoWorks 1991 -- All Rights Reserved
 
 PROJECT:	PC GEOS
-MODULE:		GeoCalc
+MODULE:		TrueType Font Driver
 FILE:		truetypePath.asm
 
 AUTHOR:		Falk Rehwagen, Jan 29, 2021
@@ -57,53 +57,53 @@ TrueTypeGenPath	proc	far
 	.enter
 
 	xchg	di, ax				;ax <- handle of GState
-	mov		di, 400
+	mov	di, 400
 	call	ThreadBorrowStackSpace
 	push	di
 
-	push 	ax					;pass gstate handle
-	mov		ch, 0
+	push 	ax					;pass GState handle
+	mov	ch, 0
 	push 	cx					;pass FontGenPathFlags
 	push	dx					;pass characters code
 
 	mov 	bx, ax
-	call 	MemLock				;lock gstate block
-	mov		es, ax				;es <- seg addr of gstate		
-	mov		cx, es:GS_fontAttr.FCA_fontID
-	clr		ah		                   
-	mov		al, es:GS_fontAttr.FCA_textStyle
+	call 	MemLock				;lock GState block
+	mov	es, ax				;es <- seg addr of gstate		
+	mov	cx, es:GS_fontAttr.FCA_fontID
+	clr	ah		                   
+	mov	al, es:GS_fontAttr.FCA_textStyle
 
 	call	FontDrFindFontInfo
 	push	ds					;pass ptr to FontInfo
 	push	di
 
-	mov		cx, ds				;save ptr to FontInfo
-	mov		dx, di
+	mov	cx, ds				;save ptr to FontInfo
+	mov	dx, di
 
-	mov		si, bx				;si <-> handle of GState
-	mov		bx, ODF_HEADER
+	mov	si, bx				;si <- handle of GState
+	mov	bx, ODF_HEADER
 	call	FontDrFindOutlineData
 	push	ds					;pass ptr to OutlineEntry
 	push	di
 
-	mov		ds, cx
-	mov		di, dx
+	mov	ds, cx
+	mov	di, dx
 
-	clr		ah
-	mov		al, es:GS_fontAttr.FCA_textStyle
-	mov		bx, ODF_PART1
+	clr	ah
+	mov	al, es:GS_fontAttr.FCA_textStyle
+	mov	bx, ODF_PART1
 	call	FontDrFindOutlineData
 	push	ds					;pass ptr to FontHeader
 	push	di
 	push	ax					;pass stylesToImplement
-	mov		bx, si				;bx <- handle of GState
-	call	MemUnlock			;unlock gstate block
+	mov	bx, si				;bx <- handle of GState
+	call	MemUnlock			;unlock GState block
 
 	segmov	ds, dgroup, ax
 	push	ds:variableHandle	;pass handle to truetype block
 	call	TRUETYPE_GEN_PATH
 
-	pop		di
+	pop	di
 	call	ThreadReturnStackSpace
 
 	.leave
@@ -147,36 +147,174 @@ REVISION HISTORY:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@
 
 TrueTypeGenInRegion	proc	far
-	uses	ax, bx, ds, es
+	uses	ax, bx, cx, dx, si, ds, es
 	.enter
 
-	push 	di					;pass gstate handle
+	mov	si,	di				;si <- GState handle
+	mov	di, FONT_C_CODE_STACK_SPACE
+	call	ThreadBorrowStackSpace
+	push	di
+
+    ; building parameter stack
+	push 	si					;pass GState handle
 	push	cx					;pass regionpath handle
 	push	dx					;pass character code	
-	clr		al
-	mov 	es, di				;es <- seg addr of gstate
+
+	mov	bx, si				;bx <- GState handle
+	call 	MemLock				;lock GState block
+	mov	es, ax				;es <- seg addr of GState		
+
+	clr	al
 	movwbf	dxah, es:GS_fontAttr.FCA_pointsize
 	push	dx					;pass point size
-	push 	ax		
+	push 	ax	
 
-	mov		cx, es:GS_fontAttr.FCA_fontID
+	clr	ah
+	mov	al, es:GS_fontAttr.FCA_width
+	push	ax					;pass width
+	mov	al, es:GS_fontAttr.FCA_weight
+	push	ax					;pass weight
+
+	mov	cx, es:GS_fontAttr.FCA_fontID
 	call	FontDrFindFontInfo
 	push	ds					;pass ptr to FontInfo
 	push	di
 
-	clr		ah		                   
-	mov		al, es:GS_fontAttr.FCA_textStyle
-	mov		bx, ODF_HEADER
+	mov	cx, ds					;save ptr to FontInfo
+	mov	dx, di	
+
+	clr	ah		                   
+	mov	al, es:GS_fontAttr.FCA_textStyle
+	mov	bx, ODF_HEADER
 	call	FontDrFindOutlineData
 	push	ds					;pass ptr to OutlineEntry
 	push	di
+
+	mov	ds, cx					;get saved ptr to FontInfo
+	mov	di, dx
+
+	clr	ah
+	mov	al, es:GS_fontAttr.FCA_textStyle
+	mov	bx, ODF_PART1
+	call	FontDrFindOutlineData
+	push	ds					;pass ptr to FontHeader
+	push	di
+	push	ax					;pass stylesToImplement
 
 	segmov	ds, dgroup, ax
 	push	ds:variableHandle	;pass handle to truetype block
 	call	TRUETYPE_GEN_IN_REGION
 
+	mov	bx, si				;bx <- handle of GState
+	call	MemUnlock			;unlock GState block
+
+	pop	di
+	call	ThreadReturnStackSpace
+
 	.leave
 	ret
 TrueTypeGenInRegion	endp
+
+
+COMMENT @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+C FUNCTION:	GrRegionPathMovePen
+
+C DECLARATION:	extern void
+			_far _pascal GrRegionPathMovePen(Handle regionHandle, sword x, sword y);
+
+KNOWN BUGS/SIDE EFFECTS/CAVEATS/IDEAS:
+
+REVISION HISTORY:
+	Name	Date		Description
+	----	----		-----------
+	JK	3/14/24		Initial version
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@
+
+GRREGIONPATHMOVEPEN		proc	far
+	C_GetThreeWordArgs	bx, cx, dx,  ax		;bx = regionHandle, cx = x, dx = y
+
+	push	es
+	call	MemLock
+	mov	es, ax
+	call	GrRegionPathMovePen
+	call	MemUnlock
+	pop	es
+	ret
+
+GRREGIONPATHMOVEPEN		endp
+
+
+COMMENT @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+C FUNCTION:	GrRegionPathDrawLineTo
+
+C DECLARATION:	extern void
+			_far _pascal GrRegionPathLineTo(Handle regionHandle, sword x, sword y);
+
+KNOWN BUGS/SIDE EFFECTS/CAVEATS/IDEAS:
+
+REVISION HISTORY:
+	Name	Date		Description
+	----	----		-----------
+	JK	3/14/24		Initial version
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@
+
+GRREGIONPATHDRAWLINETO	proc	far
+	C_GetThreeWordArgs	bx, cx, dx,  ax		;bx = regionHandle, cx = x, dx = y
+
+	push	es
+	call	MemLock
+	mov	es, ax
+	call	GrRegionPathAddLineAtCP
+	call	MemUnlock
+	pop	es
+	ret
+
+GRREGIONPATHDRAWLINETO	endp
+
+
+COMMENT @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+C FUNCTION:	GrRegionPathDrawLineTo
+
+C DECLARATION:	extern void
+			_far _pascal GrRegionPathDrawCurve(Handle regionHandle, const Point *points);
+
+KNOWN BUGS/SIDE EFFECTS/CAVEATS/IDEAS:
+
+REVISION HISTORY:
+	Name	Date		Description
+	----	----		-----------
+	JK	3/19/24		Initial version
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@
+
+GRREGIONPATHDRAWCURVETO	proc	far	
+	C_GetThreeWordArgs	bx, cx, ax,  dx	;bx = regionHandle, cx = seg of points, ax = off of points
+		
+	push	ds
+	push	bp
+	push	es
+	mov	ds, cx
+	xchg	di, ax						;ds:di addr of points
+	
+	call	MemLock						;get seg of region
+	mov	es, ax
+	clr	bp
+	mov	cx, REC_BEZIER_STACK
+	call	GrRegionPathAddBezierAtCP
+	call	MemUnlock
+
+	xchg	di, ax
+	pop	es
+	pop	bp
+	pop	ds
+
+	ret
+
+GRREGIONPATHDRAWCURVETO	endp
 
 

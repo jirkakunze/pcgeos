@@ -3,7 +3,7 @@ COMMENT @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	Copyright (c) blueway.Softworks 2021 -- All Rights Reserved
 
 PROJECT:	PC GEOS
-MODULE:		Init
+MODULE:		TrueType Font Driver
 FILE:		truetypeInit.asm
 
 AUTHOR:		Falk Rehwagen, Jan 24, 2021
@@ -127,16 +127,20 @@ TrueTypeExit	proc	far
 
 	mov	ax, segment udata
 	mov	ds, ax				;ds <- seg addr of vars
+
+	;
+	; Deinitialize FreeType engine.
+	;
+	push	ds:variableHandle
+	call	EXIT_FREETYPE			;finish FreeType engine
+
 	mov	bx, ds:bitmapHandle
 EC <	clr	ds:bitmapHandle			;>
 	call	MemFree				;done with bitmap block
 	mov	bx, ds:variableHandle
 EC <	clr	ds:variableHandle		;>
 	call	MemFree				;done with variable block
-	;
-	; Deinitialize FreeType engine.
-	;
-	call	EXIT_FREETYPE			;finish FreeType engine
+
 	test	ax, 0				;check for errors
 	jz	noerror
 	stc					;indicate error
