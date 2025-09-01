@@ -25,16 +25,16 @@
 #include <string.h>
 
 
-static void CopyChar( FontBuf* fontBuf, word geosChar, void* charData, word charDataSize );
+static void CopyChar( FontBuf* fontBuf, word geosChar, const void* charData, word charDataSize );
 static void ShrinkFontBuf( FontBuf* fontBuf );
-static int FindLRUChar( FontBuf* fontBuf, int numOfChars );
+static int FindLRUChar( const FontBuf* fontBuf, const int numOfChars );
 static void AdjustPointers( CharTableEntry* charTableEntries, 
-                            CharTableEntry* lruEntry, 
-                            word sizeLRUEntry,
-                            word numOfChars );
-static word ShiftCharData( FontBuf* fontBuf, CharData* charData );
-static word ShiftRegionCharData( FontBuf* fontBuf, RegionCharData* charData );
-static void* EnsureBitmapBlock( MemHandle bitmapHandle, word size );
+                            const CharTableEntry* lruEntry, 
+                            const word sizeLRUEntry,
+                            const word numOfChars );
+static word ShiftCharData( const FontBuf* fontBuf, CharData* charData );
+static word ShiftRegionCharData( const FontBuf* fontBuf, RegionCharData* charData );
+static void* EnsureBitmapBlock( const MemHandle bitmapHandle, const word size );
 
 
 /********************************************************************
@@ -54,15 +54,17 @@ static void* EnsureBitmapBlock( MemHandle bitmapHandle, word size );
  * 
  * RETURNS:       void
  * 
- * STRATEGY:      - find font-file for the requested style from fontInfo
- *                - open outline of character in founded font-file
- *                - calculate requested metrics and return it
+ * STRATEGY:      The function locates the font face and glyph index, prepares the
+ *                transformation matrix, and loads the glyph outline. It then computes
+ *                the bounding box and rasterizes the glyph as either a region or a
+ *                bitmap. If the font buffer lacks space, it is shrunk or reallocated.
+ *                Finally, the glyph is stored in the buffer and the cache is updated.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      12/23/22  JK        Initial Revision
- * 
+ *      23/08/25  JK        safeguard for zero dimensions fixed
  *******************************************************************/
 
 void _pascal TrueType_Gen_Chars(
@@ -77,13 +79,13 @@ void _pascal TrueType_Gen_Chars(
                         MemHandle            bitmapHandle,
                         MemHandle            varBlock ) 
 {
-        MemHandle              fontBufHandle;
-        TrueTypeOutlineEntry*  trueTypeOutline;
-        TT_UShort              charIndex;
-        TrueTypeVars*          trueTypeVars;
-        TransformMatrix*       transformMatrix;
-        void*                  charData;
-        sword                  width, height, size;
+        MemHandle                    fontBufHandle;
+        const TrueTypeOutlineEntry*  trueTypeOutline;
+        TT_UShort                    charIndex;
+        TrueTypeVars*                trueTypeVars;
+        const TransformMatrix*       transformMatrix;
+        void*                        charData;
+        sword                        width, height, size;
 
 
 EC(     ECCheckBounds( (void*)fontBuf ) );
@@ -96,8 +98,8 @@ EC(     ECCheckMemHandle( varBlock ) );
         trueTypeVars = MemLock( varBlock );
 EC(     ECCheckBounds( (void*)trueTypeVars ) );
 
-        trueTypeOutline = LMemDerefHandles( MemPtrToHandle( (void*)fontInfo ), outlineEntry->OE_handle );
-EC(     ECCheckBounds( (void*)trueTypeOutline ) );
+        trueTypeOutline = (const TrueTypeOutlineEntry*) ( MemPtrToHandle( (void*)fontInfo ), outlineEntry->OE_handle );
+EC(     ECCheckBounds( (const void*)trueTypeOutline ) );
 
         /* open face and instance */
         if( TrueType_Lock_Face(trueTypeVars, trueTypeOutline) )
@@ -109,8 +111,9 @@ EC(     ECCheckBounds( (void*)trueTypeOutline ) );
                 goto Fail;
 
         /* get transformmatrix */
-        transformMatrix = (TransformMatrix*)(((byte*)fontBuf) + sizeof( FontBuf ) + ( fontBuf->FB_lastChar - fontBuf->FB_firstChar + 1 ) * sizeof( CharTableEntry ));
-EC(     ECCheckBounds( (void*)transformMatrix ) );
+        transformMatrix = (const TransformMatrix*)
+                          (((byte*)fontBuf) + sizeof( FontBuf ) + ( fontBuf->FB_lastChar - fontBuf->FB_firstChar + 1 ) * sizeof( CharTableEntry ));
+EC(     ECCheckBounds( (const void*)transformMatrix ) );
 
         /* set pointsize and resolution */
         TT_Set_Instance_CharSize_And_Resolutions( INSTANCE, pointSize >> 10, transformMatrix->TM_resX, transformMatrix->TM_resY );
@@ -182,7 +185,7 @@ EC_ERROR_IF(    size < RASTER_MAP.size, ERROR_BITMAP_BUFFER_OVERFLOW );
                         height = 1;
 
                 if( width == 0 && height > 0 )
-                        width = 0;
+                        width = 1;
 
                 size = height * ( ( width + 7 ) >> 3 ) + SIZE_CHAR_HEADER;
 
@@ -273,23 +276,27 @@ Fin:
  * 
  * RETURNS:       void
  * 
- * STRATEGY:      
+ * STRATEGY:      The function copies the rendered glyph into the FontBuf at the
+ *                current end position. It then updates the character’s entry in
+ *                the CharTable to point to the new data and increases FB_dataSize
+ *                accordingly.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      12/23/22  JK        Initial Revision
+ *      08/23/25  JK        Improved comment, const-correct parameters
  *******************************************************************/
 
-static void CopyChar( FontBuf* fontBuf, word geosChar, void* charData, word charDataSize ) 
+static void CopyChar( FontBuf* fontBuf, word geosChar, const void* charData, word charDataSize ) 
 {
-        const word       indexGeosChar    = geosChar - fontBuf->FB_firstChar;
-        CharTableEntry*  charTableEntries = (CharTableEntry*) (((byte*)fontBuf) + sizeof( FontBuf ));
+        const word             indexGeosChar    = geosChar - fontBuf->FB_firstChar;
+        CharTableEntry*  const charTableEntries = (CharTableEntry*) (((byte*)fontBuf) + sizeof( FontBuf ));
 
  
-EC(     ECCheckBounds( (void*)charData ) );
-EC(     ECCheckBounds( (void*)(((byte*)fontBuf) + fontBuf->FB_dataSize ) ) );
-EC(     ECCheckBounds( (void*)(((byte*)fontBuf) + fontBuf->FB_dataSize  + charDataSize - 1) ) );
+EC(     ECCheckBounds( (const void*)charData ) );
+EC(     ECCheckBounds( (const void*)(((byte*)fontBuf) + fontBuf->FB_dataSize ) ) );
+EC(     ECCheckBounds( (const void*)(((byte*)fontBuf) + fontBuf->FB_dataSize  + charDataSize - 1) ) );
 
         /* copy rendered Glyph to fontBuf */
         memmove( ((byte*)fontBuf) + fontBuf->FB_dataSize, charData, charDataSize );
@@ -309,7 +316,8 @@ EC(     ECCheckBounds( (void*)(((byte*)fontBuf) + fontBuf->FB_dataSize  + charDa
  * 
  * RETURNS:       void
  * 
- * STRATEGY:      
+ * STRATEGY:      Repeatedly find and remove the LRU character, shift data and
+ *                adjust table entries, until the buffer size fits the limit.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
@@ -368,26 +376,31 @@ EC(             ECCheckBounds( (void*)charData ) );
  * 
  * RETURNS:       int                   Index of lru char.
  * 
- * STRATEGY:      
+ * STRATEGY:      Iterates over the CharTableEntry list. Entries without data
+ *                (CTE_dataOffset <= CHAR_MISSING) are skipped. The entry with the
+ *                smallest CTE_usage value is considered the LRU character, and
+ *                its index is returned.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      12/23/22  JK        Initial Revision
+ *      08/23/25  JK        Improved comment, const-correct parameters
  *******************************************************************/
 
-static int FindLRUChar( FontBuf* fontBuf, int numOfChars )
+static int FindLRUChar( const FontBuf* fontBuf, const int numOfChars )
 {
-        word             lru = 0xffff;
-        int              indexLRUChar = -1;
-        int              i;
-        CharTableEntry*  charTableEntry = (CharTableEntry*) (((byte*)fontBuf) + sizeof( FontBuf ));
+        word                   lru = 0xffff;
+        int                    indexLRUChar = -1;
+        int                    i;
+        const CharTableEntry*  charTableEntry = 
+                               (const CharTableEntry*) (((const byte*)fontBuf) + sizeof( FontBuf ));
 
 
         for( i = 0; i < numOfChars; ++i, ++charTableEntry )
         {
 
-EC(             ECCheckBounds( (void*)charTableEntry ) );
+EC(             ECCheckBounds( (const void*)charTableEntry ) );
 
                 /* if no data, go to next char */
                 if( charTableEntry->CTE_dataOffset <= CHAR_MISSING )
@@ -418,7 +431,11 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
  * 
  * RETURNS:       void
  * 
- * STRATEGY:      
+ * STRATEGY:      The function scans all character entries. If an entry’s data
+ *                offset lies above the offset of the removed glyph, the offset is
+ *                decremented by the size of the removed data. This ensures that
+ *                all remaining offsets remain consistent with the compacted
+ *                FontBuf layout.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
@@ -426,9 +443,9 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
  *      12/23/22  JK        Initial Revision
  *******************************************************************/
 static void AdjustPointers( CharTableEntry* charTableEntries, 
-                            CharTableEntry* lruEntry, 
-                            word sizeLRUEntry,
-                            word numOfChars )
+                            const CharTableEntry* lruEntry, 
+                            const word sizeLRUEntry,
+                            const word numOfChars )
 {
         word  i;
 
@@ -450,7 +467,10 @@ static void AdjustPointers( CharTableEntry* charTableEntries,
  * 
  * RETURNS:       void
  * 
- * STRATEGY:      
+ * STRATEGY:      The function derives the removed glyph's total size from its header
+ *                and pixel dimensions. If any data follows in the buffer, it uses
+ *                memmove to shift that data forward over the gap and returns the
+ *                removed size to the caller.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
@@ -458,7 +478,7 @@ static void AdjustPointers( CharTableEntry* charTableEntries,
  *      12/23/22  JK        Initial Revision
  *******************************************************************/
 
-static word ShiftCharData( FontBuf* fontBuf, CharData* charData )
+static word ShiftCharData( const FontBuf* fontBuf, CharData* charData )
 {
         const word    dataSize = ( ( charData->CD_pictureWidth + 7 ) >> 3 ) * charData->CD_numRows + SIZE_CHAR_HEADER;
         const word    bytesToMove = fontBuf->FB_dataSize - PtrToOffset( charData ) - dataSize;
@@ -488,14 +508,17 @@ EC(     ECCheckBounds( (void*)(((byte*)charData) + dataSize + bytesToMove - 1) )
  * 
  * RETURNS:       void
  * 
- * STRATEGY:      
+ * STRATEGY:      The function calculates the size of the removed glyph (region
+ *                header plus bitmap data). If any data follows in the buffer, it
+ *                shifts that data forward using memmove to fill the gap. The size
+ *                of the removed glyph is then returned to the caller.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      12/23/22  JK        Initial Revision
  *******************************************************************/
-static word ShiftRegionCharData( FontBuf* fontBuf, RegionCharData* charData )
+static word ShiftRegionCharData( const FontBuf* fontBuf, RegionCharData* charData )
 {
         const word    dataSize = charData->RCD_size + SIZE_REGION_HEADER;
         const word    bytesToMove = fontBuf->FB_dataSize - PtrToOffset( charData ) - dataSize;
@@ -526,7 +549,12 @@ EC(     ECCheckBounds( (void*)(((byte*)charData) + dataSize + bytesToMove  - 1) 
 
  * RETURNS:       void*                 Pointer to locked bitmap block.
  * 
- * STRATEGY:      
+ * STRATEGY:       Lock the block if possible. If it is not allocated or too small,
+ *                 reallocate it to at least the requested size (or the initial default
+ *                 for first allocation), then lock again. If the requested size is
+ *                 below the initial default while the block is larger, shrink it to
+ *                 the initial default. Finally, zero the first `size` bytes and return
+ *                 the pointer.
  * 
  * REVISION HISTORY:
  *      Date      Name      Description
@@ -534,7 +562,7 @@ EC(     ECCheckBounds( (void*)(((byte*)charData) + dataSize + bytesToMove  - 1) 
  *      12/23/22  JK        Initial Revision
  *******************************************************************/
 
-static void* EnsureBitmapBlock( MemHandle bitmapHandle, word size )
+static void* EnsureBitmapBlock( const MemHandle bitmapHandle, const word size )
 {
         void* bitmapData = MemLock( bitmapHandle );
 
