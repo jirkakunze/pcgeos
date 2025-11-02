@@ -331,7 +331,7 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
                         TT_Get_Index_Metrics( FACE, charIndex, &GLYPH_METRICS );
 
                         /* fill CharTableEntry */
-                        scaledWidth = GrMulWWFixed( MakeWWFixed( GLYPH_METRICS.advance), SCALE_WIDTH );
+                        scaledWidth = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_METRICS.advance), SCALE_WIDTH );
                         charTableEntry->CTE_width.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( scaledWidth );
                         charTableEntry->CTE_width.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( scaledWidth );
                         charTableEntry->CTE_dataOffset     = CHAR_NOT_BUILT;
@@ -566,7 +566,7 @@ static void CalcScaleForWidths( TRUETYPE_VARS,
                                 Byte            width,
                                 Byte            weight )
 {
-        SCALE_HEIGHT = GrUDivWWFixed( pointSize, MakeWWFixed( FACE_PROPERTIES.header->Units_Per_EM ) );
+        SCALE_HEIGHT = GrUDivWWFixed( pointSize, WORD_TO_WWFIXEDASDWORD( FACE_PROPERTIES.header->Units_Per_EM ) );
         SCALE_WIDTH  = SCALE_HEIGHT;
 
         if( stylesToImplement & ( TS_BOLD ) )

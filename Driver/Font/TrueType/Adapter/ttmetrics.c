@@ -173,7 +173,7 @@ static void CalcScaleForWidths( TRUETYPE_VARS,
                                 Byte            width,
                                 Byte            weight )
 {
-        SCALE_HEIGHT = SCALE_WIDTH = GrUDivWWFixed( pointSize, MakeWWFixed( FACE_PROPERTIES.header->Units_Per_EM ) );
+        SCALE_HEIGHT = SCALE_WIDTH = GrUDivWWFixed( pointSize, WORD_TO_WWFIXEDASDWORD( FACE_PROPERTIES.header->Units_Per_EM ) );
 
         if( stylesToImplement & ( TS_BOLD ) )
                 SCALE_WIDTH = GrMulWWFixed( SCALE_WIDTH, WWFIXED_1_POINR_1 );

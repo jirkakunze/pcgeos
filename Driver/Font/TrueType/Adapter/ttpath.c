@@ -660,7 +660,7 @@ static void CalcTransformMatrix( TransMatrix*    transMatrix,
                                  WWFixedAsDWord  pointSize, 
                                  TextStyle       stylesToImplement )
 {
-        WWFixedAsDWord scaleFactor = GrUDivWWFixed( pointSize, MakeWWFixed( STANDARD_GRIDSIZE ) );
+        WWFixedAsDWord scaleFactor = GrUDivWWFixed( pointSize, WORD_TO_WWFIXEDASDWORD( STANDARD_GRIDSIZE ) );
 
         transMatrix->TM_e11.WWF_frac = FractionOf( scaleFactor );
         transMatrix->TM_e11.WWF_int  = IntegerOf( scaleFactor );
@@ -817,7 +817,7 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
 
 
         /* calculate scale factor for pointsize */
-        scaleFactor = GrUDivWWFixed( pointSize, MakeWWFixed( UNITS_PER_EM ) );
+        scaleFactor = GrUDivWWFixed( pointSize, WORD_TO_WWFIXEDASDWORD( UNITS_PER_EM ) );
 
         /* initilize drivers tranformation matrix */
         transMatrix->TM_matrix.xx = scaleFactor;
@@ -847,7 +847,7 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         /* fake script style      */
         if( stylesToImplement & ( TS_SUBSCRIPT | TS_SUPERSCRIPT ) )
         {      
-                WWFixedAsDWord scriptBaseline = GrMulWWFixed( MakeWWFixed( fontHeader->FH_height + fontHeader->FH_baseAdjust ), scaleFactor ); 
+                WWFixedAsDWord scriptBaseline = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( fontHeader->FH_height + fontHeader->FH_baseAdjust ), scaleFactor ); 
 
 
                 transMatrix->TM_matrix.xx = GrMulWWFixed( transMatrix->TM_matrix.xx, SCRIPT_FACTOR );
