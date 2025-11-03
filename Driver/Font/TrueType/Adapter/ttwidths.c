@@ -330,8 +330,11 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
                         /* load metrics */
                         TT_Get_Index_Metrics( FACE, charIndex, &GLYPH_METRICS );
 
-                        /* fill CharTableEntry */
+                        /* Compute the scaled advance width for glyph and round it to the nearest 1/4 pixel */
                         scaledWidth = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_METRICS.advance), SCALE_WIDTH );
+                        scaledWidth += 0x2000;
+                        
+                        /* fill CharTableEntry */
                         charTableEntry->CTE_width.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( scaledWidth );
                         charTableEntry->CTE_width.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( scaledWidth );
                         charTableEntry->CTE_dataOffset     = CHAR_NOT_BUILT;
