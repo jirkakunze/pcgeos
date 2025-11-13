@@ -66,10 +66,15 @@ extern TEngine_Instance engineInstance;
 #define FAMILY_NAME_LENGTH                  20
 #define STYLE_NAME_LENGTH                   16
 
-#define MAX_KERN_TABLE_LENGTH               6000
+#define KERN_VALUE_DIVIDENT                 30
 
 #define STANDARD_GRIDSIZE                   1000
 #define MAX_NUM_GLYPHS                      2000
+
+#define MIN_OS2_TABLE_VERSION               2
+
+#define BASELINE_CORRECTION                 1
+#define MIN_BITMAP_DIMENSION                1
 
 
 /***********************************************************************
@@ -126,6 +131,8 @@ typedef struct
 #else
     char                        TTOE_fontFileName[FILE_LONGNAME_BUFFER_SIZE];
 #endif
+    dword			TTOE_fontFileSize;
+    word			TTOE_magicWord;
 } TrueTypeOutlineEntry;
 
 
@@ -280,6 +287,8 @@ typedef struct
     sword                       TM_heightX;
     sword                       TM_scriptY;
     sword                       TM_heightY;
+    word                        TM_resX;
+    word                        TM_resY;
 } TransformMatrix;
 
 typedef ByteFlags TransFlags;
@@ -336,9 +345,12 @@ typedef struct
 
 #define SIZE_REGION_HEADER	    ( sizeof( RegionCharData) - 2 )
 
-
+/* This data type is used as part of the cache files structures.
+ * If changes are needed here, take care to update the cache file protocol.
+ */
 typedef struct
 {
+    Boolean                     FH_initialized;
     word                        FH_h_height;        //top of 'H'
     word                        FH_x_height;        //top of 'x'
     word                        FH_ascender;        //top of 'd'
@@ -387,11 +399,17 @@ typedef struct
     TT_Glyph_Metrics            glyphMetrics;
     TT_CharMap                  charMap;
     TT_Outline                  outline;
-    TT_BBox                     bbox;
+
+    /* lookuptable for truetype indices */
+    MemHandle                   lookupTable;
 
     /* currently open face */
     FileHandle                  ttfile;
     TrueTypeOutlineEntry        entry;
+
+    /* cache file handle */
+    VMFileHandle                cacheFile;
+    
 } TrueTypeVars;
 
 
@@ -412,19 +430,46 @@ typedef struct
 #define SCALE_HEIGHT            trueTypeVars->scaleHeight
 #define SCALE_WIDTH             trueTypeVars->scaleWidth
 #define TTFILE                  trueTypeVars->ttfile
+#define LOOKUP_TABLE            trueTypeVars->lookupTable
 
 #define UNITS_PER_EM            FACE_PROPERTIES.header->Units_Per_EM
+
+
+/***********************************************************************
+ *      error codes
+ ***********************************************************************/
+
+typedef enum {
+    SYSTEM_ERROR_CODES,
+    CHARINDEX_OUT_OF_BOUNDS,
+    ERROR_BITMAP_BUFFER_OVERFLOW
+} FatalErrors;
 
 
 /***********************************************************************
  *      macros
  ***********************************************************************/
 
+#define GrMulWWFixed    TrueType_GrMulWWFixed
+
+extern WWFixedAsDWord
+		    _pascal TrueType_GrMulWWFixed(WWFixedAsDWord i,
+							WWFixedAsDWord j);
+/*
+ * macros
+ */
+
+#define ROUND_WWFIXED( value )    ( ((word) value) < 0x8000 ? \
+		( value >> 16 ) : \
+			(((word) value) > 0x8000 || !((value>>16) & 0x8000)) ? \
+				(value >> 16) + 1 : \
+				 value >> 16)
+
 /*
  * convert value (word) to WWFixedAsDWord
  */
 #define WORD_TO_WWFIXEDASDWORD( value )          \
-        ( (WWFixedAsDWord) MakeWWFixed( value ) )
+            ( ( (long)value ) << 16 )
 
 /*
  * convert value (TT_F26DOT6) to WWFixedAsDWord
@@ -439,25 +484,7 @@ typedef struct
  * scale value (word) by factor (WWFixedAsDWord)
  */
 #define SCALE_WORD( value, factor )              \
-        ( GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( value ), factor ) )
-
-/*
- * round value (WWFixedAsDWord) to nearest word
- */
-#define ROUND_WWFIXEDASDWORD( value )            \
-        ( value & 0x8000 ?                       \
-            ( value & 0x0080 ? ( ( (sword)(value >> 16) ) - 1 ) : ( (sword)(value >> 16) ) ) : \
-            ( value & 0x0080 ? ( ( (sword)(value >> 16) ) + 1 ) : ( (sword)(value >> 16) ) ) )
-
-/*
- * round value (WWFixedAsDWord) to negativ infinity (word) 
- */
-#define CEIL_WWFIXEDASDWORD( value )             \
-        ( value & 0x8000 ?                       \
-            ( value & 0x00ff ? ( ( value >> 16 ) - 1 ) : ( ( value >> 16 ) ) ) : \
-            ( value >> 16 ) )
-
-#define CEIL( value )       ( value & 0x000000ff ? ( value >> 16 ) + 1 : ( value ) ) 
+        ( TrueType_GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( value ), factor ) )
 
 /*
  * get integral part of value (WWFixedAsDWord)
@@ -476,6 +503,16 @@ typedef struct
  */
 #define WBFIXED_TO_WWFIXEDASDWORD( value )       \
         ( (long) ( ( (long)(value.WBF_int) ) * 0x00010000 ) | ( ( (long)value.WBF_frac) << 8 ) )
+
+/*
+ * convert value (WWFixed) to WWFixedAsDWord 
+ */
+#define WWFIXED_TO_WWFIXEDASDWORD( value )       \
+        ( (long) ( ( (long)(value.WWF_int) ) * 0x00010000 ) | ( (long)value.WWF_frac) )
+
+
+#define MUL_100_WWFIXED( factor, percentage )   \
+        TrueType_GrMulWWFixed( factor, GrUDivWWFixed( ((long)percentage ) << 16, 100L << 16))
 
 
 /***********************************************************************

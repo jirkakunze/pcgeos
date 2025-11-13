@@ -56,6 +56,7 @@
  * [including the GNU Public Licence.]
  */
 
+
 #ifdef __GEOS__
 #include <Ansi/stdio.h>
 #else
@@ -80,6 +81,7 @@
 #endif
 #endif
 
+#ifndef COMPILE_OPTION_HOST_SERVICE_ONLY
 #if defined(WIN32) || defined(WIN16)
 static double SSLeay_MSVC5_hack=0.0; /* and for VC1.5 */
 #endif
@@ -160,6 +162,10 @@ word mapped = 0;
 MemHandle phyMemInfoBlk;
 #endif
 
+#ifdef COMPILE_OPTION_HOST_SERVICE
+Boolean hostApiAvailable = FALSE;
+#endif
+
 int _far _pascal SSLLIBRARYENTRY(LibraryCallType ty, GeodeHandle client)
 {
     if (ty == LCT_ATTACH) {
@@ -171,6 +177,9 @@ int _far _pascal SSLLIBRARYENTRY(LibraryCallType ty, GeodeHandle client)
 #ifdef FULL_EXECUTE_IN_PLACE
 #pragma option -dc
 #endif
+#endif
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	hostApiAvailable = HostIfDetect() >= 1;
 #endif
 		CRYPTO_thread_setup();
     } else if (ty == LCT_DETACH) {
@@ -537,5 +546,19 @@ LPVOID lpvReserved;
 	return(TRUE);
 	}
 #endif
+
+#endif
+
+#else
+
+Boolean hostApiAvailable = FALSE;
+
+int _far _pascal SSLLIBRARYENTRY(LibraryCallType ty, GeodeHandle client)
+{
+    if (ty == LCT_ATTACH) {
+	hostApiAvailable = HostIfDetect() >= 1;
+    }
+    return(0);
+}
 
 #endif

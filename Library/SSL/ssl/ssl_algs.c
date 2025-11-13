@@ -64,9 +64,26 @@
 #include "objects.h"
 #include "lhash.h"
 #include "ssl_locl.h"
+#include <hostif.h>
+
+#ifndef COMPILE_OPTION_HOST_SERVICE_ONLY
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+extern Boolean hostApiAvailable;
+#endif
 
 void _export _pascal SSLeay_add_ssl_algorithms()
 	{
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		HostIfCall(
+			HIF_SSL_SSLEAY_ADD_SSL_ALGO,
+			 			(dword) NULL, (dword) NULL, 0);
+		return;
+		}
+#endif
+
     SSLEnter() ;
 #ifndef NO_DES
 /*	EVP_add_cipher(EVP_des_cbc());
@@ -105,4 +122,19 @@ void _export _pascal SSLeay_add_ssl_algorithms()
 #endif
         SSLLeave() ;
 	}
+#else
 
+extern Boolean hostApiAvailable;
+
+void _export _pascal SSLeay_add_ssl_algorithms()
+	{
+	if(hostApiAvailable)
+		{
+		HostIfCall(
+			HIF_SSL_SSLEAY_ADD_SSL_ALGO,
+			 			(dword) NULL, (dword) NULL, 0);
+		return;
+		}
+	}
+
+#endif

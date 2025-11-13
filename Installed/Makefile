@@ -88,17 +88,17 @@ Installed/Tools/swat/Stub/WinCom:	MAKESTUB
 #
 minimalLibrary	: kernel swap sound net ui isui motif spool text mailbox \
 		  genpc ansic cdaudio cell chart color compress config hash impex \
-		  borlandc math pen resolver spline ssmeta styles \
+		  borlandc watcomc math pen resolver spline ssmeta styles \
 		  wav game cards spreadsheet parse spell convert \
 		  saver prefLibs accpnt netutils \
 		  socket dhcp borlandrtl ffile streamc mailhub mailsmtp \
 		  modemc mailpop3 lot123ss csv \
 		  parentc wmlib rtf \
-		  jpeg giflib gif htmlimpx n2txt inetmsg extui \
+		  jpeg giflib gif png htmlimpx n2txt inetmsg extui \
 		  winword8 zlib dirlist minizip idialc eps impex_libs \
 		  thumbdb ftplib flllib sitelist int8087 intx87\
-		  basicdb gridlib gsol treplib
-#ascii
+		  basicdb gridlib gsol treplib hostif ascii \
+		  rsftool bmptools
 
 prefLibs	: prefvid prefts preftd \
 		  prefsnd prefos prefmous preflo preflf prefkbd \
@@ -108,7 +108,7 @@ prefLibs	: prefvid prefts preftd \
 
 # Geos impex libraries
 impex_libs	: dib bmp clp ico pcx tif \
-		  dbase3 dbase4 htmlpars htmlimpx
+		  dbase3 dbase4 htmlimpx vcimpex
 #lot123 msmword msword wordperf5
 
 
@@ -123,28 +123,30 @@ minimalAppl	: minimalGame minimalUtils minimalTools minimalSavers \
  	  	  extraGame \
 		  minimalEdu calendar geodex geocalc geodraw geowrite \
 		  scrapbk clock bigcalc geopoint \
-		  email manager isdesk linktool setup \
+		  email manager isdesk \
+		  linktool openwith foldered cvttool \
+		  setup \
 		  launcher webmagick idialup \
 		  charm wordmat banner \
 		  bbxchat bbxmail \
-		  newsread geozip sclock\
- 	  	  hmbase pdfvu  bnkr30 ftpc \
- 	  	  instc instf 
+		  newsread geozip sclock trayapps\
+ 	  	  hmbase pdfvu bnkr30 ftpc \
+ 	  	  instc instf grafcalc
 
 minimalUtils	: prefmgr
 
-minimalTools    : resedit
+minimalTools    : resedit wlgen
 
 minimalGame	: solitaire cword amateur bjack hearts gwpoker \
-                  pyramid sokoban uki mine column2 battle \
-                  row4 munchers vacman snake
-                  
-extraGame	: taipei column mine2 follow treas mazerun \
-		  blkbox hiho magicboard  scode noid paddle 
+                  pyramid sokoban uki mine column battle \
+                  row4 munchers vacman snake frcell ladder
+
+extraGame	: taipei column2 mine2 follow treas mazerun \
+		  blkbox hiho magicboard  scode noid paddle \
+		  frotz spider
 
 minimalEdu	: flash fontmgck hangman laserl mflash numbers pvault \
-                  oliner taide thinker wsm wsplay xwm
-# ttype
+                  oliner taide thinker wsm wsplay xwm ttype
 
 minimalSavers	: lol blackhole blank bobbin circles dribble dust \
 		  fades flame hopalong letter logo maze lastwords \
@@ -155,7 +157,7 @@ minimalTools	: prntscrn
 
 otherEnsemble	: conview reader term tedit geofile dirls  \
 		  graphvwr macror dump perf bim ffind bbxcd webbox \
-		  hinv10 bbg10
+		  hinv10 bbg10 vconvert
 #geocon3
 
 #
@@ -254,7 +256,7 @@ shell	: Installed/Library/Shell
 Installed/Library/Shell: 	ui MAKELIB
 
 ansic	: Installed/Library/AnsiC
-Installed/Library/AnsiC: kernel math borlandc MAKELIB
+Installed/Library/AnsiC: kernel math borlandc watcomc MAKELIB
 
 cell	: Installed/Library/Cell
 Installed/Library/Cell: 	kernel MAKELIB
@@ -271,6 +273,9 @@ Installed/Library/GrObj:	ui text bitmap ruler spline color \
 
 hash	: Installed/Library/Hash
 Installed/Library/Hash:	kernel MAKELIB
+
+pnglib	: Installed/Library/PngLib
+Installed/Library/PngLib:	ansic zlib MAKELIB
 
 impex	: Installed/Library/Impex
 Installed/Library/Impex: 	ui MAKELIB
@@ -296,6 +301,9 @@ Installed/Library/Breadbox/Impex/JPEG: ui impex ansic ijgjpeg math MAKELIB
 gif : Installed/Library/Breadbox/Impex/GIF
 Installed/Library/Breadbox/Impex/GIF: ui impex ansic extgraph giflib MAKELIB
 
+png : Installed/Library/Breadbox/Impex/PNG
+Installed/Library/Breadbox/Impex/PNG: ui impex extgraph pnglib MAKELIB
+
 wmf : Installed/Library/Trans/Graphics/Vector/Wmf
 Installed/Library/Trans/Graphics/Vector/Wmf: ui impex ansic MAKELIB
 
@@ -305,11 +313,8 @@ Installed/Library/Trans/Text/Ascii: 	ui text MAKELIB
 msword	: Installed/Library/Trans/Text/MicrosoftWord
 Installed/Library/Trans/Text/MicrosoftWord: 	ui ansic impex msmfile MAKELIB
 
-htmlpars : Installed/Library/Breadbox/HtmlPars
-Installed/Library/Breadbox/HtmlPars: kernel ansic text MAKELIB
-
 htmlimpx : Installed/Library/Trans/Web/HtmlImpx
-Installed/Library/Trans/Web/HtmlImpx: htmlpars ansic text impex ui MAKELIB
+Installed/Library/Trans/Web/HtmlImpx: html4par ansic text impex ui MAKELIB
 
 sstor	: Installed/Library/Breadbox/SStor
 Installed/Library/Breadbox/SStor: 	kernel ansic MAKELIB
@@ -327,6 +332,9 @@ borlandrtl	:
 borlandc	: Installed/Library/Math/Compiler/BorlandC
 Installed/Library/Math/Compiler/BorlandC: kernel math MAKELIB
 
+watcomc	: Installed/Library/Math/Compiler/WatcomC
+Installed/Library/Math/Compiler/WatcomC: kernel math MAKELIB
+
 math	: Installed/Library/Math
 Installed/Library/Math:	ui MAKELIB
 
@@ -338,6 +346,9 @@ Installed/Library/Spline:	ui MAKELIB
 
 ssmeta	: Installed/Library/SSMeta
 Installed/Library/SSMeta:	ui math MAKELIB
+
+hostif	: Installed/Library/HostIf
+Installed/Library/HostIf:	kernel MAKELIB
 
 # bsnwav will only be compiled (and is only referenced in WAV) if PRODUCT==NDO2000
 wav	: Installed/Library/Wav
@@ -571,7 +582,7 @@ Installed/Driver/Font/Nimbus:		kernel MAKEDRV
 
 truetype : Installed/Driver/Font/TrueType
 Installed/Driver/Font/TrueType:		kernel MAKEDRV
-	
+
 ms4	: Installed/Driver/IFS/DOS/MS4
 Installed/Driver/IFS/DOS/MS4:		kernel MAKEDRV
 
@@ -932,7 +943,7 @@ Installed/Appl/Clock:		ui color MAKEAPPL
 # email: ui text ansic socket spell spool mailtool stacache borlandc
 #
 
-email: ui text ansic socket spell spool  borlandc
+email: ui text ansic socket spell spool  borlandc watcomc
 #	No need to do this because this is sync'ed by morning make script.
 #	p4 sync -f //depot/pcgeos/Installed/Appl/Email/...
 
@@ -945,8 +956,23 @@ Installed/Appl/FileMgrs2/ISDesk:	ui shell spool wav shell MAKEAPPL
 sclock:	Installed/Appl/SysTray/SClock
 Installed/Appl/SysTray/SClock:		ui MAKEAPPL
 
+trayapps: Installed/Appl/SysTray/TrayApps
+Installed/Appl/SysTray/TrayApps:	ui ansic MAKEAPPL
+
 linktool: Installed/Library/FMTools/Linktool
 Installed/Library/FMTools/Linktool:	ui shell MAKEAPPL
+
+openwith: Installed/Library/FMTools/OpenWith
+Installed/Library/FMTools/OpenWith:	ui ansic MAKEAPPL
+
+foldered: Installed/Library/FMTools/FolderEd
+Installed/Library/FMTools/FolderEd:	ui ansic MAKEAPPL
+
+cvttool: Installed/Library/FMTools/CvtTool
+Installed/Library/FMTools/CvtTool:	ui convert MAKELIB
+
+grafcalc: Installed/Appl/GrafCalc
+Installed/Appl/GrafCalc:	ui ansic cell parse color math MAKEAPPL
 
 homebase:
 #	No need to do this because this is sync'ed by morning make script.
@@ -1018,6 +1044,9 @@ Installed/Appl/Games/Taipei:	ui game MAKEAPPL
 uki	: Installed/Appl/Games/Uki
 Installed/Appl/Games/Uki:	ui sound text MAKEAPPL
 
+ladder	: Installed/Appl/Games/GeoLadder
+Installed/Appl/Games/GeoLadder:	ui sound ansic math MAKEAPPL
+
 column2	: Installed/Appl/Breadbox/Column
 Installed/Appl/Breadbox/Column:	ui game MAKEAPPL
 
@@ -1039,35 +1068,44 @@ Installed/Appl/Breadbox/FunPak/Treas: ui math ansic sound MAKEAPPL
 mazerun	: Installed/Appl/Breadbox/FunPak/Maze
 Installed/Appl/Breadbox/FunPak/Maze: ui ansic color game sound MAKEAPPL
 
-blkbox : Installed\Appl\Breadbox\EntPak\BlkBox
-Installed\Appl\Breadbox\EntPak\BlkBox: ui ansic game sound MAKEAPPL
+blkbox : Installed/Appl/Breadbox/EntPak/BlkBox
+Installed/Appl/Breadbox/EntPak/BlkBox: ui ansic game sound MAKEAPPL
 
-hiho : Installed\Appl\Breadbox\EntPak\Hiho
-Installed\Appl\Breadbox\EntPak\Hiho: ui ansic game sound MAKEAPPL
+hiho : Installed/Appl/Breadbox/EntPak/Hiho
+Installed/Appl/Breadbox/EntPak/Hiho: ui ansic game sound MAKEAPPL
 
-magicboard : Installed\Appl\Breadbox\EntPak\Magic
-Installed\Appl\Breadbox\EntPak\Magic: ui ansic math game sound MAKEAPPL
+magicboard : Installed/Appl/Breadbox/EntPak/Magic
+Installed/Appl/Breadbox/EntPak/Magic: ui ansic math game sound MAKEAPPL
 
-row4 : Installed\Appl\Breadbox\EntPak\Row4
-Installed\Appl\Breadbox\EntPak\Row4: ui ansic sound MAKEAPPL
+row4 : Installed/Appl/Breadbox/EntPak/Row4
+Installed/Appl/Breadbox/EntPak/Row4: ui ansic sound MAKEAPPL
 
-scode : Installed\Appl\Breadbox\EntPak\SCode
-Installed\Appl\Breadbox\EntPak\SCode: ui ansic game sound MAKEAPPL
+scode : Installed/Appl/Breadbox/EntPak/SCode
+Installed/Appl/Breadbox/EntPak/SCode: ui ansic game sound MAKEAPPL
 
-munchers : Installed\Appl\Breadbox\Arcade\munch
-Installed\Appl\Breadbox\Arcade\munch: ui math sound color game ansic MAKEAPPL
+munchers : Installed/Appl/Breadbox/Arcade/munch
+Installed/Appl/Breadbox/Arcade/munch: ui math sound color game ansic MAKEAPPL
 
-vacman	: Installed\Appl\Breadbox\Arcade\vacman
-Installed\Appl\Breadbox\Arcade\vacman: ui game ansic wav sound MAKEAPPL
+vacman	: Installed/Appl/Breadbox/Arcade/vacman
+Installed/Appl/Breadbox/Arcade/vacman: ui game ansic wav sound MAKEAPPL
 
-noid	: Installed\Appl\Breadbox\Arcade\noid
-Installed\Appl\Breadbox\Arcade\noid: ui sound game color ansic MAKEAPPL
+noid	: Installed/Appl/Breadbox/Arcade/noid
+Installed/Appl/Breadbox/Arcade/noid: ui sound game color ansic MAKEAPPL
 
-paddle	: Installed\Appl\Breadbox\Arcade\paddle
-Installed\Appl\Breadbox\Arcade\paddle: ui ansic color game sound MAKEAPPL
+paddle	: Installed/Appl/Breadbox/Arcade/paddle
+Installed/Appl/Breadbox/Arcade/paddle: ui ansic color game sound MAKEAPPL
 
-snake	: Installed\Appl\Breadbox\snake
-Installed\Appl\Breadbox\snake: ui game ansic MAKEAPPL
+frotz	: Installed/Appl/Breadbox/frotz
+Installed/Appl/Breadbox/frotz: ui ansic text MAKEAPPL
+
+snake	: Installed/Appl/Breadbox/snake
+Installed/Appl/Breadbox/snake: ui game ansic MAKEAPPL
+
+frcell	: Installed/Appl/Breadbox/Cards/frcell
+Installed/Appl/Breadbox/Cards/frcell: ui ansic cards color MAKEAPPL
+
+spider	: Installed/Appl/Breadbox/Cards/spider
+Installed/Appl/Breadbox/Cards/spider: ui cards color sound MAKEAPPL
 
 
 
@@ -1320,6 +1358,10 @@ tcpip	: Installed/Driver/Socket/TCPIP
 Installed/Driver/Socket/TCPIP:	netutils socket ansic resolver accpnt \
 				MAKELIB
 
+hsttcpip	: Installed/Driver/Socket/HstTCPIP
+Installed/Driver/Socket/HstTCPIP:	netutils socket ansic resolver accpnt hostif \
+				MAKELIB
+
 ppp	: Installed/Driver/Socket/PPP
 Installed/Driver/Socket/PPP:	netutils ansic accpnt MAKELIB
 
@@ -1331,8 +1373,8 @@ Installed/Appl/Breadbox/BbxBrow:	ui ansic text spool \
 					impgraph impdoc \
 					modem \
 					ibms parentc wav mailhub socket \
-					js netutils cookies idialc \
-					ppp  tcpip MAKEAPPL
+					netutils cookies idialc \
+					ppp  tcpip hsttcpip MAKEAPPL
 
 # sorry, executing CLEAN in the global makefile is not only bad style, it forces
 # EVERYONE, even people not working on the browser, to compile the whole stuff
@@ -1353,18 +1395,11 @@ Installed/Appl/Breadbox/BbxBrow:	ui ansic text spool \
 
 # webmagick libs
 
-#html3par	: ui ansic text extgraph
-#	mdcd %ROOT_DIR%\Installed\Library\Breadbox\html3par
-#	$(MAKE) -I$(ROOT_DIR)\Library\Breadbox\html3par lib full
-
 html4par	: Installed/Library/Breadbox/Html4Par
 Installed/Library/Breadbox/Html4Par:	kernel ui ansic text extgraph MAKELIB
 
 profpnt		: Installed/Library/ProfPnt
 Installed/Library/ProfPnt:		ansic MAKELIB
-
-js              : Installed/Library/JS
-Installed/Library/JS:		ansic math borlandc mapheap profpnt MAKELIB
 
 ibms    : Installed/Library/Breadbox/Ibms
 Installed/Library/Breadbox/Ibms:	ansic MAKELIB
@@ -1390,25 +1425,23 @@ mapheap :	Installed/Library/MapHeap
 Installed/Library/MapHeap:			kernel MAKELIB
 
 ssl	: 	Installed/Library/SSL
-Installed/Library/SSL:				ansic socket mapheap MAKELIB
+Installed/Library/SSL:				ansic socket mapheap hostif MAKELIB
 
 # product-specific dependency on fjpeg
 impgraph	: Installed/Library/Breadbox/ImpGraph
-Installed/Library/Breadbox/ImpGraph:		ansic ijgjpeg MAKELIB #fjpeg
+Installed/Library/Breadbox/ImpGraph:		ansic ijgjpeg pnglib fjpeg MAKELIB
 
 ijgjpeg	: 	Installed/Library/Breadbox/Ijgjpeg
 Installed/Library/Breadbox/Ijgjpeg:		ui ansic MAKELIB
 
-#fjpeg	: 	Installed/Library/Breadbox/fjpeg
-#Installed/Library/Breadbox/fjpeg:		ui ansic MAKELIB
-#	mdcd %ROOT_DIR%\
-#	$(MAKE) -I$(ROOT_DIR)\Library\Breadbox\fjpeg lib full
+fjpeg	: 	Installed/Library/Breadbox/Fjpeg
+Installed/Library/Breadbox/Fjpeg:		ui ansic MAKELIB
 
 impdoc	: 	Installed/Library/Breadbox/ImpDoc
 Installed/Library/Breadbox/ImpDoc:		ui ansic MAKELIB
 
 pdfvu	: 	Installed/Appl/PDFViewer
-Installed/Appl/PDFViewer:			ui ansic spool borlandc \
+Installed/Appl/PDFViewer:			ui ansic spool borlandc watcomc \
 						MAKEAPPL
 
 #wavplay	: Installed/Appl/WavPlay
@@ -1538,7 +1571,7 @@ Installed/Appl/Breadbox/BBGrmt:			ui ansic spool text MAKEAPPL
 #Installed/Appl/Breadbox/Geocon3:		ui ansic color MAKEAPPL
 
 graphvwr : Installed/Appl/Breadbox/Graphvwr
-Installed/Appl/Breadbox/Graphvwr:	ui ansic extui giflib thumbdb ijgjpeg \
+Installed/Appl/Breadbox/Graphvwr:	ui ansic extui giflib thumbdb ijgjpeg pnglib \
 					MAKEAPPL
 
 macror	: Installed/Appl/Breadbox/MacroR
@@ -1636,7 +1669,7 @@ ndorest:  regis run legos 	\
 	  irlap loopback slip 		\
 	  vid_drivers	\
 	  impex_libs bestsnd mp3snd rfsd	\
-	  print_drivers extras taskmax cvttool more_prefs	\
+	  print_drivers extras taskmax more_prefs	\
 	  faxsendtd geosafari slides
 
 ms3     : Installed/Driver/IFS/DOS/MS3
@@ -1657,14 +1690,11 @@ Installed/Library/CoProcessor/Int8087:		kernel math MAKELIB
 intx87	: Installed/Library/CoProcessor/Intx87
 Installed/Library/CoProcessor/Intx87:		kernel math MAKELIB
 
-taskmax	: Installed/Driver/Task/Taskmax
-Installed/Driver/Task/Taskmax:			ui text MAKEDRV
+taskmax	: Installed/Driver/Task/TaskMax
+Installed/Driver/Task/TaskMax:			ui text MAKEDRV
 
 bnf : Installed/Driver/Task/BNF
 Installed/Driver/Task/BNF:				ui text MAKEDRV
-
-cvttool	: Installed/Library/FMTools/CvtTool
-Installed/Library/FMTools/CvtTool:		ui convert MAKELIB
 
 faxsendtd	: Installed/Driver/Mailbox/Transport/Faxsendtd
 Installed/Driver/Mailbox/Transport/Faxsendtd:	mailbox faxfile faxctrl ui \
@@ -1783,3 +1813,25 @@ Installed/Appl/Slides:				ui text impex convert MAKEAPPL
 
 resedit	: Installed/Appl/Tools/Localize
 Installed/Appl/Tools/Localize:		ui text spool MAKEAPPL
+
+wlgen	: Installed/Appl/Tools/WListGen
+Installed/Appl/Tools/WListGen:			ui ansic wmlib MAKEAPPL
+
+# Vector graphics import/export
+
+meta    : Installed/Library/Breadbox/Meta
+Installed/Library/Breadbox/Meta:		ui ansic grobj math MAKELIB
+
+vcimpex : Installed/Library/Breadbox/Impex/VCImpex
+Installed/Library/Breadbox/Impex/VCImpex:	ui impex ansic math meta MAKELIB
+
+vconvert: Installed/Appl/Breadbox/VConvert
+Installed/Appl/Breadbox/VConvert:		ui ansic grobj text math meta MAKEAPPL
+
+# RabeSoft Libraries
+
+rsftool	: Installed/Library/RabeSoft/rsftool
+Installed/Library/RabeSoft/rsftool:		ansic ui MAKELIB
+
+bmptools	: Installed/Library/RabeSoft/bmptools
+Installed/Library/RabeSoft/bmptools:		ansic ui MAKELIB

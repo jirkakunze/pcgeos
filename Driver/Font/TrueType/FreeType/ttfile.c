@@ -109,7 +109,7 @@
 #define STREAM2REC( x )  ( (TStream_Rec*)HANDLE_Val( x ) )
 
   static  TT_Error  Stream_Activate  ( PStream_Rec  stream );
-  static  TT_Error  Stream_Deactivate( PStream_Rec  stream );
+  static  void      Stream_Deactivate( PStream_Rec  stream );
 
 
 #ifndef TT_CONFIG_OPTION_THREAD_SAFE
@@ -169,6 +169,7 @@
 /* that need an 'optional' stream argument.                   */
 
 
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  TTFile_Init
@@ -208,6 +209,7 @@
 
     return TT_Err_Ok;
   }
+#endif
 
 
 /*******************************************************************
@@ -244,7 +246,7 @@
  *
  *  Input  :  stream  target stream
  *
- *  Output :  Error code.
+ *  Output :  void.
  *
  ******************************************************************/
 
@@ -252,8 +254,6 @@
   TT_Error  TT_Done_Stream( TT_Stream*  stream )
   {
      HANDLE_Set( *stream, NULL );
-
-     return TT_Err_Ok;
   }
 
 
@@ -279,7 +279,7 @@
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Access_Frame( STREAM_ARGS FRAME_ARGS Long  size )
+  TT_Error  TT_Access_Frame( STREAM_ARGS FRAME_ARGS Short  size )
   {
     TT_Error  error;
 
@@ -346,7 +346,7 @@
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Check_And_Access_Frame( STREAM_ARGS FRAME_ARGS Long  size )
+  TT_Error  TT_Check_And_Access_Frame( STREAM_ARGS FRAME_ARGS Short  size )
   {
     TT_Error  error;
     Long      readBytes, requested;
@@ -433,6 +433,8 @@
 #define STREAM_VAR   stream
 
 
+#ifndef __GEOS__
+
 /*******************************************************************
  *
  *  Function    :  TTFile_Init
@@ -461,6 +463,8 @@
   {
     return TT_Err_Ok;
   }
+  
+#endif
 
 
 /*******************************************************************
@@ -495,14 +499,14 @@
  *
  *  Input  :  stream  target stream
  *
- *  Output :
+ *  Output :  void.
  *
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Done_Stream( TT_Stream*  stream )
+  void  TT_Done_Stream( TT_Stream*  stream )
   {
-    return TT_Close_Stream( stream );
+    TT_Close_Stream( stream );
   }
 
 
@@ -528,7 +532,7 @@
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Access_Frame( STREAM_ARGS FRAME_ARGS Long  size )
+  TT_Error  TT_Access_Frame( STREAM_ARGS FRAME_ARGS Short  size )
   {
     TT_Error  error;
 
@@ -584,7 +588,7 @@
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Check_And_Access_Frame( STREAM_ARGS FRAME_ARGS Long  size )
+  TT_Error  TT_Check_And_Access_Frame( STREAM_ARGS FRAME_ARGS Short  size )
   {
     TT_Error  error;
     Long      readBytes;
@@ -698,7 +702,7 @@
  *
  *  Input  :  stream   the stream to deactivate
  *
- *  Output :  Error condition
+ *  Output :  void
  *
  *  Note   :  the function is called whenever a stream is deleted
  *            (_not_ when a stream handle's is closed due to an
@@ -707,14 +711,14 @@
  *
  ******************************************************************/
 
-  static  TT_Error  Stream_Deactivate( PStream_Rec  stream )
+  static  void  Stream_Deactivate( PStream_Rec  stream )
   {
     /* Save its current position within the file */
     stream->position = FilePos( stream->file, 0, FILE_POS_RELATIVE );  
-
-    return TT_Err_Ok;
   }
 
+
+#ifndef __GEOS__
 
 /*******************************************************************
  *
@@ -741,6 +745,8 @@
       return 0;  /* invalid stream - return 0 */
   }
 
+#endif
+
 
 /*******************************************************************
  *
@@ -762,7 +768,6 @@
   TT_Error  TT_Open_Stream( const FileHandle  file,
                             TT_Stream*        stream )
   {
-    Int          len;
     TT_Error     error;
     PStream_Rec  stream_rec;
 
@@ -802,12 +807,12 @@
  *
  *  Input  :  stream         address of target TT_Stream structure
  *
- *  Output :  SUCCESS (always).
+ *  Output :  void.
  *
  ******************************************************************/
 
   LOCAL_FUNC
-  TT_Error  TT_Close_Stream( TT_Stream*  stream )
+  void  TT_Close_Stream( TT_Stream*  stream )
   {
     PStream_Rec  rec = STREAM2REC( *stream );
 
@@ -816,9 +821,10 @@
     FREE( rec );
 
     HANDLE_Set( *stream, NULL );
-    return TT_Err_Ok;
   }
 
+
+#ifndef __GEOS__
 
 /*******************************************************************
  *
@@ -850,6 +856,8 @@
     else
       return TT_Err_Invalid_Argument;
   }
+
+#endif /* __GEOS__ */
 
 
 /*******************************************************************
@@ -911,9 +919,9 @@
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Read_File( STREAM_ARGS void*  buffer, Long  count )
+  TT_Error  TT_Read_File( STREAM_ARGS void*  buffer, Short  count )
   {
-    if ( FileRead( CUR_Stream->file, buffer, count, FALSE ) != (ULong)count )
+    if ( FileRead( CUR_Stream->file, buffer, count, FALSE ) != count )
       return TT_Err_Invalid_File_Read;
 
     return TT_Err_Ok;
@@ -937,7 +945,7 @@
   EXPORT_FUNC
   TT_Error  TT_Read_At_File( STREAM_ARGS Long   position,
                                          void*  buffer,
-                                         Long   count )
+                                         Short  count )
   {
     TT_Error  error;
 
@@ -969,6 +977,7 @@
   }
 
 
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  GET_Char
@@ -987,8 +996,10 @@
 
     return (Char)(*CUR_Frame.cursor++);
   }
+#endif
 
 
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  GET_Short
@@ -1009,15 +1020,16 @@
 
     CHECK_FRAME( CUR_Frame, 2 );
 
-    getshort = (Short)((CUR_Frame.cursor[0] << 8) |
+    getshort = (Short)((CUR_Frame.cursor[0] << 8) | 
                         CUR_Frame.cursor[1]);
 
     CUR_Frame.cursor += 2;
 
     return getshort;
   }
+#endif
 
-
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  GET_Long
@@ -1047,6 +1059,7 @@
 
     return getlong;
   }
+#endif
 
 
 /* END */

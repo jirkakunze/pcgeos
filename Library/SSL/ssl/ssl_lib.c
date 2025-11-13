@@ -70,15 +70,23 @@
 #include <socket.goh>
 #endif
 #include "ssl_locl.h"
+#include <hostif.h>
 
 #ifndef GEOS_CLIENT
 char *SSL_version_str="SSLeay 0.9.0b 29-Jun-1998";
 #endif
 
+#ifndef COMPILE_OPTION_HOST_SERVICE_ONLY
+
+
 static STACK *ssl_meth=NULL;
 static STACK *ssl_ctx_meth=NULL;
 static int ssl_meth_num=0;
 static int ssl_ctx_meth_num=0;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+extern Boolean hostApiAvailable;
+#endif
 
 SSL3_ENC_METHOD ssl3_undef_enc_method={
 	ssl_undefined_function,
@@ -161,8 +169,15 @@ SSL * _export _pascal SSL_new(ctx)
 SSL_CTX *ctx;
 	{
 	SSL *s;
-        SSLEnter() ;
 
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (SSL *) HostIfCall(
+			HIF_SSL_NEW, (dword) ctx, (dword) NULL, 0);
+		}
+#endif
+        SSLEnter() ;
 	if (ctx == NULL)
 		{
 		SSLerr(SSL_F_SSL_NEW,SSL_R_NULL_SSL_CTX);
@@ -229,6 +244,16 @@ void _export _pascal SSL_free(s)
 SSL *s;
 	{
 	int i;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		HostIfCall(
+			HIF_SSL_FREE, (dword) s, (dword) NULL, 0);
+		return;
+		}
+#endif
+
         SSLEnter() ;
 
 	i=CRYPTO_add(&s->references,-1,CRYPTO_LOCK_SSL);
@@ -354,6 +379,17 @@ int fd;
 	{
 	int ret=0;
 	BIO *bio=NULL;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		word intHdl = SocketGetIntSocketOption(fd, SO_CONNECTION_HDL);
+			
+		return (int) HostIfCall(
+			HIF_SSL_SET_FD, (dword) s, (dword)  
+			(dword) NULL, (word) intHdl);
+		}
+#endif
 
         SSLEnter() ;
 	bio=BIO_new(BIO_s_socket());
@@ -612,6 +648,15 @@ int _export _pascal SSL_connect(s)
 SSL *s;
 	{
         int result ;
+	
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_CONNECT, (dword) s, (dword) NULL, 0);
+		}
+#endif
+	
         SSLEnter() ;
 #ifdef __GEOS__
 	result = CALLCB1(s->method->ssl_connect,s);
@@ -638,6 +683,14 @@ char *buf;
 int num;
 {
 	int report ;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_READ, (dword) s, (dword) buf, num);
+		}
+#endif
 
 	SSLEnter() ;
 #ifdef GEOS_ERROR
@@ -688,6 +741,15 @@ char *buf;
 int num;
 {
 	int report ;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_WRITE, (dword) s, (dword) buf, num);
+		}
+#endif
+
 	SSLEnter() ;
 #ifdef GEOS_ERROR
 	ThreadSetError(SE_NORMAL);
@@ -716,6 +778,15 @@ int _export _pascal SSL_shutdown(s)
 SSL *s;
 	{
 		int report = 1 ;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_SHUTDOWN, (dword) s, (dword) NULL, 0);
+		}
+#endif
+
 		SSLEnter() ;
 	if ((s != NULL) && !SSL_in_init(s))
 #ifdef __GEOS__
@@ -1047,6 +1118,14 @@ SSL_METHOD *meth;
 	{
 	SSL_CTX *ret;
 
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (SSL_CTX *) HostIfCall(
+			HIF_SSL_CTX_NEW, (dword) NULL, (dword) NULL, 0);
+		}
+#endif
+
         SSLEnter() ;
 	if (meth == NULL)
 		{
@@ -1172,6 +1251,15 @@ SSL_CTX *a;
 	int i;
 
 	if (a == NULL) return;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		HostIfCall(
+			HIF_SSL_CTX_FREE, (dword) a, (dword) NULL, 0);
+		return;
+		}
+#endif
 
         SSLEnter() ;
 	i=CRYPTO_add(&a->references,-1,CRYPTO_LOCK_SSL_CTX);
@@ -1467,6 +1555,15 @@ SSL_METHOD * _export _pascal SSL_get_ssl_method(s)
 SSL *s;
 	{
 	SSL_METHOD *ret;
+
+#ifdef COMPILE_OPTION_HOST_SERVICE
+	if(hostApiAvailable)
+		{
+		return (SSL_METHOD *) HostIfCall(
+			HIF_SSL_GET_SSL_METHOD, (dword) s, (dword) NULL, 0);
+		}
+#endif
+	
 	SSLEnter();
 	ret = s->method;
 	SSLLeave();
@@ -1479,6 +1576,14 @@ SSL_METHOD *meth;
 	{
 	int conn= -1;
 	int ret=1;
+
+	#ifdef COMPILE_OPTION_HOST_SERVICE
+		if(hostApiAvailable)
+			{
+			return (SSL_METHOD *) HostIfCall(
+				HIF_SSL_GET_SSL_METHOD, (dword) s, (dword) NULL, 0);
+			}
+	#endif
 
 	SSLEnter();
 	if (s->method != meth)
@@ -1507,6 +1612,20 @@ SSL_METHOD *meth;
 			s->handshake_func=meth->ssl_accept;
 		}
 	SSLLeave();
+	return(ret);
+	}
+
+int _pascal _export  SSL_set_tlsext_host_name(SSL *ssl, char *name)
+	{
+	int ret=1;
+
+	#ifdef COMPILE_OPTION_HOST_SERVICE
+		if(hostApiAvailable)
+			{
+			return (SSL_METHOD *) HostIfCall(
+				HIF_SSL_SET_TLSEXT_HOST_NAME, (dword) ssl, (dword) name, strlen(name));
+			}
+	#endif
 	return(ret);
 	}
 
@@ -2015,3 +2134,178 @@ int idx;
 #endif
 
 void *NullPtr = NULL ;
+
+#else
+
+extern Boolean hostApiAvailable;
+
+SSL_CTX * _export _pascal SSL_CTX_new(meth)
+SSL_METHOD *meth;
+	{
+	SSL_CTX *ret;
+
+	if(hostApiAvailable)
+		{
+		return (SSL_CTX *) HostIfCall(
+			HIF_SSL_CTX_NEW, (dword) NULL, (dword) NULL, 0);
+		}
+	return(NULL);
+	}
+
+void _export _pascal SSL_CTX_free(a)
+SSL_CTX *a;
+	{
+	int i;
+
+	if (a == NULL) return;
+
+	if(hostApiAvailable)
+		{
+		HostIfCall(
+			HIF_SSL_CTX_FREE, (dword) a, (dword) NULL, 0);
+		return;
+		}
+	}
+
+SSL * _export _pascal SSL_new(ctx)
+SSL_CTX *ctx;
+	{
+	SSL *s;
+
+	if(hostApiAvailable)
+		{
+		return (SSL *) HostIfCall(
+			HIF_SSL_NEW, (dword) ctx, (dword) NULL, 0);
+		}
+	return(NULL);
+	}
+
+void _export _pascal SSL_free(s)
+SSL *s;
+	{
+	int i;
+
+	if(hostApiAvailable)
+		{
+		HostIfCall(
+			HIF_SSL_FREE, (dword) s, (dword) NULL, 0);
+		}
+	}
+
+int _export _pascal SSL_set_fd(s, fd)
+SSL *s;
+int fd;
+	{
+	int ret=1;
+
+	if(hostApiAvailable)
+		{
+		word intHdl = SocketGetIntSocketOption(fd, SO_CONNECTION_HDL);
+			
+		return (int) HostIfCall(
+			HIF_SSL_SET_FD, (dword) s, (dword)  
+			(dword) NULL, (word) intHdl);
+		}
+	return(ret);
+	}
+
+int _export _pascal SSL_connect(s)
+SSL *s;
+	{
+        int result = 0;		/* operation failed */
+	
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_CONNECT, (dword) s, (dword) NULL, 0);
+		}
+	
+        return result;
+	}
+
+int _export _pascal SSL_shutdown(s)
+SSL *s;
+	{
+	int report = -1;	/* <0 non-successful */
+
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_SHUTDOWN, (dword) s, (dword) NULL, 0);
+		}
+        return(report);
+	}
+
+int _export _pascal SSL_read(s,buf,num)
+SSL *s;
+char *buf;
+int num;
+{
+	int report = -1;		/* <=0 non-successful*/
+
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_READ, (dword) s, (dword) buf, num);
+		}
+
+	return report;
+}
+
+int _export _pascal SSL_write(s,buf,num)
+SSL *s;
+char *buf;
+int num;
+{
+	int report = -1;	/* <=0 non-successful */
+
+	if(hostApiAvailable)
+		{
+		return (int) HostIfCall(
+			HIF_SSL_WRITE, (dword) s, (dword) buf, num);
+		}
+	return report;
+}
+
+
+int _export _pascal SSL_set_ssl_method(s,meth)
+SSL *s;
+SSL_METHOD *meth;
+	{
+	int ret=0;	/* 0 operation failed */
+
+	if(hostApiAvailable)
+		{
+		return (SSL_METHOD *) HostIfCall(
+			HIF_SSL_GET_SSL_METHOD, (dword) s, (dword) NULL, 0);
+		}
+	return ret;
+	}
+
+SSL_METHOD * _export _pascal SSL_get_ssl_method(s)
+SSL *s;
+	{
+	SSL_METHOD *ret = NULL;		/* error case undefined */
+
+	if(hostApiAvailable)
+		{
+		return (SSL_METHOD *) HostIfCall(
+			HIF_SSL_GET_SSL_METHOD, (dword) s, (dword) NULL, 0);
+		}
+	
+	return ret;
+	}
+
+
+int _pascal _export  SSL_set_tlsext_host_name(SSL *ssl, char *name)
+	{
+	int ret=0;	/* 0 indicates error */
+
+	if(hostApiAvailable)
+		{
+		return (SSL_METHOD *) HostIfCall(
+			HIF_SSL_SET_TLSEXT_HOST_NAME, (dword) ssl, (dword) name, strlen(name));
+		}
+	return ret;
+	}
+#endif

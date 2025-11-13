@@ -26,11 +26,15 @@
 
 
 static void CalcTransformMatrix( TextStyle         stylesToImplement,
+                                 Byte              width,
+                                 Byte              weight,
                                  TransformMatrix*  transMatrix );
 
 static void CalcScaleForWidths( TRUETYPE_VARS, 
                                 WWFixedAsDWord     pointSize, 
-                                TextStyle          stylesToImplement );
+                                TextStyle          stylesToImplement,
+                                Byte               width,
+                                Byte               weight );
 
 /********************************************************************
  *                      TrueType_Char_Metrics
@@ -44,13 +48,11 @@ static void CalcScaleForWidths( TRUETYPE_VARS,
  *                                      TrueTypeOutlineEntry.
  *                stylesToImplement     Desired text style.
  *                pointSize             Desired point size.
- *                result                Pointer in wich the result will 
- *                                      stored.
+ *                width                 Desired glyph width.
+ *                weight                Desired glyph weight.
  *                varBlock              Memory handle to var block.
  * 
- * RETURNS:       void
- * 
- * SIDE EFFECTS:  none
+ * RETURNS:       WWFixedAsDWord
  * 
  * STRATEGY:      
  * 
@@ -58,22 +60,25 @@ static void CalcScaleForWidths( TRUETYPE_VARS,
  *      Date      Name      Description
  *      ----      ----      -----------
  *      23/12/22  JK        Initial Revision
+ *      10/02/24  JK        width and weight implemented
  *******************************************************************/
 
-void _pascal TrueType_Char_Metrics( 
+WWFixedAsDWord _pascal TrueType_Char_Metrics( 
                                    word                 character, 
                                    GCM_info             info, 
                                    const FontInfo*      fontInfo,
 	                           const OutlineEntry*  outlineEntry, 
                                    TextStyle            stylesToImplement,
                                    WWFixedAsDWord       pointSize,
-                                   WWFixedAsDWord*      result,
+                                   Byte                 width,
+                                   Byte                 weight,
                                    MemHandle            varBlock ) 
 {
         TrueTypeOutlineEntry*  trueTypeOutline;
         TransformMatrix        transMatrix;
         word                   charIndex;
         TrueTypeVars*          trueTypeVars;
+        WWFixedAsDWord         result;
 
 
 EC(     ECCheckBounds( (void*)fontInfo ) );
@@ -91,8 +96,8 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         if( TrueType_Lock_Face(trueTypeVars, trueTypeOutline) )
                 goto Fail;
 
-        CalcScaleForWidths( trueTypeVars, pointSize, stylesToImplement );
-        CalcTransformMatrix( stylesToImplement, &transMatrix );
+        CalcScaleForWidths( trueTypeVars, pointSize, stylesToImplement, width, weight );
+        CalcTransformMatrix( stylesToImplement, width, weight, &transMatrix );
 
         // get TT char index
         charIndex = TT_Char_Index( CHAR_MAP, GeosCharToUnicode( character ) );
@@ -113,19 +118,19 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         {
                 case GCMI_MIN_X:
                 case GCMI_MIN_X_ROUNDED:
-                        *result = GrMulWWFixed( MakeWWFixed( GLYPH_BBOX.xMin ), SCALE_WIDTH );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.xMin ), SCALE_WIDTH );
                         break;
                 case GCMI_MIN_Y:
                 case GCMI_MIN_Y_ROUNDED:
-                        *result = GrMulWWFixed( MakeWWFixed( GLYPH_BBOX.yMin ), SCALE_HEIGHT );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.yMin ), SCALE_HEIGHT );
                         break;
                 case GCMI_MAX_X:
                 case GCMI_MAX_X_ROUNDED:
-                        *result = GrMulWWFixed( MakeWWFixed( GLYPH_BBOX.xMax ), SCALE_WIDTH );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.xMax ), SCALE_WIDTH );
                         break;
                 case GCMI_MAX_Y:
                 case GCMI_MAX_Y_ROUNDED:
-                        *result = GrMulWWFixed( MakeWWFixed( GLYPH_BBOX.yMax ), SCALE_HEIGHT );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.yMax ), SCALE_HEIGHT );
                         break;
         }
 
@@ -134,6 +139,8 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
 
 Fail:
         MemUnlock( varBlock );
+
+        return result;
 }
 
 
@@ -146,6 +153,8 @@ Fail:
  * PARAMETERS:    TRUETYPE_VARS         Cached variables needed by driver.
  *                pointSize             Desired point size.
  *                stylesToImplement     Desired text style.
+ *                width                 Desired glyph width.
+ *                weight                Desired glyph weight.
  * 
  * RETURNS:       void
  * 
@@ -155,20 +164,29 @@ Fail:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      20/07/23  JK        Initial Revision
+ *      10702724  JK        width and weight implemented
  *******************************************************************/
 
 static void CalcScaleForWidths( TRUETYPE_VARS, 
                                 WWFixedAsDWord  pointSize, 
-                                TextStyle       stylesToImplement )
+                                TextStyle       stylesToImplement,
+                                Byte            width,
+                                Byte            weight )
 {
-        SCALE_HEIGHT = GrUDivWWFixed( pointSize, MakeWWFixed( FACE_PROPERTIES.header->Units_Per_EM ) );
-        SCALE_WIDTH  = SCALE_HEIGHT;
+        SCALE_HEIGHT = SCALE_WIDTH = GrUDivWWFixed( pointSize, MakeWWFixed( FACE_PROPERTIES.header->Units_Per_EM ) );
 
         if( stylesToImplement & ( TS_BOLD ) )
                 SCALE_WIDTH = GrMulWWFixed( SCALE_WIDTH, WWFIXED_1_POINR_1 );
 
         if( stylesToImplement & ( TS_SUBSCRIPT | TS_SUPERSCRIPT ) )     
                 SCALE_WIDTH = GrMulWWFixed( SCALE_WIDTH, WWFIXED_0_POINT_5 );
+
+        /* implement width and weight */
+        if( width != FWI_MEDIUM )
+                SCALE_WIDTH = MUL_100_WWFIXED( SCALE_WIDTH, width );
+
+        if( weight != FW_NORMAL )
+                SCALE_WIDTH = MUL_100_WWFIXED( SCALE_WIDTH, weight );
 }
 
 
@@ -179,6 +197,8 @@ static void CalcScaleForWidths( TRUETYPE_VARS,
  *                style attributes and weights.
  * 
  * PARAMETERS:    styleToImplement      Styles that must be added.
+ *                width                 Desired glyph width.
+ *                weight                Desired glyph weight.
  *                *transMatrix          Pointer to TransformMatrix.
  *                      
  * RETURNS:       void
@@ -189,9 +209,12 @@ static void CalcScaleForWidths( TRUETYPE_VARS,
  *      Date      Name      Description
  *      ----      ----      -----------
  *      20/12/22  JK        Initial Revision
+ *      10/02/24  JK        width and weight implemented
  *******************************************************************/
 
 static void CalcTransformMatrix( TextStyle         stylesToImplement,
+                                 Byte              width,
+                                 Byte              weight,
                                  TransformMatrix*  transMatrix )
 {
         /* make unity matrix       */
@@ -208,6 +231,13 @@ static void CalcTransformMatrix( TextStyle         stylesToImplement,
         /* fake italic style       */
         if( stylesToImplement & TS_ITALIC )
                 transMatrix->TM_matrix.yx = ITALIC_FACTOR;
+
+        /* width and weight */
+        if( width != FWI_MEDIUM )
+                transMatrix->TM_matrix.xx = MUL_100_WWFIXED( transMatrix->TM_matrix.xx, width );
+
+        if( weight != FW_NORMAL )
+                transMatrix->TM_matrix.xx = MUL_100_WWFIXED( transMatrix->TM_matrix.xx, weight );
 
         /* fake script style       */
         if( stylesToImplement & ( TS_SUBSCRIPT | TS_SUBSCRIPT ) )

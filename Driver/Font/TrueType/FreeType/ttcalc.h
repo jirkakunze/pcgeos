@@ -38,7 +38,6 @@
 #define DIV_64( x, y )     ( (x) / (y) )
 
 #define SQRT_64( x )       Sqrt64( x )
-#define SQRT_32( x )       Sqrt32( x )
 
   LOCAL_DEF TT_Int32  Sqrt64( TT_Int64  l );
 
@@ -53,34 +52,20 @@
   typedef struct TT_Int64_  TT_Int64;
 
 #define ADD_64( x, y, z )  Add64( &x, &y, &z )
-#define SUB_64( x, y, z )  Sub64( &x, &y, &z )
 #define MUL_64( x, y, z )  MulTo64( x, y, &z )
-
 #define DIV_64( x, y )     Div64by32( &x, y )
-
 #define SQRT_64( x )       Sqrt64( &x )
-#define SQRT_32( x )       Sqrt32( x )
 
   LOCAL_DEF void  Add64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z );
-  LOCAL_DEF void  Sub64( TT_Int64*  x, TT_Int64*  y, TT_Int64*  z );
-
   LOCAL_DEF void  MulTo64( TT_Int32  x, TT_Int32  y, TT_Int64*  z );
-
   LOCAL_DEF TT_Int32  Div64by32( TT_Int64*  x, TT_Int32  y );
-
-  LOCAL_DEF int  Order64( TT_Int64*  z );
-
   LOCAL_DEF TT_Int32  Sqrt64( TT_Int64*  l );
 
 #endif /* LONG64 */
 
-  /* The two following functions are now part of the API!          */
 
-  /* TT_Long  TT_MulDiv( TT_Long  a, TT_Long  b, TT_Long  c );     */
-  /* TT_Long  TT_MulFix( TT_Long  a, TT_Long  b );                 */
-
-LOCAL_DEF void  MulDivList( TT_Long*  a, ULong  n, TT_Long  b, TT_Long  c );
-LOCAL_DEF void  TransVecList( TT_Vector*  vec, ULong  n, TT_Matrix*  matrix );
+LOCAL_DEF void  MulDivList( TT_Long*  a, UShort  n, TT_Short*  b, TT_Long  c, TT_Long  d );
+LOCAL_DEF void  TransVecList( TT_Vector*  vec, UShort  n, TT_Matrix*  matrix );
 
 #define INT_TO_F26DOT6( x )    ( (Long)(x) << 6  )
 #define INT_TO_F2DOT14( x )    ( (Long)(x) << 14 )

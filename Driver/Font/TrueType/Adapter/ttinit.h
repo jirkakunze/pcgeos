@@ -29,10 +29,12 @@
 
 
 /***********************************************************************
- *      constants for font mapping
+ *      constants for access to geos.ini
  ***********************************************************************/
 
-#define FONTMAPPING_CATEGORY            "FontMapping"   
+#define FONTMAPPING_CATEGORY            "FontMapping" 
+#define TTFDRIVER_CATEGORY              "ttfDriver"
+#define BYTECODEINTERPRETER_KEY         "bytecodeInterpreterActive"
 
 
 /***********************************************************************
@@ -65,11 +67,8 @@
  ***********************************************************************/
 
 #define DEFAULT_DEFAULT_CHAR                '.'
-#define BASELINE( value )                   ( 3 * value / 4 )	// 75% of size
-#define DESCENT( value )            	    ( value / 4 )       // 25% of size
-#define DEFAULT_UNDER_THICK( value )	    ( value / 10 )      // 10% of size
+#define DEFAULT_UNDER_THICK( value )	    ( value >> 4 )      // 1/16 of size
 #define DEFAULT_UNDER_POSITION( value )	    ( value / 10 )      // -10% of size
-#define SAFETY( value )			            ( value / 40 )      // 2.5% of size
 
 
 /***********************************************************************
@@ -77,6 +76,13 @@
  ***********************************************************************/
 
 #define MAKE_FONTID( fontGroup, familyName )   ( FM_TRUETYPE | fontGroup | ( 0x01ff & toHash ( familyName )))
+
+
+/***********************************************************************
+ *      drivers engineInstance
+ ***********************************************************************/
+
+extern TEngine_Instance engineInstance;
 
 
 /***********************************************************************

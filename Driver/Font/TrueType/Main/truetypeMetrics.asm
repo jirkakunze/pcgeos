@@ -3,7 +3,7 @@ COMMENT @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	Copyright (c) GeoWorks 1990 -- All Rights Reserved
 
 PROJECT:	PC GEOS
-MODULE:		MetricsMod
+MODULE:		TrueType Font Driver
 FILE:		truetypeMetrics.asm
 
 AUTHOR:		Falk Rehwagen, Jan  29, 2021
@@ -51,59 +51,70 @@ REVISION HISTORY:
 	Name	Date		Description
 	----	----		-----------
 	FR	29/ 1/21	Initial version
+	JK	09/02/24	width and weight implement
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@
 
 TrueTypeCharMetrics	proc	far
-	uses	bx, cx, si, di, ds
-
-resultDXAX	local	dword
+	uses	bx, si, ds, di
 
 	.enter
 
-	mov		si, cx
+	push    dx		; save character
+
+	mov	di, FONT_C_CODE_STACK_SPACE
+	call	ThreadBorrowStackSpace
+	push	di
+
+	mov	si, cx
 	push	dx		; pass character code
 	push	cx		; pass GCM_info
 
-	mov		cx, es:GS_fontAttr.FCA_fontID
+	mov	cx, es:GS_fontAttr.FCA_fontID
 	call	FontDrFindFontInfo
 	push	ds		; pass ptr to FontInfo
 	push	di
 	
-	clr		ah		                   
-	mov		al, es:GS_fontAttr.FCA_textStyle
-	mov		bx, ODF_HEADER
+	clr	ah		                   
+	mov	al, es:GS_fontAttr.FCA_textStyle
+	mov	bx, ODF_HEADER
 	call	FontDrFindOutlineData
 	push	ds		; pass ptr to OutlineEntry
 	push	di
 	push	ax		; pass stylesToImplement
 
-	clr		al
+	clr	al
 	movwbf	dxah, es:GS_fontAttr.FCA_pointsize
 	push	dx		; pass point size
 	push 	ax
 
-	push 	ss		; pass ptr to result dword in ss
-	lea		cx, resultDXAX
-	push	cx
+	clr	ch
+	mov	cl, es:GS_fontAttr.FCA_width
+	push	cx		; pass width
+	mov	cl, es:GS_fontAttr.FCA_weight
+	push	cx		; pass weight
 
 	segmov	ds, dgroup, cx
 	push	ds:variableHandle
 	call	TRUETYPE_CHAR_METRICS
 
-	mov		ax, {word} resultDXAX
-	mov		dx, {word} resultDXAX+2
-
 	test 	si, GCMI_ROUNDED
-	jnz		roundToInt
+	jnz	roundToInt
 	rndwwbf dxax
+
 done:
+	pop	di
+	call	ThreadReturnStackSpace	; (preserves flags)
+
+	pop	bx
+	mov 	al, bl
+
 	clc
 	.leave
 	ret
 
 roundToInt:
 	rndwwf 	dxax
-	jmp		done
+	jmp	done
 
 TrueTypeCharMetrics	endp

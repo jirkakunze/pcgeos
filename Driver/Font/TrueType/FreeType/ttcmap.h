@@ -87,8 +87,8 @@
     UShort  entrySelector;  /* for a binary search          */
     UShort  rangeShift;
 
-    PCMap4Segment  segments;
-    PUShort        glyphIdArray;
+    MemHandle      segmentBlock;
+    MemHandle      glyphIdBlock;
     UShort         numGlyphId;          /* control value */
   };
 
@@ -118,7 +118,9 @@
     UShort  platformEncodingID;
     UShort  format;
     UShort  length;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     UShort  version;
+#endif
 
     Bool    loaded;
     ULong   offset;
@@ -126,9 +128,13 @@
     union
     {
       TCMap0  cmap0;
+#ifdef TT_CONFIG_OPTION_SUPPORT_CMAP2
       TCMap2  cmap2;
+#endif
       TCMap4  cmap4;
+#ifdef TT_CONFIG_OPTION_SUPPORT_CMAP6
       TCMap6  cmap6;
+#endif
     } c;
   };
 
@@ -148,7 +154,7 @@
   /* Destroy one character mapping table */
 
   LOCAL_DEF
-  TT_Error  CharMap_Free( PCMapTable  table );
+  void      CharMap_Free( PCMapTable  table );
 
 
   /* Use character mapping table to perform mapping */
@@ -157,7 +163,11 @@
   UShort  CharMap_Index( PCMapTable  cmap,
                          UShort      charCode );
 
-  /* NOTE: The PFace type isn't defined at this point */
+
+  LOCAL_DEF
+  TT_Error getCharMap( TT_Face              face, 
+                       TT_Face_Properties*  faceProperties, 
+                       TT_CharMap*          charMap );
 
 #ifdef __cplusplus
   }

@@ -14,7 +14,7 @@
  *  understand and accept it fully.
  *
  *
- *  Changes between 3.1 and 3.0:
+ *  Changes between 3.1 and 3.0:TT_MulDiv
  *
  *  - A more relaxed version of the interpreter.  It is now able to
  *    ignore errors like out-of-bound array access and writes in order
@@ -38,6 +38,9 @@
 
 #ifdef TT_CONFIG_OPTION_NO_INTERPRETER
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
   LOCAL_FUNC
   TT_Error  RunIns( PExecution_Context  exc )
   {
@@ -45,6 +48,10 @@
     (void)exc;
     return TT_Err_Ok;
   }
+
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif 
 
 #else
 
@@ -73,7 +80,7 @@
 /* a counter within the run loop. a singly stroke of interpretation */
 /* is now limited to a maximum number of opcodes defined below..    */
 /*                                                                  */
-#define MAX_RUNNABLE_OPCODES  1000000
+#define MAX_RUNNABLE_OPCODES  15000
 
 
 /* There are two kinds of implementations there:              */
@@ -158,7 +165,7 @@
 
 #define COMPUTE_Funcs() Compute_Funcs( EXEC_ARG )
 
-#define NORMalize( x, y, v )  Normalize( EXEC_ARGS x, y, v )
+#define NORMalize( x, y, v )  Normalize( x, y, v )
 
 #define SET_SuperRound( scale, flags ) \
                         SetSuperRound( EXEC_ARGS scale, flags )
@@ -166,53 +173,20 @@
 #define INS_Goto_CodeRange( range, ip ) \
                         Ins_Goto_CodeRange( EXEC_ARGS range, ip )
 
-#ifdef __GEOS__
-#define CUR_Func_project( x, y )   ProcCallFixedOrMovable_cdecl( CUR.func_project, EXEC_ARGS x, y )
-#else
+
 #define CUR_Func_project( x, y )   CUR.func_project( EXEC_ARGS x, y )
-#endif  /* __GEOS__ */
 
-#ifdef __GEOS__
-#define CUR_Func_move( z, p, d )   ProcCallFixedOrMovable_cdecl( CUR.func_move, EXEC_ARGS z, p, d )
-#else
 #define CUR_Func_move( z, p, d )   CUR.func_move( EXEC_ARGS z, p, d )
-#endif  /* __GEOS__ */
 
-#ifdef __GEOS__
-#define CUR_Func_dualproj( x, y )  ProcCallFixedOrMovable_cdecl( CUR.func_dualproj, EXEC_ARGS x, y )
-#else
 #define CUR_Func_dualproj( x, y )  CUR.func_dualproj( EXEC_ARGS x, y )
-#endif  /* __GEOS__ */
 
-#ifdef __GEOS__
-#define CUR_Func_freeProj( x, y )  ProcCallFixedOrMovable_cdecl( CUR.func_freeProj, EXEC_ARGS x, y )
-#else
-#define CUR_Func_freeProj( x, y )  CUR.func_freeProj( EXEC_ARGS x, y )
-#endif  /* __GEOS__ */
-
-#ifdef __GEOS__
-#define CUR_Func_round( d, c )     ProcCallFixedOrMovable_cdecl( CUR.func_round, EXEC_ARGS d, c )
-#else
 #define CUR_Func_round( d, c )     CUR.func_round( EXEC_ARGS d, c )
-#endif  /* __GEOS__ */
 
-#ifdef __GEOS__
-#define CUR_Func_read_cvt( index )  ProcCallFixedOrMovable_cdecl( CUR.func_read_cvt, EXEC_ARGS index ) 
-#else
 #define CUR_Func_read_cvt( index )  CUR.func_read_cvt( EXEC_ARGS index )
-#endif  /* __GEOS__ */
 
-#ifdef __GEOS__
-#define CUR_Func_write_cvt( index, val ) ProcCallFixedOrMovable_cdecl( CUR.func_write_cvt, EXEC_ARGS index, val )
-#else
 #define CUR_Func_write_cvt( index, val ) CUR.func_write_cvt( EXEC_ARGS index, val )
-#endif  /* __GEOS__ */
 
-#ifdef __GEOS__
-#define CUR_Func_move_cvt( index, val ) ProcCallFixedOrMovable_cdecl( CUR.func_move_cvt, EXEC_ARGS index, val )
-#else
 #define CUR_Func_move_cvt( index, val ) CUR.func_move_cvt( EXEC_ARGS index, val )
-#endif  /* __GEOS__ */
 
 #define CURRENT_Ratio()  Current_Ratio( EXEC_ARG )
 #define CURRENT_Ppem()   Current_Ppem( EXEC_ARG )
@@ -229,11 +203,88 @@
 #define CUR_Ppem()  Cur_PPEM( EXEC_ARG )
 
   /* Instruction dispatch function, as used by the interpreter */
-  typedef void  (*TInstruction_Function)( INS_ARG );
+  typedef void (_near *TInstruction_Function)( INS_ARG );
 
 #define BOUNDS( x, n )  ( (x) >= (n) )
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
 
+  /* Implementation copy to enable fast _near call */
+
+  static TT_Long  _near TT_MulFixLocal( TT_Long  a, TT_Long  b )
+  {
+  #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
+    __asm {
+        ; store sign of result
+        mov     eax, a
+        xor     eax, b
+        mov     esi, eax         ; esi = sign of result
+
+        ; calculate |a|
+        mov     eax, a
+        cdq                      ; sign extend eax into edx
+        xor     eax, edx
+        sub     eax, edx
+        mov     ebx, eax         ; ebx = |a|
+
+        ; calculate |b|
+        mov     eax, b
+        cdq
+        xor     eax, edx
+        sub     eax, edx         ; eax = |b|
+
+        ; multiply |a| * |b|
+        mul     ebx              ; edx:eax = |a| * |b|
+
+        ; add 0x8000 (rounding factor)
+        add     eax, 0x8000
+        adc     edx, 0           ; edx:eax += 0x8000
+
+        ; divide by 0x10000 (shift right by 16)
+        shrd    eax, edx, 16
+        shr     edx, 16          ; edx:eax >>= 16
+
+        ; apply sign using NEG if necessary
+        test    esi, 0x80000000  ; test the sign bit
+        jz      positive
+        neg     eax
+    positive:
+        mov     edx, eax         ; store result in dx:ax
+        shr     edx, 16
+    }
+  #else
+    long   s;
+
+    if ( a == 0 || b == 0x10000 )
+      return a;
+
+    s  = a; a = ABS( a );
+    s ^= b; b = ABS( b );
+
+    if ( a <= 1024 && b <= 2097151 )
+    {
+      a = ( a*b + 0x8000 ) >> 16;
+    }
+    else
+    {
+      TT_Int64  temp, temp2;
+
+      MulTo64( a, b, &temp );
+      temp2.hi = 0;
+      temp2.lo = 0x8000;
+      Add64( &temp, &temp2, &temp );
+      a = Div64by32( &temp, 0x10000 );
+    }
+
+    return ( s < 0 ) ? -a : a;
+  #endif
+  }
+
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 /*********************************************************************/
 /*                                                                   */
@@ -543,6 +594,10 @@
 #undef  NULL_Vector
 #define NULL_Vector (TT_Vector*)&Null_Vector
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpExtra)
+#endif
+
 /*******************************************************************
  *
  *  Function    :  Norm
@@ -588,6 +643,9 @@
                       CUR.metrics.scale2 );
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
 
 /*******************************************************************
  *
@@ -609,20 +667,13 @@
       return CUR.metrics.ratio;
 
     if ( CUR.GS.projVector.y == 0 )
-      CUR.metrics.ratio = CUR.metrics.x_ratio;
+      CUR.metrics.ratio = 1L << 16;
 
     else if ( CUR.GS.projVector.x == 0 )
-      CUR.metrics.ratio = CUR.metrics.y_ratio;
+      CUR.metrics.ratio = 1L << 16;
 
     else
-    {
-      Long  x, y;
-
-
-      x = TT_MulDiv( CUR.GS.projVector.x, CUR.metrics.x_ratio, 0x4000 );
-      y = TT_MulDiv( CUR.GS.projVector.y, CUR.metrics.y_ratio, 0x4000 );
-      CUR.metrics.ratio = Norm( x, y );
-    }
+      CUR.metrics.ratio = Norm( CUR.GS.projVector.x, CUR.GS.projVector.y );
 
     return CUR.metrics.ratio;
   }
@@ -630,43 +681,45 @@
 
   static Long  Current_Ppem( EXEC_OP )
   {
-    return TT_MulFix( CUR.metrics.ppem, CURRENT_Ratio() );
+    return TT_MulFixLocal( CUR.metrics.ppem, CURRENT_Ratio() );
   }
 
 
-  static TT_F26Dot6  Read_CVT( EXEC_OPS ULong  index )
+  static TT_F26Dot6  _near Read_CVT( EXEC_OPS UShort  index )
   {
     return CUR.cvt[index];
   }
 
-
-  static TT_F26Dot6  Read_CVT_Stretched( EXEC_OPS ULong  index )
+#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
+  static TT_F26Dot6  _near Read_CVT_Stretched( EXEC_OPS UShort  index )
   {
     return TT_MulFix( CUR.cvt[index], CURRENT_Ratio() );
   }
+#endif
 
-
-  static void  Write_CVT( EXEC_OPS ULong  index, TT_F26Dot6  value )
+  static void  _near Write_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] = value;
   }
 
-  static void  Write_CVT_Stretched( EXEC_OPS ULong  index, TT_F26Dot6  value )
+#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
+  static void  _near Write_CVT_Stretched( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] = TT_MulDiv( value, 0x10000, CURRENT_Ratio() );
   }
+#endif
 
-
-  static void  Move_CVT( EXEC_OPS ULong  index, TT_F26Dot6  value )
+  static void  _near Move_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] += value;
   }
 
-  static void  Move_CVT_Stretched( EXEC_OPS ULong  index, TT_F26Dot6  value )
+#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
+  static void  __near Move_CVT_Stretched( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] += TT_MulDiv( value, 0x10000, CURRENT_Ratio() );
   }
-
+#endif
 
 /******************************************************************
  *
@@ -693,7 +746,7 @@
       if ( CUR.IP + 1 >= CUR.codeSize )
         return FAILURE;
 
-      CUR.length = CUR.code[CUR.IP + 1] * 2 + 2;
+      CUR.length = ( CUR.code[CUR.IP + 1] << 1 ) + 2;
       break;
 
     case 0xB0:
@@ -715,7 +768,7 @@
     case 0xBD:
     case 0xBE:
     case 0xBF:
-      CUR.length = (CUR.opcode - 0xB8) * 2 + 3;
+      CUR.length = ( (CUR.opcode - 0xB8) << 1 ) + 3;
       break;
 
     default:
@@ -751,7 +804,7 @@
   {
     /* Reading a byte stream so there is no endianess (DaveP) */
     CUR.IP += 2;
-    return (Short)((CUR.code[CUR.IP - 2] << 8) + CUR.code[CUR.IP - 1]);
+    return (Short)((CUR.code[CUR.IP - 2] << 8) | CUR.code[CUR.IP - 1]);
   }
 
 
@@ -770,7 +823,7 @@
  *
  *****************************************************************/
 
-  static Bool  Ins_Goto_CodeRange( EXEC_OPS Int  aRange, ULong  aIP )
+  static Bool  Ins_Goto_CodeRange( EXEC_OPS Int  aRange, UShort  aIP )
   {
     TCodeRange*  WITH;
 
@@ -807,6 +860,9 @@
     return SUCCESS;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 /*******************************************************************
  *
@@ -823,7 +879,7 @@
  *
  *****************************************************************/
 
-  static void  Direct_Move( EXEC_OPS PGlyph_Zone zone,
+  static void _near Direct_Move( EXEC_OPS PGlyph_Zone zone,
                                      UShort      point,
                                      TT_F26Dot6  distance )
   {
@@ -866,7 +922,7 @@
  *
  *******************************************************************/
 
-  static void  Direct_Move_X( EXEC_OPS PGlyph_Zone  zone,
+  static void _near Direct_Move_X( EXEC_OPS PGlyph_Zone  zone,
                                        UShort       point,
                                        TT_F26Dot6   distance )
   {
@@ -880,14 +936,13 @@
  *
  *******************************************************************/
 
-  static void  Direct_Move_Y( EXEC_OPS PGlyph_Zone  zone,
+  static void _near Direct_Move_Y( EXEC_OPS PGlyph_Zone  zone,
                                        UShort       point,
                                        TT_F26Dot6   distance )
   {
     zone->cur[point].y += distance;
     zone->touch[point] |= TT_Flag_Touched_Y;
   }
-
 
 /*******************************************************************
  *
@@ -906,9 +961,8 @@
  *         should add the compensation before rounding.
  *
  ******************************************************************/
-
-  static TT_F26Dot6  Round_None( EXEC_OPS TT_F26Dot6  distance,
-                                          TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_None( EXEC_OPS TT_F26Dot6  distance,
+                                               TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
@@ -928,6 +982,12 @@
     return val;
   }
 
+  static TT_F26Dot6 _far FarRound_None( EXEC_OPS TT_F26Dot6  distance,
+                                               TT_F26Dot6  compensation )
+  {
+    return Round_None( EXEC_ARGS distance, compensation);
+  }
+
 
 /*******************************************************************
  *
@@ -943,18 +1003,16 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_To_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                             TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_To_Grid( EXEC_OPS TT_F26Dot6  distance,
+                                                  TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
 
     if ( distance >= 0 )
     {
-      val = distance + compensation + 32;
-      if ( val > 0 )
-        val &= ~63;
-      else
+      val = (distance + compensation + 32) & (-64);
+      if ( val < 0 )
         val = 0;
     }
     else
@@ -982,8 +1040,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_To_Half_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                  TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_To_Half_Grid( EXEC_OPS TT_F26Dot6  distance,
+                                                       TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
@@ -1019,18 +1077,16 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_Down_To_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                  TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Down_To_Grid( EXEC_OPS TT_F26Dot6  distance,
+                                                       TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
 
     if ( distance >= 0 )
     {
-      val = distance + compensation;
-      if ( val > 0 )
-        val &= ~63;
-      else
+      val = (distance + compensation) & (-64);
+      if ( val < 0 )
         val = 0;
     }
     else
@@ -1058,18 +1114,16 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_Up_To_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Up_To_Grid( EXEC_OPS TT_F26Dot6  distance,
+                                                     TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
 
     if ( distance >= 0 )
     {
-      val = distance + compensation + 63;
-      if ( val > 0 )
-        val &= ~63;
-      else
+      val = (distance + compensation + 63) & (-64);
+      if ( val < 0 )
         val = 0;
     }
     else
@@ -1097,18 +1151,16 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_To_Double_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                    TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_To_Double_Grid( EXEC_OPS TT_F26Dot6  distance,
+                                                         TT_F26Dot6  compensation )
   {
     TT_F26Dot6 val;
 
 
     if ( distance >= 0 )
     {
-      val = distance + compensation + 16;
-      if ( val > 0 )
-        val &= ~31;
-      else
+      val = (distance + compensation + 16) & (-32);
+      if ( val < 0 )
         val = 0;
     }
     else
@@ -1141,8 +1193,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_Super( EXEC_OPS TT_F26Dot6  distance,
-                                           TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Super( EXEC_OPS TT_F26Dot6  distance,
+                                                TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
@@ -1185,8 +1237,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Round_Super_45( EXEC_OPS TT_F26Dot6  distance,
-                                              TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Super_45( EXEC_OPS TT_F26Dot6  distance,
+                                                   TT_F26Dot6  compensation )
   {
     TT_F26Dot6  val;
 
@@ -1211,6 +1263,9 @@
     return val;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpExtra)
+#endif
 
 /*******************************************************************
  * Compute_Round
@@ -1222,39 +1277,38 @@
     switch ( round_mode )
     {
     case TT_Round_Off:
-      CUR.func_round = (TRound_Function)Round_None;
+      CUR.func_round = Round_None;
       break;
 
     case TT_Round_To_Grid:
-      CUR.func_round = (TRound_Function)Round_To_Grid;
+      CUR.func_round = Round_To_Grid;
       break;
 
     case TT_Round_Up_To_Grid:
-      CUR.func_round = (TRound_Function)Round_Up_To_Grid;
+      CUR.func_round = Round_Up_To_Grid;
       break;
 
     case TT_Round_Down_To_Grid:
-      CUR.func_round = (TRound_Function)Round_Down_To_Grid;
+      CUR.func_round = Round_Down_To_Grid;
       break;
 
     case TT_Round_To_Half_Grid:
-      CUR.func_round = (TRound_Function)Round_To_Half_Grid;
+      CUR.func_round = Round_To_Half_Grid;
       break;
 
     case TT_Round_To_Double_Grid:
-      CUR.func_round = (TRound_Function)Round_To_Double_Grid;
+      CUR.func_round = Round_To_Double_Grid;
       break;
 
     case TT_Round_Super:
-      CUR.func_round = (TRound_Function)Round_Super;
+      CUR.func_round = Round_Super;
       break;
 
     case TT_Round_Super_45:
-      CUR.func_round = (TRound_Function)Round_Super_45;
+      CUR.func_round = Round_Super_45;
       break;
     }
   }
-
 
 /*******************************************************************
  *
@@ -1275,7 +1329,7 @@
     switch ( (Int)(selector & 0xC0) )
     {
       case 0:
-        CUR.period = GridPeriod / 2;
+        CUR.period = GridPeriod >> 1;
         break;
 
       case 0x40:
@@ -1283,7 +1337,7 @@
         break;
 
       case 0x80:
-        CUR.period = GridPeriod * 2;
+        CUR.period = GridPeriod << 1;
         break;
 
       /* This opcode is reserved, but... */
@@ -1300,28 +1354,62 @@
       break;
 
     case 0x10:
-      CUR.phase = CUR.period / 4;
+      CUR.phase = CUR.period >> 2;
       break;
 
     case 0x20:
-      CUR.phase = CUR.period / 2;
+      CUR.phase = CUR.period >> 1;
       break;
 
     case 0x30:
-      CUR.phase = GridPeriod * 3 / 4;
+      CUR.phase = ( GridPeriod * 3 ) >> 2;
       break;
     }
 
     if ( (selector & 0x0F) == 0 )
       CUR.threshold = CUR.period - 1;
     else
-      CUR.threshold = ( (Int)(selector & 0x0F) - 4 ) * CUR.period / 8;
+      CUR.threshold = ( (Int)(selector & 0x0F) - 4 ) * ( CUR.period >> 3 );
 
-    CUR.period    /= 256;
-    CUR.phase     /= 256;
-    CUR.threshold /= 256;
+    CUR.period    >>= 8;
+    CUR.phase     >>= 8;
+    CUR.threshold >>= 8;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
+
+  static TT_F26Dot6 _far FarCUR_Func_round(EXEC_OPS TT_F26Dot6  distance,
+                                                   TT_F26Dot6  compensation)
+  {
+    return CUR.func_round(EXEC_ARGS distance, compensation);
+  }
+
+  static void _far FarCUR_Func_move(EXEC_OPS PGlyph_Zone zone,
+                                     UShort      point,
+                                     TT_F26Dot6  distance)
+  {
+    CUR.func_move(EXEC_ARGS zone, point, distance);
+  }
+
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
+
+  static TT_F26Dot6 _far FarCUR_Func_read_cvt(EXEC_OPS UShort index)
+  {
+    return CUR.func_read_cvt(EXEC_ARGS index);
+  }
+
+  static void _far FarCUR_Func_move_cvt(EXEC_OPS UShort index, TT_F26Dot6  value)
+  {
+    CUR.func_move_cvt(EXEC_ARGS index, value);
+  }
+
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 /*******************************************************************
  *
@@ -1336,8 +1424,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Project( EXEC_OPS TT_Vector*  v1,
-                                       TT_Vector*  v2 )
+  static TT_F26Dot6 _near Project( EXEC_OPS TT_Vector*  v1,
+                                            TT_Vector*  v2 )
   {
     TT_Int64  T1, T2;
 
@@ -1364,8 +1452,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Dual_Project( EXEC_OPS TT_Vector*  v1,
-                                            TT_Vector*  v2 )
+  static TT_F26Dot6 _near Dual_Project( EXEC_OPS TT_Vector*  v1,
+                                                 TT_Vector*  v2 )
   {
     TT_Int64  T1, T2;
 
@@ -1392,8 +1480,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Free_Project( EXEC_OPS TT_Vector*  v1,
-                                            TT_Vector*  v2 )
+  static TT_F26Dot6 _near Free_Project( EXEC_OPS TT_Vector*  v1,
+                                                 TT_Vector*  v2 )
   {
     TT_Int64  T1, T2;
 
@@ -1419,8 +1507,8 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Project_x( EXEC_OPS TT_Vector*  v1,
-                                         TT_Vector*  v2 )
+  static TT_F26Dot6 _near Project_x( EXEC_OPS TT_Vector*  v1,
+                                              TT_Vector*  v2 )
   {
     return (v1->x - v2->x);
   }
@@ -1438,12 +1526,15 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  Project_y( EXEC_OPS TT_Vector*  v1,
-                                         TT_Vector*  v2 )
+  static TT_F26Dot6 _near Project_y( EXEC_OPS TT_Vector*  v1,
+                                              TT_Vector*  v2 )
   {
     return (v1->y - v2->y);
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpExtra)
+#endif
 
 /*******************************************************************
  *
@@ -1459,57 +1550,52 @@
   static void  Compute_Funcs( EXEC_OP )
   {
     if ( CUR.GS.freeVector.x == 0x4000 )
-    {
-      CUR.func_freeProj = (TProject_Function)Project_x;
-      CUR.F_dot_P       = CUR.GS.projVector.x * 0x10000L;
-    }
+      CUR.F_dot_P   = CUR.GS.projVector.x * 0x10000L;
     else
     {
       if ( CUR.GS.freeVector.y == 0x4000 )
       {
-        CUR.func_freeProj = (TProject_Function)Project_y;
-        CUR.F_dot_P       = CUR.GS.projVector.y * 0x10000L;
+        CUR.F_dot_P = CUR.GS.projVector.y * 0x10000L;
       }
       else
       {
-        CUR.func_freeProj = (TProject_Function)Free_Project;
-        CUR.F_dot_P = (Long)CUR.GS.projVector.x * CUR.GS.freeVector.x * 4 +
-                      (Long)CUR.GS.projVector.y * CUR.GS.freeVector.y * 4;
+        CUR.F_dot_P = (Long)CUR.GS.projVector.x * CUR.GS.freeVector.x << 2 +
+                      (Long)CUR.GS.projVector.y * CUR.GS.freeVector.y << 2;
       }
     }
 
     CUR.cached_metrics = FALSE;
 
     if ( CUR.GS.projVector.x == 0x4000 )
-      CUR.func_project = (TProject_Function)Project_x;
+      CUR.func_project = Project_x;
     else
     {
       if ( CUR.GS.projVector.y == 0x4000 )
-        CUR.func_project = (TProject_Function)Project_y;
+        CUR.func_project = Project_y;
       else
-        CUR.func_project = (TProject_Function)Project;
+        CUR.func_project = Project;
     }
 
     if ( CUR.GS.dualVector.x == 0x4000 )
-      CUR.func_dualproj = (TProject_Function)Project_x;
+      CUR.func_dualproj = Project_x;
     else
     {
       if ( CUR.GS.dualVector.y == 0x4000 )
-        CUR.func_dualproj = (TProject_Function)Project_y;
+        CUR.func_dualproj = Project_y;
       else
-        CUR.func_dualproj = (TProject_Function)Dual_Project;
+        CUR.func_dualproj = Dual_Project;
     }
 
-    CUR.func_move = (TMove_Function)Direct_Move;
+    CUR.func_move = Direct_Move;
 
     if ( CUR.F_dot_P == 0x40000000L )
     {
       if ( CUR.GS.freeVector.x == 0x4000 )
-        CUR.func_move = (TMove_Function)Direct_Move_X;
+        CUR.func_move = Direct_Move_X;
       else
       {
         if ( CUR.GS.freeVector.y == 0x4000 )
-          CUR.func_move = (TMove_Function)Direct_Move_Y;
+          CUR.func_move = Direct_Move_Y;
       }
     }
 
@@ -1522,7 +1608,6 @@
     /* Disable cached aspect ratio */
     CUR.metrics.ratio = 0;
   }
-
 
 /*******************************************************************
  *
@@ -1537,9 +1622,9 @@
  *
  *****************************************************************/
 
-  static Bool  Normalize( EXEC_OPS TT_F26Dot6      Vx,
-                                   TT_F26Dot6      Vy,
-                                   TT_UnitVector*  R )
+  static Bool  Normalize( TT_F26Dot6      Vx,
+                          TT_F26Dot6      Vy,
+                          TT_UnitVector*  R )
   {
     TT_F26Dot6  W;
     Bool        S1, S2;
@@ -1595,9 +1680,9 @@
     {
       /* We need to increase W, by a minimal amount */
       if ( Vx < Vy )
-        Vx++;
+        ++Vx;
       else
-        Vy++;
+        ++Vy;
 
       W = Vx * Vx + Vy * Vy;
     }
@@ -1606,9 +1691,9 @@
     {
       /* We need to decrease W, by a minimal amount */
       if ( Vx < Vy )
-        Vx--;
+        --Vx;
       else
-        Vy--;
+        --Vy;
 
       W = Vx * Vx + Vy * Vy;
     }
@@ -1649,8 +1734,10 @@
     if ( BOUNDS( aIdx1, CUR.zp2.n_points ) ||
          BOUNDS( aIdx2, CUR.zp1.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return FAILURE;
     }
 
@@ -1671,6 +1758,9 @@
     return SUCCESS;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 /* When not using the big switch statements, the interpreter uses a */
 /* call table defined later below in this source.  Each opcode must */
@@ -1815,44 +1905,44 @@
 
 #define DO_RTHG                                           \
     CUR.GS.round_state = TT_Round_To_Half_Grid;           \
-    CUR.func_round = (TRound_Function)Round_To_Half_Grid;
+    CUR.func_round = Round_To_Half_Grid;
 
 
 #define DO_RTG                                       \
     CUR.GS.round_state = TT_Round_To_Grid;           \
-    CUR.func_round = (TRound_Function)Round_To_Grid;
+    CUR.func_round = Round_To_Grid;
 
 
 #define DO_RTDG                                             \
     CUR.GS.round_state = TT_Round_To_Double_Grid;           \
-    CUR.func_round = (TRound_Function)Round_To_Double_Grid;
+    CUR.func_round = Round_To_Double_Grid;
 
 
 #define DO_RUTG                                         \
     CUR.GS.round_state = TT_Round_Up_To_Grid;           \
-    CUR.func_round = (TRound_Function)Round_Up_To_Grid;
+    CUR.func_round = Round_Up_To_Grid;
 
 
 #define DO_RDTG                                           \
     CUR.GS.round_state = TT_Round_Down_To_Grid;           \
-    CUR.func_round = (TRound_Function)Round_Down_To_Grid;
+    CUR.func_round = Round_Down_To_Grid;
 
 
 #define DO_ROFF                                   \
     CUR.GS.round_state = TT_Round_Off;            \
-    CUR.func_round = (TRound_Function)Round_None;
+    CUR.func_round = Round_None;
 
 
 #define DO_SROUND                                  \
     SET_SuperRound( 0x4000L, args[0] );            \
     CUR.GS.round_state = TT_Round_Super;           \
-    CUR.func_round = (TRound_Function)Round_Super;
+    CUR.func_round = Round_Super;
 
 
 #define DO_S45ROUND                                   \
     SET_SuperRound( 0x2D41L, args[0] );               \
     CUR.GS.round_state = TT_Round_Super_45;           \
-    CUR.func_round = (TRound_Function)Round_Super_45;
+    CUR.func_round = Round_Super_45;
 
 
 #define DO_SLOOP                       \
@@ -1993,11 +2083,11 @@
 
 
 #define DO_ODD  \
-    args[0] = ( (CUR_Func_round( args[0], 0 ) & 127) == 64 );
+    args[0] = ( (FarCUR_Func_round(EXEC_ARGS args[0], 0 ) & 127) == 64 );
 
 
 #define DO_EVEN  \
-    args[0] = ( (CUR_Func_round( args[0], 0 ) & 127) == 0 );
+    args[0] = ( (FarCUR_Func_round( EXEC_ARGS args[0], 0 ) & 127) == 0 );
 
 
 #define DO_AND  \
@@ -2047,9 +2137,10 @@
     args[0] = (args[0] + 63) & (-64);
 
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
 #define DO_RS                                                   \
    {                                                            \
-     ULong  I = (ULong)args[0];                                 \
+     UShort  I = (UShort)args[0];                               \
      if ( BOUNDS( I, CUR.storeSize ) )                          \
      {                                                          \
        if ( CUR.pedantic_hinting )                              \
@@ -2062,11 +2153,22 @@
      else                                                       \
        args[0] = CUR.storage[I];                                \
    }
+#else
+#define DO_RS                                                   \
+   {                                                            \
+     UShort  I = (UShort)args[0];                               \
+     if ( BOUNDS( I, CUR.storeSize ) )                          \
+       args[0] = 0;                                             \
+     else                                                       \
+       args[0] = CUR.storage[I];                                \
+   }
+#endif
 
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
 #define DO_WS  \
    {                                                            \
-     ULong  I = (ULong)args[0];                                 \
+     UShort  I = (UShort)args[0];                                 \
      if ( BOUNDS( I, CUR.storeSize ) )                          \
      {                                                          \
        if ( CUR.pedantic_hinting )                              \
@@ -2077,12 +2179,20 @@
      else                                                       \
        CUR.storage[I] = args[1];                                \
    }
-
-
-
-#define DO_RCVT                              \
+#else
+#define DO_WS  \
    {                                                            \
-     ULong  I = (ULong)args[0];                                 \
+     UShort  I = (UShort)args[0];                                 \
+     if ( ! BOUNDS( I, CUR.storeSize ) )                        \
+       CUR.storage[I] = args[1];                                \
+   }
+#endif
+
+
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
+#define DO_RCVT  \
+   {                                                            \
+     UShort  I = (UShort)args[0];                                 \
      if ( BOUNDS( I, CUR.cvtSize ) )                            \
      {                                                          \
        if ( CUR.pedantic_hinting )                              \
@@ -2095,11 +2205,22 @@
      else                                                       \
        args[0] = CUR_Func_read_cvt(I);                          \
    }
+#else
+#define DO_RCVT  \
+   {                                                            \
+     UShort  I = (UShort)args[0];                                 \
+     if ( BOUNDS( I, CUR.cvtSize ) )                            \
+         args[0] = 0;                                           \
+     else                                                       \
+       args[0] = CUR_Func_read_cvt(I);                          \
+   }
+#endif
 
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
 #define DO_WCVTP                             \
    {                                                            \
-     ULong  I = (ULong)args[0];                                 \
+     UShort  I = (UShort)args[0];                                 \
      if ( BOUNDS( I, CUR.cvtSize ) )                            \
      {                                                          \
        if ( CUR.pedantic_hinting )                              \
@@ -2110,11 +2231,20 @@
      else                                                       \
        CUR_Func_write_cvt( I, args[1] );                        \
    }
+#else
+#define DO_WCVTP                             \
+   {                                                            \
+     UShort  I = (UShort)args[0];                               \
+     if ( ! BOUNDS( I, CUR.cvtSize ) )                          \
+       CUR_Func_write_cvt( I, args[1] );                        \
+   }
+#endif
 
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
 #define DO_WCVTF                                                   \
    {                                                               \
-     ULong  I = (ULong)args[0];                                    \
+     UShort  I = (UShort)args[0];                                  \
      if ( BOUNDS( I, CUR.cvtSize ) )                               \
      {                                                             \
        if ( CUR.pedantic_hinting )                                 \
@@ -2125,6 +2255,14 @@
      else                                                          \
        CUR.cvt[I] = FUnits_To_Pixels( EXEC_ARGS (Short)args[1] );  \
    }
+#else
+#define DO_WCVTF                                                   \
+   {                                                               \
+     UShort  I = (UShort)args[0];                                  \
+     if ( ! BOUNDS( I, CUR.cvtSize ) )                             \
+       CUR.cvt[I] = FUnits_To_Pixels( EXEC_ARGS (Short)args[1] );  \
+   }
+#endif
 
 
 #define DO_DEBUG  \
@@ -2132,12 +2270,12 @@
 
 
 #define DO_ROUND                                                            \
-    args[0] = CUR_Func_round( args[0],                                      \
+    args[0] = FarCUR_Func_round( EXEC_ARGS args[0],                                      \
                               CUR.metrics.compensations[CUR.opcode-0x68] );
 
 
 #define DO_NROUND                                                         \
-    args[0] = Round_None( EXEC_ARGS                                       \
+    args[0] = FarRound_None( EXEC_ARGS                                       \
                           args[0],                                        \
                           CUR.metrics.compensations[CUR.opcode - 0x6C] );
 
@@ -2153,7 +2291,7 @@
 
 
 #ifndef TT_CONFIG_OPTION_INTERPRETER_SWITCH
-
+#pragma code_seg(InterpEntry)
 
 #undef  ARRAY_BOUND_ERROR
 #define ARRAY_BOUND_ERROR                    \
@@ -2168,7 +2306,7 @@
 /* CodeRange : $00-$01                     */
 /* Stack     : -->                         */
 
-  static void  Ins_SVTCA( INS_ARG )
+  static void _near Ins_SVTCA( INS_ARG )
   {
     DO_SVTCA
   }
@@ -2179,7 +2317,7 @@
 /* CodeRange : $02-$03                     */
 /* Stack     : -->                         */
 
-  static void  Ins_SPVTCA( INS_ARG )
+  static void _near Ins_SPVTCA( INS_ARG )
   {
     DO_SPVTCA
   }
@@ -2190,7 +2328,7 @@
 /* CodeRange : $04-$05                     */
 /* Stack     : -->                         */
 
-  static void  Ins_SFVTCA( INS_ARG )
+  static void _near Ins_SFVTCA( INS_ARG )
   {
     DO_SFVTCA
   }
@@ -2200,7 +2338,7 @@
 /* CodeRange : $06-$07                     */
 /* Stack     : uint32 uint32 -->           */
 
-  static void  Ins_SPVTL( INS_ARG )
+  static void _near Ins_SPVTL( INS_ARG )
   {
     DO_SPVTL
   }
@@ -2211,7 +2349,7 @@
 /* CodeRange : $08-$09                     */
 /* Stack     : uint32 uint32 -->           */
 
-  static void  Ins_SFVTL( INS_ARG )
+  static void _near Ins_SFVTL( INS_ARG )
   {
     DO_SFVTL
   }
@@ -2222,7 +2360,7 @@
 /* CodeRange : $0E                         */
 /* Stack     : -->                         */
 
-  static void  Ins_SFVTPV( INS_ARG )
+  static void _near Ins_SFVTPV( INS_ARG )
   {
     DO_SFVTPV
   }
@@ -2233,7 +2371,7 @@
 /* CodeRange : $0A                         */
 /* Stack     : f2.14 f2.14 -->             */
 
-  static void  Ins_SPVFS( INS_ARG )
+  static void _near Ins_SPVFS( INS_ARG )
   {
     DO_SPVFS
   }
@@ -2244,7 +2382,7 @@
 /* CodeRange : $0B                         */
 /* Stack     : f2.14 f2.14 -->             */
 
-  static void  Ins_SFVFS( INS_ARG )
+  static void _near Ins_SFVFS( INS_ARG )
   {
     DO_SFVFS
   }
@@ -2255,7 +2393,7 @@
 /* CodeRange : $0C                         */
 /* Stack     : ef2.14 --> ef2.14           */
 
-  static void  Ins_GPV( INS_ARG )
+  static void _near Ins_GPV( INS_ARG )
   {
     DO_GPV
   }
@@ -2266,7 +2404,7 @@
 /* CodeRange : $0D                         */
 /* Stack     : ef2.14 --> ef2.14           */
 
-  static void  Ins_GFV( INS_ARG )
+  static void _near Ins_GFV( INS_ARG )
   {
     DO_GFV
   }
@@ -2277,7 +2415,7 @@
 /* CodeRange : $10                         */
 /* Stack     : uint32 -->                  */
 
-  static void  Ins_SRP0( INS_ARG )
+  static void _near Ins_SRP0( INS_ARG )
   {
     DO_SRP0
   }
@@ -2288,7 +2426,7 @@
 /* CodeRange : $11                         */
 /* Stack     : uint32 -->                  */
 
-  static void  Ins_SRP1( INS_ARG )
+  static void _near Ins_SRP1( INS_ARG )
   {
     DO_SRP1
   }
@@ -2299,7 +2437,7 @@
 /* CodeRange : $12                         */
 /* Stack     : uint32 -->                  */
 
-  static void  Ins_SRP2( INS_ARG )
+  static void _near Ins_SRP2( INS_ARG )
   {
     DO_SRP2
   }
@@ -2310,7 +2448,7 @@
 /* CodeRange : $19                         */
 /* Stack     : -->                         */
 
-  static void  Ins_RTHG( INS_ARG )
+  static void _near Ins_RTHG( INS_ARG )
   {
     DO_RTHG
   }
@@ -2321,7 +2459,7 @@
 /* CodeRange : $18                         */
 /* Stack     : -->                         */
 
-  static void  Ins_RTG( INS_ARG )
+  static void _near Ins_RTG( INS_ARG )
   {
     DO_RTG
   }
@@ -2332,7 +2470,7 @@
 /* CodeRange : $3D                         */
 /* Stack     : -->                         */
 
-  static void  Ins_RTDG( INS_ARG )
+  static void _near Ins_RTDG( INS_ARG )
   {
     DO_RTDG
   }
@@ -2343,7 +2481,7 @@
 /* CodeRange : $7C                         */
 /* Stack     : -->                         */
 
-  static void  Ins_RUTG( INS_ARG )
+  static void _near Ins_RUTG( INS_ARG )
   {
     DO_RUTG
   }
@@ -2354,7 +2492,7 @@
 /* CodeRange : $7D                         */
 /* Stack     : -->                         */
 
-  static void  Ins_RDTG( INS_ARG )
+  static void _near Ins_RDTG( INS_ARG )
   {
     DO_RDTG
   }
@@ -2365,7 +2503,7 @@
 /* CodeRange : $7A                         */
 /* Stack     : -->                         */
 
-  static void  Ins_ROFF( INS_ARG )
+  static void _near Ins_ROFF( INS_ARG )
   {
     DO_ROFF
   }
@@ -2376,7 +2514,7 @@
 /* CodeRange : $76                         */
 /* Stack     : Eint8 -->                   */
 
-  static void  Ins_SROUND( INS_ARG )
+  static void _near Ins_SROUND( INS_ARG )
   {
     DO_SROUND
   }
@@ -2387,7 +2525,7 @@
 /* CodeRange : $77                         */
 /* Stack     : uint32 -->                  */
 
-  static void  Ins_S45ROUND( INS_ARG )
+  static void _near Ins_S45ROUND( INS_ARG )
   {
     DO_S45ROUND
   }
@@ -2398,7 +2536,7 @@
 /* CodeRange : $17                         */
 /* Stack     : int32? -->                  */
 
-  static void  Ins_SLOOP( INS_ARG )
+  static void _near Ins_SLOOP( INS_ARG )
   {
     DO_SLOOP
   }
@@ -2409,7 +2547,7 @@
 /* CodeRange : $1A                         */
 /* Stack     : f26.6 -->                   */
 
-  static void  Ins_SMD( INS_ARG )
+  static void _near Ins_SMD( INS_ARG )
   {
     DO_SMD
   }
@@ -2420,7 +2558,7 @@
 /* CodeRange : $1D                            */
 /* Stack     : f26.6 -->                      */
 
-  static void  Ins_SCVTCI( INS_ARG )
+  static void _near Ins_SCVTCI( INS_ARG )
   {
     DO_SCVTCI
   }
@@ -2431,7 +2569,7 @@
 /* CodeRange : $1E                            */
 /* Stack     : f26.6 -->                      */
 
-  static void  Ins_SSWCI( INS_ARG )
+  static void _near Ins_SSWCI( INS_ARG )
   {
     DO_SSWCI
   }
@@ -2442,7 +2580,7 @@
 /* CodeRange : $1F                            */
 /* Stack     : int32? -->                     */
 
-  static void  Ins_SSW( INS_ARG )
+  static void _near Ins_SSW( INS_ARG )
   {
     DO_SSW
   }
@@ -2453,7 +2591,7 @@
 /* CodeRange : $4D                            */
 /* Stack     : -->                            */
 
-  static void  Ins_FLIPON( INS_ARG )
+  static void _near Ins_FLIPON( INS_ARG )
   {
     DO_FLIPON
   }
@@ -2464,7 +2602,7 @@
 /* CodeRange : $4E                            */
 /* Stack     : -->                            */
 
-  static void  Ins_FLIPOFF( INS_ARG )
+  static void _near Ins_FLIPOFF( INS_ARG )
   {
     DO_FLIPOFF
   }
@@ -2475,7 +2613,7 @@
 /* CodeRange : $7E                            */
 /* Stack     : uint32 -->                     */
 
-  static void  Ins_SANGW( INS_ARG )
+  static void _near Ins_SANGW( INS_ARG )
   {
     /* instruction not supported anymore */
   }
@@ -2486,7 +2624,7 @@
 /* CodeRange : $5E                            */
 /* Stack     : uint32 -->                     */
 
-  static void  Ins_SDB( INS_ARG )
+  static void _near Ins_SDB( INS_ARG )
   {
     DO_SDB
   }
@@ -2497,7 +2635,7 @@
 /* CodeRange : $5F                            */
 /* Stack     : uint32 -->                     */
 
-  static void  Ins_SDS( INS_ARG )
+  static void _near Ins_SDS( INS_ARG )
   {
     DO_SDS
   }
@@ -2508,7 +2646,7 @@
 /* CodeRange : $4B                            */
 /* Stack     : --> Euint16                    */
 
-  static void  Ins_MPPEM( INS_ARG )
+  static void _near Ins_MPPEM( INS_ARG )
   {
     DO_MPPEM
   }
@@ -2519,7 +2657,7 @@
 /* CodeRange : $4C                            */
 /* Stack     : --> Euint16                    */
 
-  static void  Ins_MPS( INS_ARG )
+  static void _near Ins_MPS( INS_ARG )
   {
     DO_MPS
   }
@@ -2529,7 +2667,7 @@
 /* CodeRange : $20                         */
 /* Stack     : StkElt --> StkElt StkElt    */
 
-  static void  Ins_DUP( INS_ARG )
+  static void _near Ins_DUP( INS_ARG )
   {
     DO_DUP
   }
@@ -2540,7 +2678,7 @@
 /* CodeRange : $21                         */
 /* Stack     : StkElt -->                  */
 
-  static void  Ins_POP( INS_ARG )
+  static void _near Ins_POP( INS_ARG )
   {
     /* nothing to do */
   }
@@ -2551,7 +2689,7 @@
 /* CodeRange : $22                         */
 /* Stack     : StkElt... -->               */
 
-  static void  Ins_CLEAR( INS_ARG )
+  static void _near Ins_CLEAR( INS_ARG )
   {
     DO_CLEAR
   }
@@ -2562,7 +2700,7 @@
 /* CodeRange : $23                         */
 /* Stack     : 2 * StkElt --> 2 * StkElt   */
 
-  static void  Ins_SWAP( INS_ARG )
+  static void _near Ins_SWAP( INS_ARG )
   {
     DO_SWAP
   }
@@ -2573,7 +2711,7 @@
 /* CodeRange : $24                         */
 /* Stack     : --> uint32                  */
 
-  static void  Ins_DEPTH( INS_ARG )
+  static void _near Ins_DEPTH( INS_ARG )
   {
     DO_DEPTH
   }
@@ -2584,7 +2722,7 @@
 /* CodeRange : $25                         */
 /* Stack     : int32 --> StkElt            */
 
-  static void  Ins_CINDEX( INS_ARG )
+  static void _near Ins_CINDEX( INS_ARG )
   {
     DO_CINDEX
   }
@@ -2595,7 +2733,7 @@
 /* CodeRange : $59                         */
 /* Stack     : -->                         */
 
-  static void  Ins_EIF( INS_ARG )
+  static void _near Ins_EIF( INS_ARG )
   {
     /* nothing to do */
   }
@@ -2606,7 +2744,7 @@
 /* CodeRange : $78                         */
 /* Stack     : StkElt int32 -->            */
 
-  static void  Ins_JROT( INS_ARG )
+  static void _near Ins_JROT( INS_ARG )
   {
     DO_JROT
   }
@@ -2617,7 +2755,7 @@
 /* CodeRange : $1C                         */
 /* Stack     : int32 -->                   */
 
-  static void  Ins_JMPR( INS_ARG )
+  static void _near Ins_JMPR( INS_ARG )
   {
     DO_JMPR
   }
@@ -2628,7 +2766,7 @@
 /* CodeRange : $79                         */
 /* Stack     : StkElt int32 -->            */
 
-  static void  Ins_JROF( INS_ARG )
+  static void _near Ins_JROF( INS_ARG )
   {
     DO_JROF
   }
@@ -2639,7 +2777,7 @@
 /* CodeRange : $50                         */
 /* Stack     : int32? int32? --> bool      */
 
-  static void  Ins_LT( INS_ARG )
+  static void _near Ins_LT( INS_ARG )
   {
     DO_LT
   }
@@ -2650,7 +2788,7 @@
 /* CodeRange : $51                         */
 /* Stack     : int32? int32? --> bool      */
 
-  static void  Ins_LTEQ( INS_ARG )
+  static void _near Ins_LTEQ( INS_ARG )
   {
     DO_LTEQ
   }
@@ -2661,7 +2799,7 @@
 /* CodeRange : $52                         */
 /* Stack     : int32? int32? --> bool      */
 
-  static void  Ins_GT( INS_ARG )
+  static void _near Ins_GT( INS_ARG )
   {
     DO_GT
   }
@@ -2672,7 +2810,7 @@
 /* CodeRange : $53                         */
 /* Stack     : int32? int32? --> bool      */
 
-  static void  Ins_GTEQ( INS_ARG )
+  static void _near Ins_GTEQ( INS_ARG )
   {
     DO_GTEQ
   }
@@ -2683,7 +2821,7 @@
 /* CodeRange : $54                         */
 /* Stack     : StkElt StkElt --> bool      */
 
-  static void  Ins_EQ( INS_ARG )
+  static void _near Ins_EQ( INS_ARG )
   {
     DO_EQ
   }
@@ -2694,7 +2832,7 @@
 /* CodeRange : $55                         */
 /* Stack     : StkElt StkElt --> bool      */
 
-  static void  Ins_NEQ( INS_ARG )
+  static void _near Ins_NEQ( INS_ARG )
   {
     DO_NEQ
   }
@@ -2705,7 +2843,7 @@
 /* CodeRange : $56                         */
 /* Stack     : f26.6 --> bool              */
 
-  static void  Ins_ODD( INS_ARG )
+  static void _near Ins_ODD( INS_ARG )
   {
     DO_ODD
   }
@@ -2716,7 +2854,7 @@
 /* CodeRange : $57                         */
 /* Stack     : f26.6 --> bool              */
 
-  static void  Ins_EVEN( INS_ARG )
+  static void _near Ins_EVEN( INS_ARG )
   {
     DO_EVEN
   }
@@ -2727,7 +2865,7 @@
 /* CodeRange : $5A                         */
 /* Stack     : uint32 uint32 --> uint32    */
 
-  static void  Ins_AND( INS_ARG )
+  static void _near Ins_AND( INS_ARG )
   {
     DO_AND
   }
@@ -2738,7 +2876,7 @@
 /* CodeRange : $5B                         */
 /* Stack     : uint32 uint32 --> uint32    */
 
-  static void  Ins_OR( INS_ARG )
+  static void _near Ins_OR( INS_ARG )
   {
     DO_OR
   }
@@ -2749,7 +2887,7 @@
 /* CodeRange : $5C                         */
 /* Stack     : StkElt --> uint32           */
 
-  static void  Ins_NOT( INS_ARG )
+  static void _near Ins_NOT( INS_ARG )
   {
     DO_NOT
   }
@@ -2760,7 +2898,7 @@
 /* CodeRange : $60                         */
 /* Stack     : f26.6 f26.6 --> f26.6       */
 
-  static void  Ins_ADD( INS_ARG )
+  static void _near Ins_ADD( INS_ARG )
   {
     DO_ADD
   }
@@ -2771,7 +2909,7 @@
 /* CodeRange : $61                         */
 /* Stack     : f26.6 f26.6 --> f26.6       */
 
-  static void  Ins_SUB( INS_ARG )
+  static void _near Ins_SUB( INS_ARG )
   {
     DO_SUB
   }
@@ -2782,7 +2920,7 @@
 /* CodeRange : $62                         */
 /* Stack     : f26.6 f26.6 --> f26.6       */
 
-  static void  Ins_DIV( INS_ARG )
+  static void _near Ins_DIV( INS_ARG )
   {
     DO_DIV
   }
@@ -2793,7 +2931,7 @@
 /* CodeRange : $63                         */
 /* Stack     : f26.6 f26.6 --> f26.6       */
 
-  static void  Ins_MUL( INS_ARG )
+  static void _near Ins_MUL( INS_ARG )
   {
     DO_MUL
   }
@@ -2804,7 +2942,7 @@
 /* CodeRange : $64                         */
 /* Stack     : f26.6 --> f26.6             */
 
-  static void  Ins_ABS( INS_ARG )
+  static void _near Ins_ABS( INS_ARG )
   {
     DO_ABS
   }
@@ -2815,7 +2953,7 @@
 /* CodeRange : $65                         */
 /* Stack     : f26.6 --> f26.6             */
 
-  static void  Ins_NEG( INS_ARG )
+  static void _near Ins_NEG( INS_ARG )
   {
     DO_NEG
   }
@@ -2826,7 +2964,7 @@
 /* CodeRange : $66                         */
 /* Stack     : f26.6 --> f26.6             */
 
-  static void  Ins_FLOOR( INS_ARG )
+  static void _near Ins_FLOOR( INS_ARG )
   {
     DO_FLOOR
   }
@@ -2837,7 +2975,7 @@
 /* CodeRange : $67                         */
 /* f26.6 --> f26.6                         */
 
-  static void  Ins_CEILING( INS_ARG )
+  static void _near Ins_CEILING( INS_ARG )
   {
     DO_CEILING
   }
@@ -2847,7 +2985,7 @@
 /* CodeRange : $43                         */
 /* Stack     : uint32 --> uint32           */
 
-  static void  Ins_RS( INS_ARG )
+  static void _near Ins_RS( INS_ARG )
   {
     DO_RS
   }
@@ -2858,7 +2996,7 @@
 /* CodeRange : $42                         */
 /* Stack     : uint32 uint32 -->           */
 
-  static void  Ins_WS( INS_ARG )
+  static void _near Ins_WS( INS_ARG )
   {
     DO_WS
   }
@@ -2869,7 +3007,7 @@
 /* CodeRange : $44                         */
 /* Stack     : f26.6 uint32 -->            */
 
-  static void  Ins_WCVTP( INS_ARG )
+  static void _near Ins_WCVTP( INS_ARG )
   {
     DO_WCVTP
   }
@@ -2880,7 +3018,7 @@
 /* CodeRange : $70                         */
 /* Stack     : uint32 uint32 -->           */
 
-  static void  Ins_WCVTF( INS_ARG )
+  static void _near Ins_WCVTF( INS_ARG )
   {
     DO_WCVTF
   }
@@ -2891,7 +3029,7 @@
 /* CodeRange : $45                         */
 /* Stack     : uint32 --> f26.6            */
 
-  static void  Ins_RCVT( INS_ARG )
+  static void _near Ins_RCVT( INS_ARG )
   {
     DO_RCVT
   }
@@ -2902,7 +3040,7 @@
 /* CodeRange   : $7F                        */
 /* Stack       : uint32 -->                 */
 
-  static void  Ins_AA( INS_ARG )
+  static void _near Ins_AA( INS_ARG )
   {
     /* Intentional - no longer supported */
   }
@@ -2915,7 +3053,7 @@
 
 /* NOTE : The original instruction pops a value from the stack */
 
-  static void  Ins_DEBUG( INS_ARG )
+  static void _near Ins_DEBUG( INS_ARG )
   {
     DO_DEBUG
   }
@@ -2925,7 +3063,7 @@
 /* CodeRange : $68-$6B                     */
 /* Stack     : f26.6 --> f26.6             */
 
-  static void  Ins_ROUND( INS_ARG )
+  static void _near Ins_ROUND( INS_ARG )
   {
     DO_ROUND
   }
@@ -2935,7 +3073,7 @@
 /* CodeRange : $6C-$6F                     */
 /* Stack     : f26.6 --> f26.6             */
 
-  static void  Ins_NROUND( INS_ARG )
+  static void _near Ins_NROUND( INS_ARG )
   {
     DO_NROUND
   }
@@ -2947,7 +3085,7 @@
 /* CodeRange : $68                         */
 /* Stack     : int32? int32? --> int32     */
 
-  static void  Ins_MAX( INS_ARG )
+  static void _near Ins_MAX( INS_ARG )
   {
     DO_MAX
   }
@@ -2958,14 +3096,207 @@
 /* CodeRange : $69                         */
 /* Stack     : int32? int32? --> int32     */
 
-  static void  Ins_MIN( INS_ARG )
+  static void _near Ins_MIN( INS_ARG )
   {
     DO_MIN
   }
 
 
+  static void _near LocalIns_FLIPPT( EXEC_OP )
+  {
+    Ins_FLIPPT( EXEC_ARG );
+  }
+
+  static void _near LocalIns_ISECT( INS_ARG )
+  {
+    Ins_ISECT( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SZP0( INS_ARG )
+  {
+    Ins_SZP0( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SZP1( INS_ARG )
+  {
+    Ins_SZP1( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SZP2( INS_ARG )
+  {
+    Ins_SZP2( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SZPS( INS_ARG )
+  {
+    Ins_SZPS( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MINDEX( INS_ARG )
+  {
+    Ins_MINDEX( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_ALIGNPTS( INS_ARG )
+  {
+    Ins_ALIGNPTS( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_UTP( INS_ARG )
+  {
+    Ins_UTP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_LOOPCALL( INS_ARG )
+  {
+    Ins_LOOPCALL( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MDAP( INS_ARG )
+  {
+    Ins_MDAP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SHC( INS_ARG )
+  {
+    Ins_SHC( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SHZ( INS_ARG )
+  {
+    Ins_SHZ( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SHPIX( INS_ARG )
+  {
+    Ins_SHPIX( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MSIRP( INS_ARG )
+  {
+    Ins_MSIRP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MIAP( INS_ARG )
+  {
+    Ins_MIAP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_NPUSHB( INS_ARG )
+  {
+    Ins_NPUSHB( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_NPUSHW( INS_ARG )
+  {
+    Ins_NPUSHW( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_GC( INS_ARG )
+  {
+    Ins_GC( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SCFS( INS_ARG )
+  {
+    Ins_SCFS( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MD( INS_ARG )
+  {
+    Ins_MD( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_DELTAP( INS_ARG )
+  {
+    Ins_DELTAP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_DELTAC( INS_ARG )
+  {
+    Ins_DELTAC( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_FLIPRGON( INS_ARG )
+  {
+    Ins_FLIPRGON( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_FLIPRGOFF( INS_ARG )
+  {
+    Ins_FLIPRGOFF( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SCANCTRL( INS_ARG )
+  {
+    Ins_SCANCTRL( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SDPVTL( INS_ARG )
+  {
+    Ins_SDPVTL( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_GETINFO( INS_ARG )
+  {
+    Ins_GETINFO( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_IDEF( INS_ARG )
+  {
+    Ins_IDEF( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_INSTCTRL( INS_ARG )
+  {
+    Ins_INSTCTRL( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_SCANTYPE( INS_ARG )
+  {
+    Ins_SCANTYPE( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MDRP( INS_ARG )
+  {
+    Ins_MDRP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_MIRP( INS_ARG )
+  {
+    Ins_MIRP( EXEC_ARGS args );
+  }
+
+  static void _near LocalIns_IUP( EXEC_OP )
+  {
+    Ins_IUP( EXEC_ARG );
+  }
+
+  static void _near LocalIns_SHP( EXEC_OP )
+  {
+    Ins_SHP( EXEC_ARG );
+  }
+
+  static void _near LocalIns_IP( EXEC_OP )
+  {
+    Ins_IP( EXEC_ARG );
+  }
+
+  static void _near LocalIns_ALIGNRP( EXEC_OP )
+  {
+    Ins_ALIGNRP( EXEC_ARG );
+  }
+
+  static void _near LocalIns_UNKNOWN( EXEC_OP )
+  {
+    Ins_UNKNOWN( EXEC_ARG );
+  }
+
 #endif  /* !TT_CONFIG_OPTION_INTERPRETER_SWITCH */
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpExtra)
+#endif
 
 /* The following functions are called as is within the switch statement */
 
@@ -2996,24 +3327,22 @@
     CUR.stack[CUR.args - 1] = K;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
 
 /*******************************************/
 /* ROLL[]    : roll top three elements     */
 /* CodeRange : $8A                         */
 /* Stack     : 3 * StkElt --> 3 * StkElt   */
 
-  static void  Ins_ROLL( INS_ARG )
+  static void _near Ins_ROLL( INS_ARG )
   {
-    Long  A, B, C;
+    Long temp = args[2];
 
-
-    A = args[2];
-    B = args[1];
-    C = args[0];
-
-    args[2] = C;
-    args[1] = A;
-    args[0] = B;
+    args[2] = args[0];
+    args[0] = args[1];
+    args[1] = temp;
   }
 
 
@@ -3039,22 +3368,19 @@
   }
 
 
+
 /*******************************************/
 /* IF[]      : IF test                     */
 /* CodeRange : $58                         */
 /* Stack     : StkElt -->                  */
 
-  static void  Ins_IF( INS_ARG )
+  static void _near  Ins_IF( INS_ARG )
   {
-    Int   nIfs;
-    Bool  Out;
+    Int   nIfs = 1;
 
 
     if ( args[0] != 0 )
       return;
-
-    nIfs = 1;
-    Out = 0;
 
     do
     {
@@ -3064,19 +3390,19 @@
       switch ( CUR.opcode )
       {
       case 0x58:      /* IF */
-        nIfs++;
+        ++nIfs;
         break;
 
       case 0x1b:      /* ELSE */
-        Out = (nIfs == 1);
+        if (nIfs == 1) return;
         break;
 
       case 0x59:      /* EIF */
-        nIfs--;
-        Out = (nIfs == 0);
+        --nIfs;
+        if (nIfs == 0) return;
         break;
       }
-    } while ( Out == 0 );
+    } while ( TRUE );
   }
 
 
@@ -3085,12 +3411,9 @@
 /* CodeRange : $1B                         */
 /* Stack     : -->                         */
 
-  static void  Ins_ELSE( INS_ARG )
+  static void _near  Ins_ELSE( EXEC_OP )
   {
-    Int  nIfs;
-
-
-    nIfs = 1;
+    Int  nIfs = 1;
 
     do
     {
@@ -3100,11 +3423,11 @@
       switch ( CUR.opcode )
       {
       case 0x58:    /* IF */
-        nIfs++;
+        ++nIfs;
         break;
 
       case 0x59:    /* EIF */
-        nIfs--;
+        --nIfs;
         break;
       }
     } while ( nIfs != 0 );
@@ -3156,7 +3479,7 @@
 /* CodeRange : $2C                         */
 /* Stack     : uint32 -->                  */
 
-  static void  Ins_FDEF( INS_ARG )
+  static void _near Ins_FDEF( INS_ARG )
   {
     Int         n;
     PDefRecord  def;
@@ -3218,13 +3541,12 @@
     }
   }
 
-
 /*******************************************/
 /* ENDF[]    : END Function definition     */
 /* CodeRange : $2D                         */
 /* Stack     : -->                         */
 
-  static void  Ins_ENDF( INS_ARG )
+  static void _near  Ins_ENDF( EXEC_OP )
   {
     PCallRecord  pRec;
 
@@ -3268,7 +3590,7 @@
 /* CodeRange : $2B                         */
 /* Stack     : uint32? -->                 */
 
-  static void  Ins_CALL( INS_ARG )
+  static void _near  Ins_CALL( INS_ARG )
   {
     Int          n;
     PDefRecord   def;
@@ -3305,6 +3627,9 @@
     CUR.step_ins = FALSE;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpInfreq)
+#endif
 
 /*******************************************/
 /* LOOPCALL[]: LOOP and CALL function      */
@@ -3313,13 +3638,12 @@
 
   static void  Ins_LOOPCALL( INS_ARG )
   {
-    Int          n;
-    Long         count;
+    Int          n      = (Int)args[1];
+    Short        count  = (Short)args[0];
     PDefRecord   def;
     PCallRecord  pTCR;
 
 
-    n = (Int)args[1];
     def = Locate_FDef( EXEC_ARGS n, FALSE );
     if ( !def )
     {
@@ -3333,7 +3657,6 @@
       return;
     }
 
-    count = (Long)args[0];
     if ( count <= 0 )
       return;
 
@@ -3370,7 +3693,7 @@
     /* First of all, look for the same instruction in our table */
     def   = CUR.IDefs;
     limit = def + CUR.numIDefs;
-    for ( ; def < limit; def++ )
+    for ( ; def < limit; ++def )
       if ( def->Opc == opcode )
         break;
     
@@ -3420,6 +3743,10 @@
 /*                                                              */
 /****************************************************************/
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpInfreq)
+#endif
+
 /*******************************************/
 /* NPUSHB[]  : PUSH N Bytes                */
 /* CodeRange : $40                         */
@@ -3438,7 +3765,7 @@
       return;
     }
 
-    for ( K = 1; K <= L; K++ )
+    for ( K = 1; K <= L; ++K )
       args[K - 1] = CUR.code[CUR.IP + K + 1];
 
     CUR.new_top += L;
@@ -3465,20 +3792,23 @@
 
     CUR.IP += 2;
 
-    for ( K = 0; K < L; K++ )
+    for ( K = 0; K < L; ++K )
       args[K] = GET_ShortIns();
 
     CUR.step_ins = FALSE;
     CUR.new_top += L;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
 
 /*******************************************/
 /* PUSHB[abc]: PUSH Bytes                  */
 /* CodeRange : $B0-$B7                     */
 /* Stack     : --> uint32...               */
 
-  static void  Ins_PUSHB( INS_ARG )
+  static void _near  Ins_PUSHB( INS_ARG )
   {
     UShort  L, K;
 
@@ -3491,7 +3821,7 @@
       return;
     }
 
-    for ( K = 1; K <= L; K++ )
+    for ( K = 1; K <= L; ++K )
       args[K - 1] = CUR.code[CUR.IP + K];
   }
 
@@ -3501,7 +3831,7 @@
 /* CodeRange : $B8-$BF                     */
 /* Stack     : --> int32...                */
 
-  static void  Ins_PUSHW( INS_ARG )
+  static void _near Ins_PUSHW( INS_ARG )
   {
     UShort  L, K;
 
@@ -3516,13 +3846,15 @@
 
     CUR.IP++;
 
-    for ( K = 0; K < L; K++ )
+    for ( K = 0; K < L; ++K )
       args[K] = GET_ShortIns();
 
     CUR.step_ins = FALSE;
   }
 
-
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 /****************************************************************/
 /*                                                              */
@@ -3542,20 +3874,20 @@
 
   static void  Ins_GC( INS_ARG )
   {
-    ULong       L;
+    UShort      L = (UShort)args[0];
     TT_F26Dot6  R;
 
 
-    L = (ULong)args[0];
-
     if ( BOUNDS( L, CUR.zp2.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
       {
         CUR.error = TT_Err_Invalid_Reference;
         return;
       }
       else
+#endif
         R = 0;
     }
     else
@@ -3590,8 +3922,10 @@
 
     if ( BOUNDS( L, CUR.zp2.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -3633,12 +3967,14 @@
     if( BOUNDS( L, CUR.zp0.n_points ) ||
         BOUNDS( K, CUR.zp1.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
       {
         CUR.error = TT_Err_Invalid_Reference;
         return;
       }
       else
+#endif
         D = 0;
     }
     else
@@ -3652,6 +3988,9 @@
     args[0] = D;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpExtra)
+#endif
 
 /*******************************************/
 /* SDPVTL[a] : Set Dual PVector to Line    */
@@ -3670,8 +4009,10 @@
     if ( BOUNDS( p2, CUR.zp1.n_points ) ||
          BOUNDS( p1, CUR.zp2.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -3733,14 +4074,19 @@
       break;
 
     default:
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
     CUR.GS.gep0 = (UShort)args[0];
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpExtra)
+#endif
 
 /*******************************************/
 /* SZP1[]    : Set Zone Pointer 1          */
@@ -3760,8 +4106,10 @@
       break;
 
     default:
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -3787,8 +4135,10 @@
       break;
 
     default:
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -3814,8 +4164,10 @@
       break;
 
     default:
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -3835,16 +4187,16 @@
 
   static void  Ins_INSTCTRL( INS_ARG )
   {
-    Long  K, L;
+    Short  K = (Short)args[1];
+    Short  L = (Short)args[0];
 
-
-    K = args[1];
-    L = args[0];
 
     if ( K < 1 || K > 2 )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -3854,7 +4206,6 @@
     CUR.GS.instruct_control = 
       (Byte)( CUR.GS.instruct_control & ~(Byte)K ) | (Byte)L;
   }
-
 
 /*******************************************/
 /* SCANCTRL[]: SCAN ConTRol                */
@@ -3885,19 +4236,7 @@
     if ( (args[0] & 0x100) != 0 && CUR.metrics.pointSize <= A )
       CUR.GS.scan_control = TRUE;
 
-    if ( (args[0] & 0x200) != 0 && FALSE ) //rotated
-      CUR.GS.scan_control = TRUE;
-
-    if ( (args[0] & 0x400) != 0 && FALSE ) //stetched
-      CUR.GS.scan_control = TRUE;
-
     if ( (args[0] & 0x800) != 0 && CUR.metrics.pointSize > A )
-      CUR.GS.scan_control = FALSE;
-
-    if ( (args[0] & 0x1000) != 0 && FALSE ) //rotated
-      CUR.GS.scan_control = FALSE;
-
-    if ( (args[0] & 0x2000) != 0 && FALSE ) //stretched
       CUR.GS.scan_control = FALSE;
 }
 
@@ -3936,7 +4275,7 @@
 /* CodeRange : $80                            */
 /* Stack     : uint32... -->                  */
 
-  static void  Ins_FLIPPT( INS_ARG )
+  static void  Ins_FLIPPT( EXEC_OP )
   {
     UShort  point;
 
@@ -3955,11 +4294,13 @@
 
       if ( BOUNDS( point, CUR.pts.n_points ) )
       {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
         if ( CUR.pedantic_hinting )
         {
           CUR.error = TT_Err_Invalid_Reference;
           return;
         }
+#endif
       }
       else
         CUR.pts.touch[point] ^= TT_Flag_On_Curve;
@@ -3989,12 +4330,14 @@
     if ( BOUNDS( K, CUR.pts.n_points ) ||
          BOUNDS( L, CUR.pts.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
-    for ( I = L; I <= K; I++ )
+    for ( I = L; I <= K; ++I )
       CUR.pts.touch[I] |= TT_Flag_On_Curve;
   }
 
@@ -4016,15 +4359,29 @@
     if ( BOUNDS( K, CUR.pts.n_points ) ||
          BOUNDS( L, CUR.pts.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
-    for ( I = L; I <= K; I++ )
+    for ( I = L; I <= K; ++I )
       CUR.pts.touch[I] &= ~TT_Flag_On_Curve;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
+
+static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector*  v2 )
+{   
+    return CUR_Func_project( v1, v2 );
+}
+
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpInfreq)
+#endif
 
   static Bool  Compute_Point_Displacement( EXEC_OPS
                                            PCoordinates  x,
@@ -4050,22 +4407,23 @@
 
     if ( BOUNDS( p, zp.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Displacement;
+#endif
       return FAILURE;
     }
 
     *zone = zp;
     *refp = p;
 
-    d = CUR_Func_project( zp.cur + p, zp.org + p );
+    d = FarCUR_Func_project( EXEC_ARGS zp.cur + p, zp.org + p );
 
     *x = TT_MulDiv(d, (Long)CUR.GS.freeVector.x * 0x10000L, CUR.F_dot_P );
     *y = TT_MulDiv(d, (Long)CUR.GS.freeVector.y * 0x10000L, CUR.F_dot_P );
 
     return SUCCESS;
   }
-
 
   static void  Move_Zp2_Point( EXEC_OPS
                                UShort      point,
@@ -4094,7 +4452,7 @@
 /* CodeRange : $32-33                         */
 /* Stack     : uint32... -->                  */
 
-  static void  Ins_SHP( INS_ARG )
+  static void  Ins_SHP( EXEC_OP )
   {
     TGlyph_Zone zp;
     UShort      refp;
@@ -4120,11 +4478,13 @@
 
       if ( BOUNDS( point, CUR.zp2.n_points ) )
       {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
         if ( CUR.pedantic_hinting )
         {
           CUR.error = TT_Err_Invalid_Reference;
           return;
         }
+#endif
       }
       else
         /* UNDOCUMENTED! SHP touches the points */
@@ -4158,8 +4518,10 @@
 
     if ( BOUNDS( contour, CUR.pts.n_contours ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4184,7 +4546,7 @@
     }
 
     /* UNDOCUMENTED! SHC doesn't touch the points */
-    for ( i = first_point; i <= last_point; i++ )
+    for ( i = first_point; i <= last_point; ++i )
     {
       if ( zp.cur != CUR.zp2.cur || refp != i )
         MOVE_Zp2_Point( i, dx, dy, FALSE );
@@ -4209,8 +4571,10 @@
 
     if ( BOUNDS( args[0], 2 ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4223,7 +4587,7 @@
       last_point = 0;
 
     /* UNDOCUMENTED! SHZ doesn't touch the points */
-    for ( i = 0; i <= last_point; i++ )
+    for ( i = 0; i <= last_point; ++i )
     {
       if ( zp.cur != CUR.zp2.cur || refp != i )
         MOVE_Zp2_Point( i, dx, dy, FALSE );
@@ -4263,11 +4627,13 @@
 
       if ( BOUNDS( point, CUR.zp2.n_points ) )
       {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
         if ( CUR.pedantic_hinting )
         {
           CUR.error = TT_Err_Invalid_Reference;
           return;
         }
+#endif
       }
       else
         MOVE_Zp2_Point( point, dx, dy, TRUE );
@@ -4279,6 +4645,9 @@
     CUR.new_top = CUR.args;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg();
+#endif
 
 /**********************************************/
 /* MSIRP[a]  : Move Stack Indirect Relative   */
@@ -4296,8 +4665,10 @@
     if ( BOUNDS( point,      CUR.zp1.n_points ) ||
          BOUNDS( CUR.GS.rp0, CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4337,8 +4708,10 @@
 
     if ( BOUNDS( point, CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4367,20 +4740,22 @@
 
   static void  Ins_MIAP( INS_ARG )
   {
-    ULong       cvtEntry;
+    UShort      cvtEntry;
     UShort      point;
     TT_F26Dot6  distance,
                 org_dist;
 
 
-    cvtEntry = (ULong)args[1];
+    cvtEntry = (UShort)args[1];
     point    = (UShort)args[0];
 
     if ( BOUNDS( point,    CUR.zp0.n_points ) ||
          BOUNDS( cvtEntry, CUR.cvtSize )      )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4406,7 +4781,7 @@
     /* twilight zone. This is a bad hack, but it seems   */
     /* to work.                                          */
 
-    distance = CUR_Func_read_cvt( cvtEntry );
+    distance = FarCUR_Func_read_cvt( EXEC_ARGS cvtEntry );
 
     if ( CUR.GS.gep0 == 0 )   /* If in twilight zone */
     {
@@ -4450,8 +4825,10 @@
     if ( BOUNDS( point,      CUR.zp1.n_points ) ||
          BOUNDS( CUR.GS.rp0, CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4520,7 +4897,7 @@
   static void  Ins_MIRP( INS_ARG )
   {
     UShort      point;
-    ULong       cvtEntry;
+    UShort      cvtEntry;
 
     TT_F26Dot6  cvt_dist,
                 distance,
@@ -4529,7 +4906,7 @@
 
 
     point    = (UShort)args[0];
-    cvtEntry = (ULong)(args[1] + 1);
+    cvtEntry = (UShort)(args[1] + 1);
 
     /* XXX: UNDOCUMENTED! cvt[-1] = 0 always */
 
@@ -4537,15 +4914,17 @@
          BOUNDS( cvtEntry,   CUR.cvtSize + 1 )  ||
          BOUNDS( CUR.GS.rp0, CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
     if ( !cvtEntry )
       cvt_dist = 0;
     else
-      cvt_dist = CUR_Func_read_cvt( cvtEntry - 1 );
+      cvt_dist = FarCUR_Func_read_cvt( EXEC_ARGS cvtEntry - 1 );
 
     /* single width test */
 
@@ -4641,7 +5020,7 @@
 /* CodeRange   : $3C                          */
 /* Stack       : uint32 uint32... -->         */
 
-  static void  Ins_ALIGNRP( INS_ARG )
+  static void  Ins_ALIGNRP( EXEC_OP )
   {
     UShort      point;
     TT_F26Dot6  distance;
@@ -4650,8 +5029,10 @@
     if ( CUR.top < CUR.GS.loop ||
          BOUNDS( CUR.GS.rp0, CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4663,11 +5044,13 @@
 
       if ( BOUNDS( point, CUR.zp1.n_points ) )
       {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
         if ( CUR.pedantic_hinting )
         {
           CUR.error = TT_Err_Invalid_Reference;
           return;
         }
+#endif
       }
       else
       {
@@ -4684,6 +5067,9 @@
     CUR.new_top = CUR.args;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpInfreq)
+#endif
 
 /**********************************************/
 /* ISECT[]     : moves point to InterSECTion  */
@@ -4720,8 +5106,10 @@
          BOUNDS( a1, CUR.zp1.n_points ) ||
          BOUNDS( point, CUR.zp2.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
@@ -4756,14 +5144,17 @@
       CUR.zp2.cur[point].x = ( CUR.zp1.cur[a0].x +
                                CUR.zp1.cur[a1].x +
                                CUR.zp0.cur[b0].x +
-                               CUR.zp0.cur[b1].x ) / 4;
+                               CUR.zp0.cur[b1].x ) >> 2;
       CUR.zp2.cur[point].y = ( CUR.zp1.cur[a0].y +
                                CUR.zp1.cur[a1].y +
                                CUR.zp0.cur[b0].y +
-                               CUR.zp0.cur[b1].y ) / 4;
+                               CUR.zp0.cur[b1].y ) >> 2;
     }
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 /**********************************************/
 /* ALIGNPTS[]  : ALIGN PoinTS                 */
@@ -4782,13 +5173,15 @@
     if ( BOUNDS( args[0], CUR.zp1.n_points ) ||
          BOUNDS( args[1], CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
 
     distance = CUR_Func_project( CUR.zp0.cur + p2,
-                                 CUR.zp1.cur + p1 ) / 2;
+                                 CUR.zp1.cur + p1 ) >> 1;
 
     CUR_Func_move( &CUR.zp1, p1, distance );
     CUR_Func_move( &CUR.zp0, p2, -distance );
@@ -4800,7 +5193,7 @@
 /* CodeRange   : $39                          */
 /* Stack       : uint32... -->                */
 
-  static void  Ins_IP( INS_ARG )
+  static void  Ins_IP( EXEC_OP )
   {
     TT_F26Dot6  org_a, org_b, org_x,
                 cur_a, cur_b, cur_x,
@@ -4841,11 +5234,13 @@
       point = (UShort)CUR.stack[CUR.args];
       if ( BOUNDS( point, CUR.zp2.n_points ) )
       {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
         if ( CUR.pedantic_hinting )
         {
           CUR.error = TT_Err_Invalid_Reference;
           return;
         }
+#endif
       }
       else
       {
@@ -4880,6 +5275,9 @@
     CUR.new_top = CUR.args;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpInfreq)
+#endif
 
 /**********************************************/
 /* UTP[a]      : UnTouch Point                */
@@ -4888,20 +5286,18 @@
 
   static void  Ins_UTP( INS_ARG )
   {
-    UShort  point;
-    Byte    mask;
+    UShort  point = (UShort)args[0];
+    Byte    mask  = 0xFF;
 
-
-    point = (UShort)args[0];
 
     if ( BOUNDS( point, CUR.zp0.n_points ) )
     {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       if ( CUR.pedantic_hinting )
         CUR.error = TT_Err_Invalid_Reference;
+#endif
       return;
     }
-
-    mask = 0xFF;
 
     if ( CUR.GS.freeVector.x != 0 )
       mask &= ~TT_Flag_Touched_X;
@@ -4932,13 +5328,12 @@
 
     x = LINK->curs[p].x - LINK->orgs[p].x;
 
-    for ( i = p1; i < p; i++ )
+    for ( i = p1; i < p; ++i )
       LINK->curs[i].x += x;
 
-    for ( i = p + 1; i <= p2; i++ )
+    for ( i = p + 1; i <= p2; ++i )
       LINK->curs[i].x += x;
   }
-
 
   static void  Interp( UShort               p1,
                        UShort               p2,
@@ -4960,7 +5355,7 @@
 
     if ( x1 == x2 )
     {
-      for ( i = p1; i <= p2; i++ )
+      for ( i = p1; i <= p2; ++i )
       {
         x = LINK->orgs[i].x;
 
@@ -4976,7 +5371,7 @@
 
     if ( x1 < x2 )
     {
-      for ( i = p1; i <= p2; i++ )
+      for ( i = p1; i <= p2; ++i )
       {
         x = LINK->orgs[i].x;
 
@@ -4999,7 +5394,7 @@
 
     /* x2 < x1 */
 
-    for ( i = p1; i <= p2; i++ )
+    for ( i = p1; i <= p2; ++i )
     {
       x = LINK->orgs[i].x;
       if ( x <= x2 )
@@ -5024,7 +5419,7 @@
 /* CodeRange   : $30-$31                      */
 /* Stack       : -->                          */
 
-  static void  Ins_IUP( INS_ARG )
+  static void  Ins_IUP( EXEC_OP )
   {
     struct LOC_Ins_IUP  V;
     Byte                mask;
@@ -5061,14 +5456,14 @@
       first_point = point;
 
       while ( point <= end_point && (CUR.pts.touch[point] & mask) == 0 )
-        point++;
+        ++point;
 
       if ( point <= end_point )
       {
         first_touched = point;
         cur_touched   = point;
 
-        point++;
+        ++point;
 
         while ( point <= end_point )
         {
@@ -5083,7 +5478,7 @@
             cur_touched = point;
           }
 
-          point++;
+          ++point;
         }
 
         if ( cur_touched == first_touched )
@@ -5104,7 +5499,7 @@
                     &V );
         }
       }
-      contour++;
+      ++contour;
     } while ( contour < CUR.pts.n_contours );
   }
 
@@ -5116,14 +5511,13 @@
 
   static void  Ins_DELTAP( INS_ARG )
   {
-    ULong   nump, k;
+    UShort  nump, k;
     UShort  A;
     ULong   C;
     Long    B;
 
 
-    nump = (ULong)args[0];      /* some points theoretically may occur more
-                                   than once, thus UShort isn't enough */
+    nump = (UShort)args[0]; 
 
     for ( k = 1; k <= nump; ++k )
     {
@@ -5168,15 +5562,17 @@
         {
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
-            B++;
+            ++B;
           B = B * 64L / (1L << CUR.GS.delta_shift);
 
-          CUR_Func_move( &CUR.zp0, A, B );
+          FarCUR_Func_move( EXEC_ARGS &CUR.zp0, A, B );
         }
       }
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       else
         if ( CUR.pedantic_hinting )
           CUR.error = TT_Err_Invalid_Reference;
+#endif
     }
 
     CUR.new_top = CUR.args;
@@ -5190,12 +5586,11 @@
 
   static void  Ins_DELTAC( INS_ARG )
   {
-    ULong  nump, k;
-    ULong  A, C;
+    UShort nump = (UShort)args[0];
+    UShort A, k;
+    ULong  C;
     Long   B;
 
-
-    nump = (ULong)args[0];
 
     for ( k = 1; k <= nump; ++k )
     {
@@ -5207,16 +5602,18 @@
 
       CUR.args -= 2;
 
-      A = (ULong)CUR.stack[CUR.args + 1];
+      A = (UShort)CUR.stack[CUR.args + 1];
       B = CUR.stack[CUR.args];
 
       if ( BOUNDS( A, CUR.cvtSize ) )
       {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
         if ( CUR.pedantic_hinting )
         {
           CUR.error = TT_Err_Invalid_Reference;
           return;
         }
+#endif
       }
       else
       {
@@ -5224,9 +5621,6 @@
 
         switch ( CUR.opcode )
         {
-        case 0x73:
-          break;
-
         case 0x74:
           C += 16;
           break;
@@ -5242,17 +5636,16 @@
         {
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
-            B++;
-          B = B * 64L / (1L << CUR.GS.delta_shift);
+            ++B;
+          B = (B << 6) / (1L << CUR.GS.delta_shift);
 
-          CUR_Func_move_cvt( A, B );
+          FarCUR_Func_move_cvt( EXEC_ARGS A, B );
         }
       }
     }
 
     CUR.new_top = CUR.args;
   }
-
 
 
 /****************************************************************/
@@ -5272,36 +5665,22 @@
 
   static void  Ins_GETINFO( INS_ARG )
   {
-    Long  K;
-
-
-    K = 0;
-
-    /* We return then Windows 3.1 version number */
-    /* for the font scaler                       */
-    if ( (args[0] & 1) != 0 )
-      K = 3;
-
-    /* Has the glyph been rotated ? */
-/*    if ( CUR.metrics.rotated )
-      K |= 0x80; */
-
-    /* Has the glyph been stretched ? */
- /*   if ( CUR.metrics.stretched )
-      K |= 0x100; */
-
-    args[0] = K;
+    /* Return the Windows 3.1 version number for the font scaler */
+    args[0] = (args[0] & 1) ? 3 : 0;
   }
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
-  static void  Ins_UNKNOWN( INS_ARG )
+  static void  Ins_UNKNOWN( EXEC_OP )
   {
     /* look up the current instruction in our table */
     PDefRecord  def, limit;
     
     def   = CUR.IDefs;
     limit = def + CUR.numIDefs;
-    for ( ; def < limit; def++ )
+    for ( ; def < limit; ++def )
     {
       if ( def->Opc == CUR.opcode && def->Active )
       {
@@ -5358,20 +5737,20 @@
     /*  GPV       */  Ins_GPV,
     /*  GFV       */  Ins_GFV,
     /*  SFvTPv    */  Ins_SFVTPV,
-    /*  ISECT     */  Ins_ISECT,
+    /*  ISECT     */  LocalIns_ISECT,
 
     /*  SRP0      */  Ins_SRP0,
     /*  SRP1      */  Ins_SRP1,
     /*  SRP2      */  Ins_SRP2,
-    /*  SZP0      */  Ins_SZP0,
-    /*  SZP1      */  Ins_SZP1,
-    /*  SZP2      */  Ins_SZP2,
-    /*  SZPS      */  Ins_SZPS,
+    /*  SZP0      */  LocalIns_SZP0,
+    /*  SZP1      */  LocalIns_SZP1,
+    /*  SZP2      */  LocalIns_SZP2,
+    /*  SZPS      */  LocalIns_SZPS,
     /*  SLOOP     */  Ins_SLOOP,
     /*  RTG       */  Ins_RTG,
     /*  RTHG      */  Ins_RTHG,
     /*  SMD       */  Ins_SMD,
-    /*  ELSE      */  Ins_ELSE,
+    /*  ELSE      */  (TInstruction_Function) Ins_ELSE,
     /*  JMPR      */  Ins_JMPR,
     /*  SCvTCi    */  Ins_SCVTCI,
     /*  SSwCi     */  Ins_SSWCI,
@@ -5383,45 +5762,45 @@
     /*  SWAP      */  Ins_SWAP,
     /*  DEPTH     */  Ins_DEPTH,
     /*  CINDEX    */  Ins_CINDEX,
-    /*  MINDEX    */  Ins_MINDEX,
-    /*  AlignPTS  */  Ins_ALIGNPTS,
-    /*  INS_$28   */  Ins_UNKNOWN,
-    /*  UTP       */  Ins_UTP,
-    /*  LOOPCALL  */  Ins_LOOPCALL,
+    /*  MINDEX    */  LocalIns_MINDEX,
+    /*  AlignPTS  */  LocalIns_ALIGNPTS,
+    /*  INS_$28   */  (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  UTP       */  LocalIns_UTP,
+    /*  LOOPCALL  */  LocalIns_LOOPCALL,
     /*  CALL      */  Ins_CALL,
     /*  FDEF      */  Ins_FDEF,
-    /*  ENDF      */  Ins_ENDF,
-    /*  MDAP[0]   */  Ins_MDAP,
-    /*  MDAP[1]   */  Ins_MDAP,
+    /*  ENDF      */  (TInstruction_Function) Ins_ENDF,
+    /*  MDAP[0]   */  LocalIns_MDAP,
+    /*  MDAP[1]   */  LocalIns_MDAP,
 
-    /*  IUP[0]    */  Ins_IUP,
-    /*  IUP[1]    */  Ins_IUP,
-    /*  SHP[0]    */  Ins_SHP,
-    /*  SHP[1]    */  Ins_SHP,
-    /*  SHC[0]    */  Ins_SHC,
-    /*  SHC[1]    */  Ins_SHC,
-    /*  SHZ[0]    */  Ins_SHZ,
-    /*  SHZ[1]    */  Ins_SHZ,
-    /*  SHPIX     */  Ins_SHPIX,
-    /*  IP        */  Ins_IP,
-    /*  MSIRP[0]  */  Ins_MSIRP,
-    /*  MSIRP[1]  */  Ins_MSIRP,
-    /*  AlignRP   */  Ins_ALIGNRP,
+    /*  IUP[0]    */  (TInstruction_Function) LocalIns_IUP,
+    /*  IUP[1]    */  (TInstruction_Function) LocalIns_IUP,
+    /*  SHP[0]    */  (TInstruction_Function) LocalIns_SHP,
+    /*  SHP[1]    */  (TInstruction_Function) LocalIns_SHP,
+    /*  SHC[0]    */  LocalIns_SHC,
+    /*  SHC[1]    */  LocalIns_SHC,
+    /*  SHZ[0]    */  LocalIns_SHZ,
+    /*  SHZ[1]    */  LocalIns_SHZ,
+    /*  SHPIX     */  LocalIns_SHPIX,
+    /*  IP        */  (TInstruction_Function) LocalIns_IP,
+    /*  MSIRP[0]  */  LocalIns_MSIRP,
+    /*  MSIRP[1]  */  LocalIns_MSIRP,
+    /*  AlignRP   */  (TInstruction_Function) LocalIns_ALIGNRP,
     /*  RTDG      */  Ins_RTDG,
-    /*  MIAP[0]   */  Ins_MIAP,
-    /*  MIAP[1]   */  Ins_MIAP,
+    /*  MIAP[0]   */  LocalIns_MIAP,
+    /*  MIAP[1]   */  LocalIns_MIAP,
 
-    /*  NPushB    */  Ins_NPUSHB,
-    /*  NPushW    */  Ins_NPUSHW,
+    /*  NPushB    */  LocalIns_NPUSHB,
+    /*  NPushW    */  LocalIns_NPUSHW,
     /*  WS        */  Ins_WS,
     /*  RS        */  Ins_RS,
     /*  WCvtP     */  Ins_WCVTP,
     /*  RCvt      */  Ins_RCVT,
-    /*  GC[0]     */  Ins_GC,
-    /*  GC[1]     */  Ins_GC,
-    /*  SCFS      */  Ins_SCFS,
-    /*  MD[0]     */  Ins_MD,
-    /*  MD[1]     */  Ins_MD,
+    /*  GC[0]     */  LocalIns_GC,
+    /*  GC[1]     */  LocalIns_GC,
+    /*  SCFS      */  LocalIns_SCFS,
+    /*  MD[0]     */  LocalIns_MD,
+    /*  MD[1]     */  LocalIns_MD,
     /*  MPPEM     */  Ins_MPPEM,
     /*  MPS       */  Ins_MPS,
     /*  FlipON    */  Ins_FLIPON,
@@ -5441,7 +5820,7 @@
     /*  AND       */  Ins_AND,
     /*  OR        */  Ins_OR,
     /*  NOT       */  Ins_NOT,
-    /*  DeltaP1   */  Ins_DELTAP,
+    /*  DeltaP1   */  LocalIns_DELTAP,
     /*  SDB       */  Ins_SDB,
     /*  SDS       */  Ins_SDS,
 
@@ -5463,72 +5842,72 @@
     /*  NROUND[3] */  Ins_NROUND,
 
     /*  WCvtF     */  Ins_WCVTF,
-    /*  DeltaP2   */  Ins_DELTAP,
-    /*  DeltaP3   */  Ins_DELTAP,
-    /*  DeltaCn[0] */ Ins_DELTAC,
-    /*  DeltaCn[1] */ Ins_DELTAC,
-    /*  DeltaCn[2] */ Ins_DELTAC,
+    /*  DeltaP2   */  LocalIns_DELTAP,
+    /*  DeltaP3   */  LocalIns_DELTAP,
+    /*  DeltaCn[0] */ LocalIns_DELTAC,
+    /*  DeltaCn[1] */ LocalIns_DELTAC,
+    /*  DeltaCn[2] */ LocalIns_DELTAC,
     /*  SROUND    */  Ins_SROUND,
     /*  S45Round  */  Ins_S45ROUND,
     /*  JROT      */  Ins_JROT,
     /*  JROF      */  Ins_JROF,
     /*  ROFF      */  Ins_ROFF,
-    /*  INS_$7B   */  Ins_UNKNOWN,
+    /*  INS_$7B   */  (TInstruction_Function) LocalIns_UNKNOWN,
     /*  RUTG      */  Ins_RUTG,
     /*  RDTG      */  Ins_RDTG,
     /*  SANGW     */  Ins_SANGW,
     /*  AA        */  Ins_AA,
 
-    /*  FlipPT    */  Ins_FLIPPT,
-    /*  FlipRgON  */  Ins_FLIPRGON,
-    /*  FlipRgOFF */  Ins_FLIPRGOFF,
-    /*  INS_$83   */  Ins_UNKNOWN,
-    /*  INS_$84   */  Ins_UNKNOWN,
-    /*  ScanCTRL  */  Ins_SCANCTRL,
-    /*  SDPVTL[0] */  Ins_SDPVTL,
-    /*  SDPVTL[1] */  Ins_SDPVTL,
-    /*  GetINFO   */  Ins_GETINFO,
-    /*  IDEF      */  Ins_IDEF,
-    /*  ROLL      */  Ins_ROLL,
+    /*  FlipPT    */  (TInstruction_Function) LocalIns_FLIPPT,
+    /*  FlipRgON  */  LocalIns_FLIPRGON,
+    /*  FlipRgOFF */  LocalIns_FLIPRGOFF,
+    /*  INS_$83   */  (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$84   */  (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  ScanCTRL  */  LocalIns_SCANCTRL,
+    /*  SDPVTL[0] */  LocalIns_SDPVTL,
+    /*  SDPVTL[1] */  LocalIns_SDPVTL,
+    /*  GetINFO   */  LocalIns_GETINFO,
+    /*  IDEF      */  LocalIns_IDEF,
+    /*  ROLL      */  (TInstruction_Function) Ins_ROLL,
     /*  MAX       */  Ins_MAX,
     /*  MIN       */  Ins_MIN,
-    /*  ScanTYPE  */  Ins_SCANTYPE,
-    /*  InstCTRL  */  Ins_INSTCTRL,
-    /*  INS_$8F   */  Ins_UNKNOWN,
+    /*  ScanTYPE  */  LocalIns_SCANTYPE,
+    /*  InstCTRL  */  LocalIns_INSTCTRL,
+    /*  INS_$8F   */  (TInstruction_Function) LocalIns_UNKNOWN,
 
-    /*  INS_$90  */   Ins_UNKNOWN,
-    /*  INS_$91  */   Ins_UNKNOWN,
-    /*  INS_$92  */   Ins_UNKNOWN,
-    /*  INS_$93  */   Ins_UNKNOWN,
-    /*  INS_$94  */   Ins_UNKNOWN,
-    /*  INS_$95  */   Ins_UNKNOWN,
-    /*  INS_$96  */   Ins_UNKNOWN,
-    /*  INS_$97  */   Ins_UNKNOWN,
-    /*  INS_$98  */   Ins_UNKNOWN,
-    /*  INS_$99  */   Ins_UNKNOWN,
-    /*  INS_$9A  */   Ins_UNKNOWN,
-    /*  INS_$9B  */   Ins_UNKNOWN,
-    /*  INS_$9C  */   Ins_UNKNOWN,
-    /*  INS_$9D  */   Ins_UNKNOWN,
-    /*  INS_$9E  */   Ins_UNKNOWN,
-    /*  INS_$9F  */   Ins_UNKNOWN,
+    /*  INS_$90  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$91  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$92  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$93  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$94  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$95  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$96  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$97  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$98  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$99  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$9A  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$9B  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$9C  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$9D  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$9E  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$9F  */   (TInstruction_Function) LocalIns_UNKNOWN,
 
-    /*  INS_$A0  */   Ins_UNKNOWN,
-    /*  INS_$A1  */   Ins_UNKNOWN,
-    /*  INS_$A2  */   Ins_UNKNOWN,
-    /*  INS_$A3  */   Ins_UNKNOWN,
-    /*  INS_$A4  */   Ins_UNKNOWN,
-    /*  INS_$A5  */   Ins_UNKNOWN,
-    /*  INS_$A6  */   Ins_UNKNOWN,
-    /*  INS_$A7  */   Ins_UNKNOWN,
-    /*  INS_$A8  */   Ins_UNKNOWN,
-    /*  INS_$A9  */   Ins_UNKNOWN,
-    /*  INS_$AA  */   Ins_UNKNOWN,
-    /*  INS_$AB  */   Ins_UNKNOWN,
-    /*  INS_$AC  */   Ins_UNKNOWN,
-    /*  INS_$AD  */   Ins_UNKNOWN,
-    /*  INS_$AE  */   Ins_UNKNOWN,
-    /*  INS_$AF  */   Ins_UNKNOWN,
+    /*  INS_$A0  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A1  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A2  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A3  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A4  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A5  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A6  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A7  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A8  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$A9  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$AA  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$AB  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$AC  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$AD  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$AE  */   (TInstruction_Function) LocalIns_UNKNOWN,
+    /*  INS_$AF  */   (TInstruction_Function) LocalIns_UNKNOWN,
 
     /*  PushB[0]  */  Ins_PUSHB,
     /*  PushB[1]  */  Ins_PUSHB,
@@ -5547,76 +5926,79 @@
     /*  PushW[6]  */  Ins_PUSHW,
     /*  PushW[7]  */  Ins_PUSHW,
 
-    /*  MDRP[00]  */  Ins_MDRP,
-    /*  MDRP[01]  */  Ins_MDRP,
-    /*  MDRP[02]  */  Ins_MDRP,
-    /*  MDRP[03]  */  Ins_MDRP,
-    /*  MDRP[04]  */  Ins_MDRP,
-    /*  MDRP[05]  */  Ins_MDRP,
-    /*  MDRP[06]  */  Ins_MDRP,
-    /*  MDRP[07]  */  Ins_MDRP,
-    /*  MDRP[08]  */  Ins_MDRP,
-    /*  MDRP[09]  */  Ins_MDRP,
-    /*  MDRP[10]  */  Ins_MDRP,
-    /*  MDRP[11]  */  Ins_MDRP,
-    /*  MDRP[12]  */  Ins_MDRP,
-    /*  MDRP[13]  */  Ins_MDRP,
-    /*  MDRP[14]  */  Ins_MDRP,
-    /*  MDRP[15]  */  Ins_MDRP,
+    /*  MDRP[00]  */  LocalIns_MDRP,
+    /*  MDRP[01]  */  LocalIns_MDRP,
+    /*  MDRP[02]  */  LocalIns_MDRP,
+    /*  MDRP[03]  */  LocalIns_MDRP,
+    /*  MDRP[04]  */  LocalIns_MDRP,
+    /*  MDRP[05]  */  LocalIns_MDRP,
+    /*  MDRP[06]  */  LocalIns_MDRP,
+    /*  MDRP[07]  */  LocalIns_MDRP,
+    /*  MDRP[08]  */  LocalIns_MDRP,
+    /*  MDRP[09]  */  LocalIns_MDRP,
+    /*  MDRP[10]  */  LocalIns_MDRP,
+    /*  MDRP[11]  */  LocalIns_MDRP,
+    /*  MDRP[12]  */  LocalIns_MDRP,
+    /*  MDRP[13]  */  LocalIns_MDRP,
+    /*  MDRP[14]  */  LocalIns_MDRP,
+    /*  MDRP[15]  */  LocalIns_MDRP,
 
-    /*  MDRP[16]  */  Ins_MDRP,
-    /*  MDRP[17]  */  Ins_MDRP,
-    /*  MDRP[18]  */  Ins_MDRP,
-    /*  MDRP[19]  */  Ins_MDRP,
-    /*  MDRP[20]  */  Ins_MDRP,
-    /*  MDRP[21]  */  Ins_MDRP,
-    /*  MDRP[22]  */  Ins_MDRP,
-    /*  MDRP[23]  */  Ins_MDRP,
-    /*  MDRP[24]  */  Ins_MDRP,
-    /*  MDRP[25]  */  Ins_MDRP,
-    /*  MDRP[26]  */  Ins_MDRP,
-    /*  MDRP[27]  */  Ins_MDRP,
-    /*  MDRP[28]  */  Ins_MDRP,
-    /*  MDRP[29]  */  Ins_MDRP,
-    /*  MDRP[30]  */  Ins_MDRP,
-    /*  MDRP[31]  */  Ins_MDRP,
+    /*  MDRP[16]  */  LocalIns_MDRP,
+    /*  MDRP[17]  */  LocalIns_MDRP,
+    /*  MDRP[18]  */  LocalIns_MDRP,
+    /*  MDRP[19]  */  LocalIns_MDRP,
+    /*  MDRP[20]  */  LocalIns_MDRP,
+    /*  MDRP[21]  */  LocalIns_MDRP,
+    /*  MDRP[22]  */  LocalIns_MDRP,
+    /*  MDRP[23]  */  LocalIns_MDRP,
+    /*  MDRP[24]  */  LocalIns_MDRP,
+    /*  MDRP[25]  */  LocalIns_MDRP,
+    /*  MDRP[26]  */  LocalIns_MDRP,
+    /*  MDRP[27]  */  LocalIns_MDRP,
+    /*  MDRP[28]  */  LocalIns_MDRP,
+    /*  MDRP[29]  */  LocalIns_MDRP,
+    /*  MDRP[30]  */  LocalIns_MDRP,
+    /*  MDRP[31]  */  LocalIns_MDRP,
 
-    /*  MIRP[00]  */  Ins_MIRP,
-    /*  MIRP[01]  */  Ins_MIRP,
-    /*  MIRP[02]  */  Ins_MIRP,
-    /*  MIRP[03]  */  Ins_MIRP,
-    /*  MIRP[04]  */  Ins_MIRP,
-    /*  MIRP[05]  */  Ins_MIRP,
-    /*  MIRP[06]  */  Ins_MIRP,
-    /*  MIRP[07]  */  Ins_MIRP,
-    /*  MIRP[08]  */  Ins_MIRP,
-    /*  MIRP[09]  */  Ins_MIRP,
-    /*  MIRP[10]  */  Ins_MIRP,
-    /*  MIRP[11]  */  Ins_MIRP,
-    /*  MIRP[12]  */  Ins_MIRP,
-    /*  MIRP[13]  */  Ins_MIRP,
-    /*  MIRP[14]  */  Ins_MIRP,
-    /*  MIRP[15]  */  Ins_MIRP,
+    /*  MIRP[00]  */  LocalIns_MIRP,
+    /*  MIRP[01]  */  LocalIns_MIRP,
+    /*  MIRP[02]  */  LocalIns_MIRP,
+    /*  MIRP[03]  */  LocalIns_MIRP,
+    /*  MIRP[04]  */  LocalIns_MIRP,
+    /*  MIRP[05]  */  LocalIns_MIRP,
+    /*  MIRP[06]  */  LocalIns_MIRP,
+    /*  MIRP[07]  */  LocalIns_MIRP,
+    /*  MIRP[08]  */  LocalIns_MIRP,
+    /*  MIRP[09]  */  LocalIns_MIRP,
+    /*  MIRP[10]  */  LocalIns_MIRP,
+    /*  MIRP[11]  */  LocalIns_MIRP,
+    /*  MIRP[12]  */  LocalIns_MIRP,
+    /*  MIRP[13]  */  LocalIns_MIRP,
+    /*  MIRP[14]  */  LocalIns_MIRP,
+    /*  MIRP[15]  */  LocalIns_MIRP,
 
-    /*  MIRP[16]  */  Ins_MIRP,
-    /*  MIRP[17]  */  Ins_MIRP,
-    /*  MIRP[18]  */  Ins_MIRP,
-    /*  MIRP[19]  */  Ins_MIRP,
-    /*  MIRP[20]  */  Ins_MIRP,
-    /*  MIRP[21]  */  Ins_MIRP,
-    /*  MIRP[22]  */  Ins_MIRP,
-    /*  MIRP[23]  */  Ins_MIRP,
-    /*  MIRP[24]  */  Ins_MIRP,
-    /*  MIRP[25]  */  Ins_MIRP,
-    /*  MIRP[26]  */  Ins_MIRP,
-    /*  MIRP[27]  */  Ins_MIRP,
-    /*  MIRP[28]  */  Ins_MIRP,
-    /*  MIRP[29]  */  Ins_MIRP,
-    /*  MIRP[30]  */  Ins_MIRP,
-    /*  MIRP[31]  */  Ins_MIRP
+    /*  MIRP[16]  */  LocalIns_MIRP,
+    /*  MIRP[17]  */  LocalIns_MIRP,
+    /*  MIRP[18]  */  LocalIns_MIRP,
+    /*  MIRP[19]  */  LocalIns_MIRP,
+    /*  MIRP[20]  */  LocalIns_MIRP,
+    /*  MIRP[21]  */  LocalIns_MIRP,
+    /*  MIRP[22]  */  LocalIns_MIRP,
+    /*  MIRP[23]  */  LocalIns_MIRP,
+    /*  MIRP[24]  */  LocalIns_MIRP,
+    /*  MIRP[25]  */  LocalIns_MIRP,
+    /*  MIRP[26]  */  LocalIns_MIRP,
+    /*  MIRP[27]  */  LocalIns_MIRP,
+    /*  MIRP[28]  */  LocalIns_MIRP,
+    /*  MIRP[29]  */  LocalIns_MIRP,
+    /*  MIRP[30]  */  LocalIns_MIRP,
+    /*  MIRP[31]  */  LocalIns_MIRP
   };
 #endif
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
 
 /****************************************************************/
 /*                                                              */
@@ -5660,7 +6042,7 @@
     PDefRecord   WITH;
     PCallRecord  WITH1;
 
-    Long         ins_counter = 0;  /* executed instructions counter */
+    Short        ins_counter = 0;  /* executed instructions counter */
 
 #ifdef TT_CONFIG_OPTION_STATIC_INTERPRETER
     cur = *exc;
@@ -5668,6 +6050,7 @@
 
     /* set CVT functions */
     CUR.metrics.ratio = 0;
+#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
     if ( CUR.metrics.x_ppem != CUR.metrics.y_ppem )
     {
       /* non-square pixels, use the stretched routines */
@@ -5676,6 +6059,7 @@
       CUR.func_move_cvt  = Move_CVT_Stretched;
     }
     else
+#endif /* TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS */
     {
       /* square pixels, use normal routines */
       CUR.func_read_cvt  = Read_CVT;
@@ -5844,7 +6228,7 @@
           break;
 
         case 0x1B:  /* ELSE */
-          Ins_ELSE( EXEC_ARGS  args );
+          Ins_ELSE( EXEC_ARG );
           break;
 
         case 0x1C:  /* JMPR */
@@ -5896,7 +6280,7 @@
           break;
 
         case 0x28:  /* ???? */
-          Ins_UNKNOWN( EXEC_ARGS  args );
+          Ins_UNKNOWN( EXEC_ARG );
           break;
 
         case 0x29:  /* UTP */
@@ -5916,7 +6300,7 @@
           break;
 
         case 0x2D:  /* ENDF */
-          Ins_ENDF( EXEC_ARGS  args );
+          Ins_ENDF( EXEC_ARG );
           break;
 
         case 0x2E:  /* MDAP */
@@ -5927,12 +6311,12 @@
 
         case 0x30:  /* IUP */
         case 0x31:  /* IUP */
-          Ins_IUP( EXEC_ARGS  args );
+          Ins_IUP( EXEC_ARG );
           break;
 
         case 0x32:  /* SHP */
         case 0x33:  /* SHP */
-          Ins_SHP( EXEC_ARGS  args );
+          Ins_SHP( EXEC_ARG );
           break;
 
         case 0x34:  /* SHC */
@@ -5950,7 +6334,7 @@
           break;
 
         case 0x39:  /* IP    */
-          Ins_IP( EXEC_ARGS  args );
+          Ins_IP( EXEC_ARG );
           break;
 
         case 0x3A:  /* MSIRP */
@@ -5959,7 +6343,7 @@
           break;
 
         case 0x3C:  /* AlignRP */
-          Ins_ALIGNRP( EXEC_ARGS  args );
+          Ins_ALIGNRP( EXEC_ARG );
           break;
 
         case 0x3D:  /* RTDG */
@@ -5981,10 +6365,6 @@
 
         case 0x42:  /* WS */
           DO_WS
-          break;
-
-    Set_Invalid_Ref:
-          CUR.error = TT_Err_Invalid_Reference;
           break;
 
         case 0x43:  /* RS */
@@ -6030,7 +6410,9 @@
           break;
 
         case 0x4F:  /* DEBUG */
+        #ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
           DO_DEBUG
+        #endif
           break;
 
         case 0x50:  /* LT */
@@ -6179,7 +6561,7 @@
           break;
 
         case 0x7B:  /* ???? */
-          Ins_UNKNOWN( EXEC_ARGS  args );
+          Ins_UNKNOWN( EXEC_ARG );
           break;
 
         case 0x7C:  /* RUTG */
@@ -6196,7 +6578,7 @@
           break;
 
         case 0x80:  /* FLIPPT */
-          Ins_FLIPPT( EXEC_ARGS  args );
+          Ins_FLIPPT( EXEC_ARG );
           break;
 
         case 0x81:  /* FLIPRGON */
@@ -6209,7 +6591,7 @@
 
         case 0x83:  /* UNKNOWN */
         case 0x84:  /* UNKNOWN */
-          Ins_UNKNOWN( EXEC_ARGS  args );
+          Ins_UNKNOWN( EXEC_ARG );
           break;
 
         case 0x85:  /* SCANCTRL */
@@ -6230,7 +6612,7 @@
           break;
 
         case 0x8A:  /* ROLL */
-          Ins_ROLL( EXEC_ARGS  args );
+          Ins_ROLL( EXEC_ARGS args );
           break;
 
         case 0x8B:  /* MAX */
@@ -6250,7 +6632,7 @@
           break;
 
         case 0x8F:
-          Ins_UNKNOWN( EXEC_ARGS  args );
+          Ins_UNKNOWN( EXEC_ARG );
           break;
 
         default:
@@ -6263,7 +6645,7 @@
           else if ( opcode >= 0xB0 )
             Ins_PUSHB( EXEC_ARGS  args );
           else
-            Ins_UNKNOWN( EXEC_ARGS  args );
+            Ins_UNKNOWN( EXEC_ARG );
         }
 
       }
@@ -6303,7 +6685,7 @@
             }
             else
             {
-              A++;
+              ++A;
               continue;
             }
           }
@@ -6344,7 +6726,11 @@
         else
           goto LNo_Error_;
       }
+#ifdef DEBUG_INTERPRETER
     } while ( !CUR.instruction_trap );
+#else
+    } while ( TRUE );
+#endif
 
   LNo_Error_:
     CUR.error = TT_Err_Ok;
@@ -6679,6 +7065,9 @@
 
 #endif /* DEBUG_INTERPRETER */
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg()
+#endif
 
 #endif /* TT_CONFIG_OPTION_NO_INTERPRETER */
 

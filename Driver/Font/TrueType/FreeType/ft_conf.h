@@ -91,15 +91,6 @@
 
 
 /*************************************************************************/
-/* Define this if you want to generate code to support engine extensions */
-/* Default is on, but if you're satisfied by the basic services provided */
-/* by the engine and need no extensions, undefine this configuration     */
-/* macro to save a few more bytes.                                       */
-
-#define  TT_CONFIG_OPTION_EXTEND_ENGINE
-
-
-/*************************************************************************/
 /* Define this if you want to generate code to support gray-scaling,     */
 /* a.k.a. font-smoothing or anti-aliasing. Default is on, but you can    */
 /* disable it if you don't need it.                                      */
@@ -116,7 +107,7 @@
 /* emerged recently on the FreeType lists.  We still do not have Apple's */
 /* opinion on the subject and will change this as soon as we have.       */
 
-#define   TT_CONFIG_OPTION_NO_INTERPRETER
+//#define   TT_CONFIG_OPTION_NO_INTERPRETER
 
 
 /*************************************************************************/
@@ -126,7 +117,9 @@
 /* configuration macro will generate the appropriate C jump table in     */
 /* ttinterp.c. If you use an optimizing compiler, you should leave it    */
 /* defined for better performance and code compactness..                 */
-
+/* Usable for PC/GEOS but requires as is more code space and doesn't     */
+/* seem to give performance benefits                                     */
+/*                                                                       */
 #define  TT_CONFIG_OPTION_INTERPRETER_SWITCH
 
 
@@ -157,6 +150,131 @@
 
 #define  TT_CONFIG_OPTION_THREAD_SAFE
 
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_PROCESS_HDMX if you want to process optional  */
+/* hdmx table. The PC/Geos ttf driver does not need any information from */
+/* the hdmx table.                                                       */
+
+#undef  TT_CONFIG_OPTION_PROCESS_HDMX
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_PROCESS_VMTX if you want to process optional  */
+/* vtmx table. The PC/Geos ttf driver does not need any information from */
+/* the vtmx table.                                                       */
+
+#undef  TT_CONFIG_OPTION_PROCESS_VMTX
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_CMAP2 if you want to support cmap 0   */
+/* char mapping. Charmapping type 0 is now out of date.                  */
+
+#undef  TT_CONFIG_OPTION_SUPPORT_CMAP0
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_CMAP2 if you want to support cmap 2   */
+/* char mapping. Charmapping type 2 is now out of date.                  */
+
+#undef  TT_CONFIG_OPTION_SUPPORT_CMAP2
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_CMAP6 if you want to support cmap 6   */
+/* char mapping. In ttf fonts charmap 4 is the standard for char mapping.*/
+
+#undef  TT_CONFIG_OPTION_SUPPORT_CMAP6
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_KERN2 if you want to support kerning  */
+/* format 1. The ttf driver only supports format 0 because it is very    */
+/* simple and common.                                                    */
+
+#undef  TT_CONFIG_OPTION_SUPPORT_KERN2
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_GASP if you want to support grid-     */
+/* fitting table.                                                        */
+
+#undef  TT_CONFIG_OPTION_SUPPORT_GASP
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS if you want to hold   */
+/* optional fiels in freetype structures.                                */
+
+#undef  TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_UNICODE_RANGES if you want to hold    */
+/* unicode ranges in OS/2 table.                                         */
+
+#undef TT_CONFIG_OPTION_SUPPORT_UNICODE_RANGES
+
+
+/*************************************************************************/
+/* Define TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS if you want to      */
+/* support displays with non square pixels.                              */
+
+#undef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING if you want to use   */
+/* TrueType-compliant interpreter. Under PC/GEOS we use the more relaxed */
+/* verion of bytecode interperter.                                       */
+
+#undef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
+
+
+/*************************************************************************/
+/* Define TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION if you want to   */
+/* use assembler implemented funcions. These implementations use regs    */
+/* and instructions of 80386 processors.                                 */
+
+#define TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
+
+
+/*************************************************************************/
+/* Define this option to enable support for obsolete bytecode            */
+/* instructions. These instructions are no longer commonly used.         */
+
+#undef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
+
+/*************************************************************************/
+/* When compiled for GEOS real mode target code segments need to be      */
+/* below 8K in size. Usually there is 1 code files ending up in one      */
+/* segment. Especially the interpreter is quite large and produces       */
+/* 17K code segment (32K for EC build). This config flag when set        */
+/* force smaller segments to be used.                                    */
+/*                                                                       */
+/* Segmenting has impact on function beeing near or far, so when working */
+/* with pointer we need to take care especially. The segmenting concept  */
+/* introduces 4 level for the interpreter:                               */
+/* - entry: Entry code and main-look/switch with all direct opcode       */
+/*          handlers                                                     */
+/*          "InterpEntry" - Callbacks (_near): Read/Write/Move_CVT       */
+/* - main:  Central code part that stay in interp_TEXT segment, far      */
+/*          from then entry (and the others)                             */
+/*          Callbacks (_near): Round_*, Direct_Move_*, Round_*, Project_ */
+/* - infrequent: Function that are called no often, that are specific    */
+/*               "InterpInfreq"                                          */
+/* - extra: Other infrequent called functions that are independent       */
+/*          "InterpExtra"                                                */
+
+#define   TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+
+
+/*************************************************************************/
+/* Define this option to store the checksum of the elements in the       */
+/* table directory.                                                      */
+
+#undef TT_CONFIG_OPTION_SUPPORT_CHECKSUM
 
 /**********************************************************************/
 /*                                                                    */

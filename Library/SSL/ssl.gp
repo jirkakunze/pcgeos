@@ -32,6 +32,7 @@ entry SSLLIBRARYENTRY
 library geos
 library ansic
 library socket
+library hostif
 
 ifdef COMPILE_OPTION_MAP_HEAP
 #library mapheap
@@ -50,7 +51,9 @@ usernotes       "based on SSLeay 0.9.0b 29-Jun-1998"
 # Code resources
 #
 nosort
+ifndef COMPILE_OPTION_HOST_SERVICE_ONLY
 resource FixedCallbacks		fixed read-only code shared
+endif
 
 #
 # exported routines
@@ -72,3 +75,5 @@ export SSLV23_CLIENT_METHOD
 export SSLV3_CLIENT_METHOD
 export SSL_SET_SSL_METHOD
 export SSL_GET_SSL_METHOD
+incminor
+export SSL_SET_TLSEXT_HOST_NAME
