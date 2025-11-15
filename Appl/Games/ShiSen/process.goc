@@ -1,48 +1,56 @@
 /********************************************************************
  *
- * PROJECT::	ShiSen-Sho Game for PC/Geos
+ * PROJECT:          ShiSen-Sho Game for PC/Geos
  *
  * DESCRIPTION:	a japanese game similar to mahjongg
  *
- * FILE:	process.goc
+ * FILE:             process.goc
  *
- * REMARK:	this code is ported from the KDE project "KSHISEN"
- *		created by Mario Weilguni <mweilguni@sime.com>
+* REMARK:            Licensed under the Apache License, Version 2.0
+ *                   (the "License"); you may not use this file
+ *                   except in compliance with the License.
+ *                   You may obtain a copy of the License at
  *
- *		SHISEN is free software; you can redistribute it
- *		and/or modify it under the terms of the
- *		GNU General Public License as published by the
- * 		Free Software Foundation; either version 2, or
- *		(at your option) any later version.
+ *                       http://www.apache.org/licenses/LICENSE-2.0
  *
- * 		SHISEN is distributed in the hope that it will be
- *		useful, but WITHOUT ANY WARRANTY; without even the
- *		implied warranty of MERCHANTABILITY or FITNESS FOR A
- *		PARTICULAR PURPOSE. See the GNU General Public
- *		License for more details.
+ *                   Unless required by applicable law or agreed to
+ *                   in writing, software distributed under the
+ *                   License is distributed on an "AS IS" BASIS,
+ *                   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ *                   either express or implied. See the License for the
+ *                   specific language governing permissions and
+ *                   limitations under the License.
  *
- * HISTORY:	08/08/00   JKunze	initial version
+ * HISTORY:          08.08.00   JK        initial version
+ *                   14.11.25   JK        clean up
  *
- *******************************************************************/
+ ********************************************************************/
 @define _SHISEN_PROCESS_GOC_
 
 @include "shisen.goh"
 
 @classdecl ShisenProcessClass;
 
-/********************************************************************
- *		MSG_GEN_PROCESS_OPEN_APPLICATION
- ********************************************************************
+/***********************************************************************
+ *              MSG_GEN_PROCESS_OPEN_APPLICATION for ShisenProcessClass
+ ***********************************************************************
+ * SYNOPSIS:    Initializes the Shisen-Sho application when it is opened.
+ *              Performs superclass initialization and starts a new game.
+ *  
+ * PARAMETERS:  AppAttachFlags attachFlags   – how the application is attached
+ *              MemHandle      lauchBlock    – handle to the application
+ *                                             launch block
+ *              MemHandle      extraState    – handle to any saved state
  *
- * SYNOPSIS:	initialise application
+ * STRATEGY:    Call superclass initialization, then immediately start
+ *              a new game to ensure the board and internal state are ready.
  *
- * PARAMETER:	AppAttachFlags attachFlags,
- *		MemHandle lauchBlock,
- *		MemHandle extraState
+ * REVISION HISTORY:
+ *      Name    Date            Description
+ *      ----    ----            -----------
+ *      JK      14.11.25        clean up
  *
- * RETURN:	void
- *
- *******************************************************************/
+ ***********************************************************************/
 @method ShisenProcessClass, MSG_GEN_PROCESS_OPEN_APPLICATION
 {
   @callsuper();
@@ -50,43 +58,52 @@
   @call self::MSG_SHISEN_PROCESS_NEW_GAME();
 }
 
-/********************************************************************
- *		MSG_SHISEN_NEW_GAME
- ********************************************************************
+/***********************************************************************
+ *              MSG_SHISEN_PROCESS_NEW_GAME for ShisenProcessClass
+ ***********************************************************************
+ * SYNOPSIS:    Creates a new Shisen-Sho board based on the currently
+ *              selected board size and adjusts the view's document
+ *              bounds accordingly.
+ *  
+ * PARAMETERS:  void
  *
- * SYNOPSIS:	get current size and create a new board with this
+ * STRATEGY:    Query the board-size list for the user's selection.
+ *              Based on that selection, initialize a new board with the
+ *              appropriate dimensions and update the view to match the
+ *              board size.
  *
- * PARAMETER:	void
+ * REVISION HISTORY:
+ *      Name    Date            Description
+ *      ----    ----            -----------
+ *      JK      14.11.25        clean up
  *
- * RETURN:	void
- *
- *******************************************************************/
+ ***********************************************************************/
 @method ShisenProcessClass, MSG_SHISEN_PROCESS_NEW_GAME
 {
   switch(@call ShisenBoardSizeList::MSG_GEN_ITEM_GROUP_GET_SELECTION())
   {
     case SBS_BOARD_SMALL:
-           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(15, 7);
-           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 7,
-                             TILE_WIDTH * 15, 0 ,0);
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(BOARD_WIDTH_SMALL, BOARD_HEIGHT_SMALL);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * BOARD_HEIGHT_SMALL,
+                             TILE_WIDTH * BOARD_WIDTH_SMALL, 0, 0);
            break;
 
     case SBS_BOARD_NORMAL:
-           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(19, 9);
-           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 9,
-                             TILE_WIDTH * 19, 0 ,0);
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(BOARD_WIDTH_NORMAL, BOARD_HEIGHT_NORMAL);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * BOARD_HEIGHT_NORMAL,
+                             TILE_WIDTH * BOARD_WIDTH_NORMAL, 0, 0);
            break;
 
     case SBS_BOARD_LARGE:
-           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(23, 11);
-           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 11,
-                             TILE_WIDTH * 23, 0 ,0);
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(BOARD_WIDTH_LARGE, BOARD_HEIGHT_LARGE);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * BOARD_HEIGHT_LARGE,
+                             TILE_WIDTH * BOARD_WIDTH_LARGE, 0, 0);
            break;
 
     case SBS_BOARD_VERY_LARGE:
-           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(27, 13);
-           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * 13,
-                                 TILE_WIDTH * 27, 0 ,0);
+           @call ShisenBoard::MSG_SHISEN_NEW_BOARD(BOARD_WIDTH_VERY_LARGE, BOARD_HEIGHT_VERY_LARGE);
+           @call ShisenView::MSG_GEN_VIEW_SET_DOC_BOUNDS(TILE_HEIGHT * BOARD_HEIGHT_VERY_LARGE,
+                                 TILE_WIDTH * BOARD_WIDTH_VERY_LARGE, 0, 0);
            break;
   }
 

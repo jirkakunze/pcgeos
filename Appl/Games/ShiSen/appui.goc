@@ -1,29 +1,30 @@
 /********************************************************************
  *
- * PROJECT::	ShiSen-Sho Game for PC/Geos
+ * PROJECT:          ShiSen-Sho Game for PC/Geos
  *
- * DESCRIPTION:	a japanese game similar to mahjongg
+ * DESCRIPTION:	     a japanese game similar to mahjongg
  *
- * FILE:	appui.goc
+ * FILE:             shisen.goh
  *
- * REMARK:	this code is ported from the KDE project "KSHISEN"
- *		created by Mario Weilguni <mweilguni@sime.com>
+ * REMARK:           Licensed under the Apache License, Version 2.0
+ *                   (the "License"); you may not use this file
+ *                   except in compliance with the License.
+ *                   You may obtain a copy of the License at
  *
- *		SHISEN is free software; you can redistribute it
- *		and/or modify it under the terms of the
- *		GNU General Public License as published by the
- * 		Free Software Foundation; either version 2, or
- *		(at your option) any later version.
+ *                       http://www.apache.org/licenses/LICENSE-2.0
  *
- * 		SHISEN is distributed in the hope that it will be
- *		useful, but WITHOUT ANY WARRANTY; without even the
- *		implied warranty of MERCHANTABILITY or FITNESS FOR A
- *		PARTICULAR PURPOSE. See the GNU General Public
- *		License for more details.
+ *                   Unless required by applicable law or agreed to
+ *                   in writing, software distributed under the
+ *                   License is distributed on an "AS IS" BASIS,
+ *                   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ *                   either express or implied. See the License for the
+ *                   specific language governing permissions and
+ *                   limitations under the License.
  *
- * HISTORY:	08/08/00   JKunze	initial version
+ * HISTORY:          08.08.00   JK        initial version
+ *                   14.11.25   JK        clean up
  *
- *******************************************************************/
+ ********************************************************************/
 @define _APPUI_GOC_
 
 @include "shisen.goh"
@@ -34,7 +35,7 @@
   GI_visMoniker = "Shisen-Sho";
   GI_comp = @ShisenPrimary;
   gcnList(MANUFACTURER_ID_GEOWORKS,GAGCNLT_WINDOWS) = @ShisenPrimary;
-  gcnList(MANUFACTURER_ID_GEOWORKS,MGCNLT_ACTIVE_LIST) = @ShisenViewControl;
+  gcnList(MANUFACTURER_ID_GEOWORKS,MGCNLT_ACTIVE_LIST) = @ShisenViewControl, @ShisenHighScores;
   gcnList(MANUFACTURER_ID_GEOWORKS,GAGCNLT_SELF_LOAD_OPTIONS) = @ShisenViewControl;
 }
 @end AppResource;
@@ -52,8 +53,7 @@
 @object GenInteractionClass ShisenGameMenu = {
   GI_visMoniker = 0, "Game";
   GI_comp = @ShisenGameMenuTrigger,
-            @ShisenGameMenuScores,
-            @ShisenGameMenuAbout;
+            @ShisenGameMenuScores;
   GII_visibility = GIV_POPUP;
   ATTR_GEN_INTERACTION_GROUP_TYPE = GIGT_FILE_MENU;
 }
@@ -82,52 +82,6 @@
 
 @object HighScoreClass ShisenHighScores = {
   GII_visibility = GIV_SUB_GROUP;
-}
-
-@object GenInteractionClass ShisenGameMenuAbout = {
-  GI_comp = @ShisenGameAboutBox;
-}
-
-@object GenInteractionClass ShisenGameAboutBox = {
-  GI_visMoniker = 0, "About Shisen-Sho";
-  GI_comp = @ShisenGameAboutGlyph1,
-            @ShisenGameAboutGlyph2,
-            @ShisenGameAboutGlyph3,
-            @ShisenAboutGlyph4,
-            @ShisenAboutGlyph5,
-            @ShisenAboutGlyph6,
-            @ShisenAboutGlyph7;
-  GII_visibility = GIV_DIALOG;
-  GII_type = GIT_NOTIFICATION;
-  HINT_CENTER_CHILDREN_HORIZONTALLY;
-}
-
-@object GenGlyphClass ShisenGameAboutGlyph1 = {
-  GI_visMoniker = "Shisen-Sho, Version beta 2";
-}
-
-@object GenGlyphClass ShisenGameAboutGlyph2 = {
-  GI_visMoniker = "ported to PC/Geos by Jirka Kunze";
-}
-
-@object GenGlyphClass ShisenGameAboutGlyph3 = {
-  GI_visMoniker = "";
-}
-
-@object GenGlyphClass ShisenAboutGlyph4 = {
-  GI_visMoniker = "Shisen-Sho is free software, you can";
-}
-
-@object GenGlyphClass ShisenAboutGlyph5 = {
-  GI_visMoniker = "redistribute it and/or modify it under";
-}
-
-@object GenGlyphClass ShisenAboutGlyph6 = {
-  GI_visMoniker = "the term of the GNU General Public License";
-}
-
-@object GenGlyphClass ShisenAboutGlyph7 = {
-  GI_visMoniker = "published by the Free Software Foundation";
 }
 
 @object GenInteractionClass ShisenViewMenu = {
