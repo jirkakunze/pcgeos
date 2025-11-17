@@ -9,11 +9,12 @@
 # REVISION HISTORY:
 #       Name      Date            Description
 #       ----      ----            -----------
-#       todd    7/21/98         Initial Revision
-#       jfh     12/5/01         Breadbox Ensemble first pass
+#       todd      7/21/98         Initial Revision
+#       jfh       12/5/01         Breadbox Ensemble first pass
+#       bluewaysw 2018            PC/GEOS Ensemble (FreeGEOS project)
 #
 # DESCRIPTION:
-#       Filetree for Breadbox Ensemble
+#       Filetree
 #
 #       $Id:$
 #
@@ -70,7 +71,12 @@ DIR (ensemble) {
 
 	Tools/build/product/bbxensem/Images/Gwicon5.ico
 	Tools/build/product/bbxensem/Images/Gwicon7.ico
+	ENGLISH {
 	Tools/build/product/bbxensem/Images/RESET.BAT
+	}
+	GERMAN {
+	Tools/build/product/bbxensem/Images/german/RESET.BAT
+	}
 
 	#TEMPLATE Tools/build/product/bbxensem/Template/globalpc.bat
 
@@ -356,6 +362,7 @@ DIR (ensemble) {
 		Library/GrObj/{dbcs}/grobj{ec}.geo XIP=XIP LOCALPC
 		Library/Impex/{dbcs}/impex{ec}.geo XIP=XIP LOCALPC
 		Library/Math/Compiler/BorlandC/{dbcs}/borlandc{ec}.geo GFS LOCALPC
+		Library/Math/Compiler/WatcomC/{dbcs}/watcomc{ec}.geo GFS LOCALPC
 		Library/Math/{dbcs}/math{ec}.geo GFS LOCALPC
 		Library/Parse/{dbcs}/parse{ec}.geo GFS LOCALPC
 		Library/Saver/saver{ec}.geo XIP=XIP LOCALPC
@@ -429,14 +436,12 @@ DIR (ensemble) {
 		#
 		# GPC Browser libraries
 		#
-#		Library/Breadbox/Html4Par/JS{dbcs}/html4par{ec}.geo GFS LOCALPC
 		Library/Breadbox/Html4Par/html4par{ec}.geo GFS LOCALPC
 		Library/Breadbox/Ibms/{dbcs}/ibms{ec}.geo GFS LOCALPC
 		Library/Breadbox/Ijgjpeg/{dbcs}/ijgjpeg{ec}.geo GFS LOCALPC
 		Library/Breadbox/ExtGraph/{dbcs}/extgraph{ec}.geo GFS LOCALPC
 		Library/Breadbox/Giflib/giflib{ec}.geo GFS LOCALPC
 		Library/Cookies/{dbcs}/cookies{ec}.geo GFS LOCALPC
-#		Library/JS/{dbcs}/js{ec}.geo GFS LOCALPC
 		Library/Breadbox/Fjpeg/{dbcs}/fjpeg{ec}.geo GFS LOCALPC
 
 		#
@@ -482,6 +487,12 @@ DIR (ensemble) {
 		#
 		Library/Breadbox/Gsol/gsol{ec}.geo
 
+		#
+		# RabeSoft Libraries
+		#
+		Library/RabeSoft/rsftool/rsftool{ec}.geo GFS LOCALPC
+		Library/RabeSoft/bmptools/bmptools{ec}.geo GFS LOCALPC
+
 		DIR (font) {
 			Driver/Font/TrueType/{dbcs}/truetype{ec}.geo GFS LOCALPC
 		}
@@ -504,6 +515,7 @@ DIR (ensemble) {
 			# BreadBox Libraries
 			#
 			Library/Breadbox/Impex/GIF/gif{ec}.geo
+			Library/Breadbox/Impex/PNG/png{ec}.geo
 			# Library/Breadbox/Impex/HTML/htmlimpx.GEO
 			Library/Breadbox/Impex/JPEG/jpeg{ec}.geo
 
@@ -746,8 +758,8 @@ DIR (ensemble) {
 #				Driver/Sound/WinNT/{dbcs}/sndwinnt{ec}.geo LOCALPC
 #				#Driver/Sound/GPCSS/{dbcs}/gpcss{ec}.geo LOCALPC
 #			} ELSE {
-				Driver/Sound/Standard/standard.geo GFS LOCALPC
-				Driver/Sound/SoundBlaster/sblaster.geo GFS LOCALPC
+				Driver/Sound/Standard/standard{ec}.geo GFS LOCALPC
+				Driver/Sound/SoundBlaster/sblaster{ec}.geo GFS LOCALPC
 #			}
 		}
 
@@ -1014,7 +1026,6 @@ DIR (ensemble) {
 				#FontData/Ttf/PTSeriIt.ttf GFS LOCALPC
 				#FontData/Ttf/PTSeriRe.ttf GFS LOCALPC
 				#FontData/Ttf/OFL.txt GFS LOCALPC
-
 				FontData/Ttf/nmonobi.ttf GFS LOCALPC
 				FontData/Ttf/nmonobo.ttf GFS LOCALPC
 				FontData/Ttf/nmonore.ttf GFS LOCALPC
@@ -1034,10 +1045,9 @@ DIR (ensemble) {
 				FontData/Ttf/symbolps.ttf GFS LOCALPC
                                 FontData/Ttf/nimb_gpl.txt GFS LOCALPC
                                 FontData/Ttf/cooper.ttf GFS LOCALPC
-                                FontData/Ttf/OFL-Cooper.txt GFS LOCALPC
+                                FontData/Ttf/OFL-SIL.txt GFS LOCALPC
                                 FontData/Ttf/franklin.ttf GFS LOCALPC
                                 FontData/Ttf/Franklin.txt GFS LOCALPC
-                                FontData/Ttf/info.txt GFS LOCALPC
 				FontData/Ttf/bookmbi.ttf GFS LOCALPC
 				FontData/Ttf/bookmbo.ttf GFS LOCALPC
 				FontData/Ttf/bookmre.ttf GFS LOCALPC
@@ -1420,7 +1430,6 @@ DIR (ensemble) {
 		Appl/GeoPoint/geopoint{ec}.geo
 		Appl/dil/bbxmail/bbxmail{ec}.geo GFS LOCALPC
 		Appl/Breadbox/BbxBrow/bbxbrow{ec}.geo GFS LOCALPC
-#		Appl/Breadbox/BbxBrow/JS{dbcs}/bbxbrow{ec}.geo GFS LOCALPC
 		Appl/Preferences/PrefMgr/prefmgr{ec}.geo GFS LOCALPC
 		Appl/GeoDex/geodex{ec}.geo GFS LOCALPC
 		Appl/Calendar/geoplan{ec}.geo GFS LOCALPC

@@ -1,0 +1,130 @@
+/********************************************************************
+ *
+ * PROJECT:          ShiSen-Sho Game for PC/Geos
+ *
+ * DESCRIPTION:	     a japanese game similar to mahjongg
+ *
+ * FILE:             shisen.goh
+ *
+ * REMARK:           Licensed under the Apache License, Version 2.0
+ *                   (the "License"); you may not use this file
+ *                   except in compliance with the License.
+ *                   You may obtain a copy of the License at
+ *
+ *                       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *                   Unless required by applicable law or agreed to
+ *                   in writing, software distributed under the
+ *                   License is distributed on an "AS IS" BASIS,
+ *                   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ *                   either express or implied. See the License for the
+ *                   specific language governing permissions and
+ *                   limitations under the License.
+ *
+ * HISTORY:          08.08.00   JK        initial version
+ *                   14.11.25   JK        clean up
+ *
+ ********************************************************************/
+
+@include <stdapp.goh>
+@include <game.goh>
+
+#ifndef _SHISEN_GOH_
+#define _SHISEN_GOH_
+
+/********************************************************************
+ *              Helpful macros
+ *******************************************************************/
+
+#define MIN(x,y)  (((x) <= (y)) ? (x) : (y))   /* Returns the smaller value */
+#define MAX(x,y)  (((x) >= (y)) ? (x) : (y))   /* Returns the larger value  */
+
+/********************************************************************
+ *              Global defines
+ *******************************************************************/
+
+#define MAX_FIELD_WIDTH          30  /* Maximum width of the playfield      */
+#define MAX_FIELD_HEIGHT         20  /* Maximum height of the playfield     */
+
+#define TILE_HEIGHT              56  /* Height of a single game tile        */
+#define TILE_WIDTH               40  /* Width of a single game tile         */
+
+#define BOARD_WIDTH_SMALL        15
+#define BOARD_WIDTH_NORMAL       19
+#define BOARD_WIDTH_LARGE        23
+#define BOARD_WIDTH_VERY_LARGE   27
+
+#define BOARD_HEIGHT_SMALL       7
+#define BOARD_HEIGHT_NORMAL      9
+#define BOARD_HEIGHT_LARGE       11
+#define BOARD_HEIGHT_VERY_LARGE  13
+
+#define EMPTY                    100 /* Value representing an empty tile     */
+#define NUM_TILES                42  /* Number of distinct tiles in tileset  */
+
+typedef WordFlags ShisenBoardSizeFlags;  /* Board-size specification flags   */
+  #define SBS_BOARD_SMALL        38  /* Use up to 38 tile types from tileset */
+  #define SBS_BOARD_NORMAL       40  /* Use up to 40 tile types from tileset */
+  #define SBS_BOARD_LARGE        41  /* Use up to 41 tile types from tileset */
+  #define SBS_BOARD_VERY_LARGE   42  /* Use up to 42 tile types from tileset */
+
+/********************************************************************
+ *		         Declaration for ShisenProcessClass
+ *******************************************************************/
+@class ShisenProcessClass, GenProcessClass;
+
+  @message void		MSG_SHISEN_PROCESS_NEW_GAME();
+
+@endc;
+
+/********************************************************************
+ *              Declaration for ShisenBoardClass
+ *******************************************************************/
+@class ShisenBoardClass, VisContentClass;
+
+   @message void     MSG_SHISEN_CLEAR_HISTORY();
+   @message void     MSG_SHISEN_SET_SELECTION(int x1, int y1, int x2, int y2);
+   @message void     MSG_SHISEN_GET_SELECTION(int* x1, int* y1, int* x2, int* y2);
+   @message Boolean  MSG_SHISEN_TEST_PATH(int startX, int startY, int endX, int endY);
+   @message Boolean  MSG_SHISEN_FIND_2WAY_PATH(int startX, int startY, int endX, int endY);
+   @message Boolean  MSG_SHISEN_FIND_1WAY_PATH(int startX, int startY, int endX, int endY);
+   @message void     MSG_SHISEN_NEW_BOARD(int width, int height);
+   @message word     MSG_SHISEN_GAME_END();
+
+   @message void     MSG_SHISEN_GET_HINT();
+   @message void     MSG_SHISEN_GET_MOVE(int* startX, int* startY, int* endX, int* endY);
+   @message void     MSG_SHISEN_UPDATE_BOARD();
+
+   /* Stores the coordinates used for drawing the path between two matching tiles */
+   @instance int     SBI_historyX[4];
+   @instance int     SBI_historyY[4];
+
+   /* Stores the coordinates of the two currently selected tiles.
+      If these values are set to (0,0), no tiles are selected.         */
+   @instance int     SBI_selectX1;
+   @instance int     SBI_selectY1;
+   @instance int     SBI_selectX2;
+   @instance int     SBI_selectY2;
+
+   /* Stores the entire playfield, including all tiles                 */
+   @instance int     SBI_playField[MAX_FIELD_WIDTH][MAX_FIELD_HEIGHT];
+
+   /* Stores the width and height of the current playfield             */
+   @instance int     SBI_fieldWidth;
+   @instance int     SBI_fieldHeight;
+
+   @instance TimerHandle SBI_timerHan;
+
+@endc;
+
+/********************************************************************
+ *		external declarations for objects in appui.goc
+ *******************************************************************/
+@ifndef _APPUI_GOC_
+@define _APPUI_GOC_
+@extern object ShisenBoardSizeList;
+@extern object ShisenView;
+@extern object ShisenBoard;
+@endif
+
+#endif
