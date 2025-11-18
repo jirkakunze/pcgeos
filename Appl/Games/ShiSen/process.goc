@@ -6,7 +6,7 @@
  *
  * FILE:             process.goc
  *
-* REMARK:            Licensed under the Apache License, Version 2.0
+ * REMARK:           Licensed under the Apache License, Version 2.0
  *                   (the "License"); you may not use this file
  *                   except in compliance with the License.
  *                   You may obtain a copy of the License at
@@ -21,8 +21,11 @@
  *                   specific language governing permissions and
  *                   limitations under the License.
  *
- * HISTORY:          08.08.00   JK        initial version
- *                   14.11.25   JK        clean up
+ * REVISION HISTORY: 
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08.08.00  JK        initial version
+ *      14.11.25  JK        clean up
  *
  ********************************************************************/
 @define _SHISEN_PROCESS_GOC_

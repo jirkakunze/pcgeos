@@ -6,8 +6,8 @@
 GEODE           = shisen
 ASM_TO_OBJS     =
 UI_TO_RDFS      =
-SRCS            = appui.goc board.goc process.goc shisen.goh
-OBJS            = appui.obj board.obj process.obj
+SRCS            = appui.goc process.goc board.goc shisen.goh
+OBJS            = appui.obj process.obj board.obj
 LOBJS           =
 
 SYSMAKEFILE     = geode.mk

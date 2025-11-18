@@ -21,8 +21,11 @@
  *                   specific language governing permissions and
  *                   limitations under the License.
  *
- * HISTORY:          08.08.00   JK        initial version
- *                   14.11.25   JK        clean up
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08.08.00  JK        initial version
+ *      14.11.25  JK        clean up
  *
  ********************************************************************/
 @define _SHISEN_BOARD_GOC_
@@ -47,12 +50,6 @@
  *  
  * PARAMETERS:  DrawFlags drawFlags  – flags controlling the drawing behavior
  *              GStateHandle gstate  – graphics state used for drawing
- *
- * SIDE EFFECTS:
- *              - Renders the playfield to the screen.
- *              - Highlights currently selected tiles.
- *              - Draws the connection path between tiles stored in the
- *                history buffer.
  *
  * STRATEGY:    1. Fill background with green color.
  *              2. Iterate over each position in the playfield:
@@ -365,10 +362,6 @@
  *              int* startY  – receives Y-coordinate of first tile
  *              int* endX    – receives X-coordinate of second tile
  *              int* endY    – receives Y-coordinate of second tile
- *
- * SIDE EFFECTS:
- *              - Clears the current tile selection.
- *              - Clears the path-history buffer.
  *
  * STRATEGY:    1. Reset selection and history.
  *              2. Scan the board from top-left to bottom-right to find
@@ -796,7 +789,7 @@
  *              The resulting number indicates how many tiles remain.
  *
  * RETURN:      word – number of tiles left on the board  
- *                   (0 means the game is finished)
+ *                     (0 means the game is finished)
  *
  * REVISION HISTORY:
  *      Name    Date            Description
