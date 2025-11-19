@@ -2,7 +2,7 @@
  *
  * PROJECT:          ShiSen-Sho Game for PC/Geos
  *
- * DESCRIPTION:	a japanese game similar to mahjongg
+ * DESCRIPTION:	A Japanese tile-matching game similar to Mahjongg.
  *
  * FILE:             process.goc
  *
@@ -41,7 +41,7 @@
  *              Performs superclass initialization and starts a new game.
  *  
  * PARAMETERS:  AppAttachFlags attachFlags   – how the application is attached
- *              MemHandle      lauchBlock    – handle to the application
+ *              MemHandle      launchBlock   – handle to the application
  *                                             launch block
  *              MemHandle      extraState    – handle to any saved state
  *

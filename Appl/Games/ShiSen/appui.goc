@@ -38,7 +38,7 @@
   GI_visMoniker = "Shisen-Sho";
   GI_comp = @ShisenPrimary;
   gcnList(MANUFACTURER_ID_GEOWORKS,GAGCNLT_WINDOWS) = @ShisenPrimary;
-  gcnList(MANUFACTURER_ID_GEOWORKS,MGCNLT_ACTIVE_LIST) = @ShisenViewControl, @ShisenHighScores;
+  gcnList(MANUFACTURER_ID_GEOWORKS,MGCNLT_ACTIVE_LIST) = @ShisenViewControl;
   gcnList(MANUFACTURER_ID_GEOWORKS,GAGCNLT_SELF_LOAD_OPTIONS) = @ShisenViewControl;
 }
 @end AppResource;
@@ -55,8 +55,7 @@
 
 @object GenInteractionClass ShisenGameMenu = {
   GI_visMoniker = 0, "Game";
-  GI_comp = @ShisenGameMenuTrigger,
-            @ShisenGameMenuScores;
+  GI_comp = @ShisenGameMenuTrigger;
   GII_visibility = GIV_POPUP;
   ATTR_GEN_INTERACTION_GROUP_TYPE = GIGT_FILE_MENU;
 }
@@ -76,15 +75,6 @@
   GI_visMoniker = "Get Hint";
   GTI_destination = @ShisenBoard;
   GTI_actionMsg = MSG_SHISEN_GET_HINT;
-}
-
-@object GenInteractionClass ShisenGameMenuScores = {
-  GII_visibility = GIV_SUB_GROUP;
-  GI_comp = @ShisenHighScores;
-}
-
-@object HighScoreClass ShisenHighScores = {
-  GII_visibility = GIV_SUB_GROUP;
 }
 
 @object GenInteractionClass ShisenViewMenu = {
@@ -161,3 +151,8 @@
   VCI_geoAttrs = @default | VCGA_CUSTOM_MANAGE_CHILDREN;
 }
 @end BoardResource;
+
+@start TextStrings, data;
+@chunk char BoardCleared[] = "Well done! You have cleared the board!";
+@chunk char NoMovesLeft[] = "Oops! There are no moves left.";
+@end TextStrings;

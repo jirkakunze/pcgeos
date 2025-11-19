@@ -39,6 +39,9 @@
 @include "Art/direc.goh"
 @include "Art/flowers.goh"
 
+@extern chunk NoMovesLeft;
+@extern chunk BoardCleared;
+
 @classdecl ShisenBoardClass;
 
 /***********************************************************************
@@ -864,10 +867,12 @@
   /* if game finished? */
   if(@call self::MSG_SHISEN_GAME_END() == 0)
   {
+    MemLock(OptrToHandle(@BoardCleared));
     UserStandardDialog(NULL, NULL, NULL, NULL,
-                       "Well done! You have cleared the board!",
-                       ((GIT_AFFIRMATION << CDBF_INTERACTION_TYPE_OFFSET) |
-                        (CDT_WARNING << CDBF_DIALOG_TYPE_OFFSET)));
+                       LMemDeref(@BoardCleared),
+                       (CDT_NOTIFICATION << CDBF_DIALOG_TYPE_OFFSET) |
+			                 (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+    MemUnlock(OptrToHandle(@BoardCleared));
   }
   else
   {
@@ -875,10 +880,12 @@
     @call self::MSG_SHISEN_GET_MOVE(&x1, &y1, &x2, &y2);
     if(!(x1 || y1 || x2 || y2))
     {
+      MemLock(OptrToHandle(@NoMovesLeft));
       UserStandardDialog(NULL, NULL, NULL, NULL,
-                         "Oops! There are no moves left.",
-                         ((GIT_AFFIRMATION << CDBF_INTERACTION_TYPE_OFFSET) |
-                          (CDT_WARNING << CDBF_DIALOG_TYPE_OFFSET)));
+                         LMemDeref(@NoMovesLeft),
+                         (CDT_NOTIFICATION << CDBF_DIALOG_TYPE_OFFSET) |
+			                   (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+	    MemUnlock(OptrToHandle(@NoMovesLeft));
     }
   }
 }
