@@ -48,7 +48,8 @@
   GI_comp = @ShisenGameMenu,
             @ShisenViewMenu,
             @ShisenOptionsMenu,
-            @ShisenView;
+            @ShisenView,
+            @QTipsDialogBox;
   HINT_CENTER_CHILDREN_HORIZONTALLY;
   HINT_CENTER_CHILDREN_VERTICALLY;
 }
@@ -62,11 +63,12 @@
 
 @object GenInteractionClass ShisenGameMenuTrigger = {
   GI_comp = @ShisenGameNew,
-            @ShisenGameHint;
+            @ShisenGameHint,
+            @QTipsTrigger;
 }
 
 @object GenTriggerClass ShisenGameNew = {
-  GI_visMoniker = "New Game";
+  GI_visMoniker = 'N', "New Game";
   GTI_destination = process;
   GTI_actionMsg = MSG_SHISEN_PROCESS_NEW_GAME;
 }
@@ -75,6 +77,87 @@
   GI_visMoniker = "Get Hint";
   GTI_destination = @ShisenBoard;
   GTI_actionMsg = MSG_SHISEN_GET_HINT;
+}
+
+@object GenTriggerClass QTipsTrigger = {
+  GI_visMoniker   = 'Q', "Quick Tips";
+  GTI_destination = @QTipsDialogBox;
+  GTI_actionMsg   = MSG_GEN_INTERACTION_INITIATE;
+  HINT_TRIGGER_BRINGS_UP_WINDOW;
+}
+
+@object GenInteractionClass QTipsDialogBox = {
+  GI_visMoniker = "Shisen-Sho Quick Tips";
+  GI_comp = @GoalText,@QuickTipsGroup,@ShowOnStartupGroup,@OKTipsButton;
+  GII_visibility = GIV_DIALOG;
+  GII_attrs = @default | GIA_MODAL | GIA_NOT_USER_INITIATABLE;
+  HINT_CENTER_CHILDREN_HORIZONTALLY;
+}
+
+@object GenTextClass GoalText = {
+  GI_attrs = @default | GA_READ_ONLY;
+  GTXI_text =  "The goal of Shisen-Sho is to clear the board by removing all matching tile pairs that can be linked through valid paths without crossing or passing through other tiles.";
+  ATTR_GEN_TEXT_NEVER_MAKE_SCROLLABLE;
+}
+
+
+@object GenInteractionClass QuickTipsGroup = {
+  GI_comp = @QTip1, @QTip2, @QTip3;
+}
+
+@object GenInteractionClass QTip1 = {
+  GI_comp = @QTip1Text;  //TODO: Icon
+  HINT_ORIENT_CHILDREN_HORIZONTALLY;
+  HINT_CENTER_CHILDREN_VERTICALLY;
+}
+
+@object GenTextClass QTip1Text = {
+  GI_attrs = @default | GA_READ_ONLY;
+  GTXI_text = "Pairs can be removed when a completely straight, unobstructed line connects them, allowing the player to clear matching tiles without using any turns or directional changes.";
+  ATTR_GEN_TEXT_NEVER_MAKE_SCROLLABLE;
+  HINT_MINIMUM_SIZE = {SST_PIXELS | 325, 0, 0};
+}
+
+@object GenInteractionClass QTip2 = {
+  GI_comp = @QTip2Text; //TODO: Icon
+  HINT_ORIENT_CHILDREN_HORIZONTALLY;
+  HINT_CENTER_CHILDREN_VERTICALLY;
+}
+
+@object GenTextClass QTip2Text = {
+  GI_attrs = @default | GA_READ_ONLY;
+  GTXI_text = "Pairs may be eliminated when a single-bend path links them, letting the connection turn once around obstacles while still maintaining clear, uninterrupted segments between both matching tiles.";
+  ATTR_GEN_TEXT_NEVER_MAKE_SCROLLABLE;
+  HINT_MINIMUM_SIZE = {SST_PIXELS | 325, 0, 0};
+}
+
+@object GenInteractionClass QTip3 = {
+  GI_comp = @QTip3Text; //TODO: Icon
+  HINT_ORIENT_CHILDREN_HORIZONTALLY;
+  HINT_CENTER_CHILDREN_VERTICALLY;
+}
+
+@object GenTextClass QTip3Text = {
+  GI_attrs = @default | GA_READ_ONLY;
+  GTXI_text = "Pairs can also be cleared when a two-turn path connects them, forming three straight segments that avoid blocked spaces and remain open from tile to tile.";
+  ATTR_GEN_TEXT_NEVER_MAKE_SCROLLABLE;
+  HINT_MINIMUM_SIZE = {SST_PIXELS | 325, 0, 0};
+}
+
+@object GenBooleanGroupClass ShowOnStartupGroup = {
+  GI_comp = @ShowOnStartupBoolean;
+}
+
+@object GenBooleanClass ShowOnStartupBoolean = {
+  GI_visMoniker = 'S', "Show this Dialog box when Shisen-Sho starts";
+  GBI_identifier = SHOW_ON_STARTUP;
+}
+
+@object GenTriggerClass OKTipsButton = {
+  GI_visMoniker   = 'O', "OK";
+  GI_attrs = @default | GA_SIGNAL_INTERACTION_COMPLETE ;
+  HINT_SEEK_REPLY_BAR;
+  HINT_DEFAULT_DEFAULT_ACTION;
 }
 
 @object GenInteractionClass ShisenViewMenu = {

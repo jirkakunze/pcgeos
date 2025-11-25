@@ -65,6 +65,8 @@
 #define EMPTY                    100 /* Value representing an empty tile     */
 #define NUM_TILES                42  /* Number of distinct tiles in tileset  */
 
+#define SHOW_ON_STARTUP          1 
+
 typedef WordFlags ShisenBoardSizeFlags;  /* Board-size specification flags   */
   #define SBS_BOARD_SMALL        38  /* Use up to 38 tile types from tileset */
   #define SBS_BOARD_NORMAL       40  /* Use up to 40 tile types from tileset */
