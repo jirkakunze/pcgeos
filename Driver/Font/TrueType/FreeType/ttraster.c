@@ -1979,254 +1979,226 @@ extern TEngine_Instance engineInstance;
 /*                                                                  */
 /********************************************************************/
 
-  static Bool _near  Draw_Sweep( RAS_ARG )
+static Bool _near  Draw_Sweep( RAS_ARG )
+{
+  Short     y, y_change, y_height;
+  PProfile  P, P_Left, P_Right;
+  Short     min_Y, bottom;
+
+#ifdef TT_CONFIG_OPTION_GRAY_SCALING
+  Short  max_Y, top;
+#endif
+
+  Long   x1, x2, xs;
+  Short  e1, e2;
+
+  TProfileList  wait       = NULL;
+  TProfileList  draw_left  = NULL;
+  TProfileList  draw_right = NULL;
+
+  /* first, compute min and max Y */
+
+  P = ras.fProfile;
+#ifdef TT_CONFIG_OPTION_GRAY_SCALING
+  max_Y = (short)TRUNC( ras.minY );
+#endif
+  min_Y = (short)TRUNC( ras.maxY );
+
+  while ( P )
   {
-    Short  y, y_change, y_height;
+    PProfile  Q = P->link;
 
-    PProfile  P, Q, P_Left, P_Right;
-
-    Short  min_Y, bottom, dropouts;
-
+    bottom = P->start;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
-    Short  max_Y, top;
+    top    = P->start + P->height - 1;
 #endif
 
-    Long  x1, x2, xs;
-    Short e1, e2;
-
-    TProfileList  wait       = NULL;
-    TProfileList  draw_left  = NULL;
-    TProfileList  draw_right = NULL;
-
-
-    /* first, compute min and max Y */
-
-    P     = ras.fProfile;
+    if ( min_Y > bottom ) min_Y = bottom;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
-    max_Y = (short)TRUNC( ras.minY );
-#endif
-    min_Y = (short)TRUNC( ras.maxY );
-
-    while ( P )
-    {
-      Q = P->link;
-
-      bottom = P->start;
-#ifdef TT_CONFIG_OPTION_GRAY_SCALING
-      top    = P->start + P->height-1;
+    if ( max_Y < top    ) max_Y = top;
 #endif
 
-      if ( min_Y > bottom ) min_Y = bottom;
+    P->X = 0;
+    InsNew( &wait, P );
+
+    P = Q;
+  }
+
+  /* Check the Y-turns */
+  if ( ras.numTurns == 0 )
+  {
+    ras.error = Raster_Err_Invalid;
+    return FAILURE;
+  }
+
+  /* Now inits the sweep */
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
-      if ( max_Y < top    ) max_Y = top;
-#endif
-
-      P->X = 0;
-      InsNew( &wait, P );
-
-      P = Q;
-    }
-
-    /* Check the Y-turns */
-    if ( ras.numTurns == 0 )
-    {
-      ras.error = Raster_Err_Invalid;
-      return FAILURE;
-    }
-
-    /* Now inits the sweep */
-
-#ifdef TT_CONFIG_OPTION_GRAY_SCALING
-    ras.Proc_Sweep_Init( RAS_VARS  &min_Y, &max_Y );
+  ras.Proc_Sweep_Init( RAS_VARS  &min_Y, &max_Y );
 #else
-    ras.Proc_Sweep_Init( RAS_VARS  &min_Y );
+  ras.Proc_Sweep_Init( RAS_VARS  &min_Y );
 #endif
 
-    /* Then compute the distance of each profile from min_Y */
+  /* Then compute the distance of each profile from min_Y */
+  for ( P = wait; P; P = P->link )
+    P->countL = P->start - min_Y;
 
-    P = wait;
+  /* Let's go */
+  y        = min_Y;
+  y_height = 0;
 
-    while ( P )
+  if ( ras.numTurns > 0 &&
+       ras.sizeBuff[-ras.numTurns] == min_Y )
+    --ras.numTurns;
+
+  while ( ras.numTurns > 0 )
+  {
+    /* Activate new profiles: O(n) removal from wait using pointer-to-pointer */
     {
-      P->countL = P->start - min_Y;
-      P = P->link;
-    }
+      PProfile*  pp = &wait;
 
-    /* Let's go */
-
-    y        = min_Y;
-    y_height = 0;
-
-    if ( ras.numTurns > 0 &&
-         ras.sizeBuff[-ras.numTurns] == min_Y )
-      --ras.numTurns;
-
-    while ( ras.numTurns > 0 )
-    {
-      /* look in the wait list for new activations */
-
-      P = wait;
-
-      while ( P )
+      while ( (P = *pp) != NULL )
       {
-        Q = P->link;
         P->countL -= y_height;
         if ( P->countL == 0 )
         {
-          DelOld( &wait, P );
+          *pp = P->link; /* remove from wait */
 
           switch ( P->flow )
           {
-            case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
-            case TT_Flow_Down:  InsNew( &draw_right, P ); break;
-          } 
+          case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
+          case TT_Flow_Down:  InsNew( &draw_right, P ); break;
+          default:            /* should not happen */    break;
+          }
+        }
+        else
+          pp = &P->link;
+      }
+    }
+
+    /* Sort drawing lists (also updates X/offset/height) */
+    Sort( &draw_left );
+    Sort( &draw_right );
+
+    y_change = (Short)ras.sizeBuff[-ras.numTurns--];
+    y_height = y_change - y;
+
+    while ( y < y_change )
+    {
+      Short  dropouts = 0;
+
+      P_Left  = draw_left;
+      P_Right = draw_right;
+
+      /* trace spans */
+      while ( P_Left && P_Right )
+      {
+        x1 = P_Left->X;
+        x2 = P_Right->X;
+
+        if ( x1 > x2 )
+        {
+          xs = x1;
+          x1 = x2;
+          x2 = xs;
         }
 
-        P = Q;
+        if ( x2 - x1 <= PRECISION )
+        {
+          e1 = FLOOR( x1 );
+          e2 = CEILING( x2 );
+
+          if ( ras.dropOutControl != 0 &&
+               ( e1 > e2 || e2 == e1 + PRECISION ) )
+          {
+            /* drop-out detected: mark left profile for later processing */
+            P_Left->X   = x1;
+            P_Right->X  = x2;
+            P_Left->countL = 1;
+            ++dropouts;
+
+            P_Left  = P_Left->link;
+            P_Right = P_Right->link;
+            continue;
+          }
+        }
+
+#ifdef TT_CONFIG_OPTION_GRAY_SCALING
+        ras.Proc_Sweep_Span( RAS_VARS  y, x1, x2, P_Left, P_Right );
+#else
+        ras.Proc_Sweep_Span( RAS_VARS  y, x1, x2 );
+#endif
+
+        P_Left  = P_Left->link;
+        P_Right = P_Right->link;
       }
 
-      /* Sort the drawing lists */
-
-      Sort( &draw_left );
-      Sort( &draw_right );
-
-      y_change = (Short)ras.sizeBuff[-ras.numTurns--];
-      y_height = y_change - y;
-
-      while ( y < y_change )
+      /* perform drop-outs after span drawing */
+      if ( dropouts > 0 )
       {
-
-        /* Let's trace */
-
-        dropouts = 0;
-
         P_Left  = draw_left;
         P_Right = draw_right;
 
-        while ( P_Left )
+        while ( P_Left && P_Right )
         {
-          x1 = P_Left ->X;
-          x2 = P_Right->X;
-
-          if ( x1 > x2 )
+          if ( P_Left->countL )
           {
-            xs = x1;
-            x1 = x2;
-            x2 = xs;
+            P_Left->countL = 0;
+            ras.Proc_Sweep_Drop( RAS_VARS  y,
+                                 P_Left->X,
+                                 P_Right->X,
+                                 P_Left,
+                                 P_Right );
           }
-
-          if ( x2-x1 <= PRECISION )
-          {
-            e1 = FLOOR( x1 );
-            e2 = CEILING( x2 );
-
-            if ( ras.dropOutControl != 0 &&
-                 (e1 > e2 || e2 == e1 + PRECISION ) ) 
-            {
-              /* a drop out was detected */
-
-              P_Left ->X = x1;
-              P_Right->X = x2;
-
-              /* mark profile for drop-out processing */
-              P_Left->countL = 1;
-              ++dropouts;
-
-              goto Skip_To_Next;
-            }
-          }
-#ifdef TT_CONFIG_OPTION_GRAY_SCALING
-          ras.Proc_Sweep_Span( RAS_VARS  y, x1, x2, P_Left, P_Right );
-#else
-          ras.Proc_Sweep_Span( RAS_VARS  y, x1, x2 );
-#endif
-
-   Skip_To_Next:
-
           P_Left  = P_Left->link;
           P_Right = P_Right->link;
         }
-
-        /* now perform the dropouts _after_ the span drawing   */
-        /* drop-outs processing has been moved out of the loop */
-        /* for performance tuning                              */
-        if (dropouts > 0)
-          goto Scan_DropOuts;
-
-   Next_Line:
-
-        ras.Proc_Sweep_Step( RAS_VARS y );
-
-        ++y;
-
-        if ( y < y_change )
-        {
-          Sort( &draw_left  );
-          Sort( &draw_right );
-        }
-
       }
 
-      /* Now finalize the profiles that needs it */
-
-      {
-        PProfile  Q, P;
-        P = draw_left;
-        while ( P )
-        {
-          Q = P->link;
-          if ( P->height == 0 )
-            DelOld( &draw_left, P );
-          P = Q;
-        }
-      }
-
-      {
-        PProfile  Q, P = draw_right;
-        while ( P )
-        {
-          Q = P->link;
-          if ( P->height == 0 )
-            DelOld( &draw_right, P );
-          P = Q;
-        }
-      }
-    }
-
-#ifdef TT_CONFIG_OPTION_GRAY_SCALING
-    /* for gray-scaling, flushes the bitmap scanline cache */
-    while ( y <= max_Y )
-    {
+      /* next line */
       ras.Proc_Sweep_Step( RAS_VARS y );
       ++y;
+
+      if ( y < y_change )
+      {
+        Sort( &draw_left  );
+        Sort( &draw_right );
+      }
     }
+
+    /* Remove finished profiles from draw lists in one pass (O(n)) */
+    {
+      PProfile* pp = &draw_left;
+      while ( (P = *pp) != NULL )
+      {
+        if ( P->height == 0 )
+          *pp = P->link;
+        else
+          pp = &P->link;
+      }
+    }
+    {
+      PProfile* pp = &draw_right;
+      while ( (P = *pp) != NULL )
+      {
+        if ( P->height == 0 )
+          *pp = P->link;
+        else
+          pp = &P->link;
+      }
+    }
+  }
+
+#ifdef TT_CONFIG_OPTION_GRAY_SCALING
+  /* for gray-scaling, flush bitmap scanline cache */
+  while ( y <= max_Y )
+  {
+    ras.Proc_Sweep_Step( RAS_VARS y );
+    ++y;
+  }
 #endif
 
-    return SUCCESS;
-
-Scan_DropOuts :
-
-    P_Left  = draw_left;
-    P_Right = draw_right;
-
-    while ( P_Left )
-    {
-      if ( P_Left->countL )
-      {
-        P_Left->countL = 0;
-        ras.Proc_Sweep_Drop( RAS_VARS  y,
-                                       P_Left->X,
-                                       P_Right->X,
-                                       P_Left,
-                                       P_Right );
-      }
-
-      P_Left  = P_Left->link;
-      P_Right = P_Right->link;
-    }
-
-    goto Next_Line;
-  }
+  return SUCCESS;
+}
 
 
 /****************************************************************************/
