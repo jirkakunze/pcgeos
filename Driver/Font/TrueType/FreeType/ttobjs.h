@@ -361,7 +361,11 @@
 
     Long         file_offset;
 
+#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
+    TT_Glyph_Metrics  metrics;
+#else
     TT_Big_Glyph_Metrics  metrics;
+#endif
 
     TGlyph_Zone  zone;
 
@@ -717,7 +721,11 @@
   struct TGlyph_
   {
     PFace                 face;
+  #ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
+    TT_Glyph_Metrics      metrics;
+  #else
     TT_Big_Glyph_Metrics  metrics;
+  #endif
     TT_Outline            outline;
   };
 

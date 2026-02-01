@@ -246,6 +246,14 @@
 
 #undef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
 
+
+/*************************************************************************/
+/* Define this option to use a compact glyph metrics structure. This     */
+/* removes unused vertical and linear fields to save memory.             */
+
+#define TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
+
+
 /*************************************************************************/
 /* When compiled for GEOS real mode target code segments need to be      */
 /* below 8K in size. Usually there is 1 code files ending up in one      */
