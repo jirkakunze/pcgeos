@@ -342,13 +342,12 @@
   #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
     __asm {
         mov     eax, x           ; Load x into eax
-        mov     ecx, y           ; Load y into ecx
-        imul    ecx              ; Signed multiply eax by ecx
+        imul    y                ; Signed multiply eax by y
                                  ; Result: edx:eax (high:low)
 
-        mov     esi, z           ; Load address of z into esi
-        mov     [esi], eax       ; Store low 32 bits (eax) into z->lo
-        mov     [esi + 4], edx   ; Store high 32 bits (edx) into z->hi
+        mov     ecx, z           ; Load address of z into esi
+        mov     [ecx], eax       ; Store low 32 bits (eax) into z->lo
+        mov     [ecx + 4], edx   ; Store high 32 bits (edx) into z->hi
     }
   #else
     TT_Int32   s;
