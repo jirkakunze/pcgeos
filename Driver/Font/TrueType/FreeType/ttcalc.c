@@ -25,95 +25,6 @@
 
 #pragma code_seg(Resident)
 
-/* Support for 1-complement arithmetic has been totally dropped in this */
-/* release.  You can still write your own code if you need it...        */
-
-#ifdef LONG64
- 
-  static const Long  Roots[63] =
-  {
-       1,    1,    2,     3,     4,     5,     8,    11,
-      16,   22,   32,    45,    64,    90,   128,   181,
-     256,  362,  512,   724,  1024,  1448,  2048,  2896,
-    4096, 5892, 8192, 11585, 16384, 23170, 32768, 46340,
-
-      65536,   92681,  131072,   185363,   262144,   370727,
-     524288,  741455, 1048576,  1482910,  2097152,  2965820,
-    4194304, 5931641, 8388608, 11863283, 16777216, 23726566,
-
-      33554432,   47453132,   67108864,   94906265,
-     134217728,  189812531,  268435456,  379625062,
-     536870912,  759250125, 1073741824, 1518500250,
-    2147483647
-  };
-
-  EXPORT_FUNC
-  TT_Long  TT_MulDiv( TT_Long  a, TT_Long  b, TT_Long  c )
-  {
-    Long  s;
-
-
-    s  = a; a = ABS( a );
-    s ^= b; b = ABS( b );
-    s ^= c; c = ABS( c );
-
-    a = ((TT_Int64)a * b + c/2) / c;
-    return ( s < 0 ) ? -a : a;
-  }
-
-
-  EXPORT_FUNC
-  TT_Long  TT_MulFix( TT_Long  a, TT_Long  b )
-  {
-    Long  s;
-
-
-    s  = a; a = ABS( a );
-    s ^= b; b = ABS( b );
-
-    a = ((TT_Int64)a * b + 0x8000) / 0x10000;
-    return ( s < 0 ) ? -a : a;
-  }
-
-
-  LOCAL_FUNC
-  Int  Order64( TT_Int64  z )
-  {
-    Int  j = 0;
-
-
-    while ( z )
-    {
-      z = (unsigned INT64)z >> 1;
-      j++;
-    }
-    return j - 1;
-  }
-
-
-  LOCAL_FUNC
-  TT_Int32  Sqrt64( TT_Int64  l )
-  {
-    TT_Int64  r, s;
-
-
-    if ( l <= 0 ) return 0;
-    if ( l == 1 ) return 1;
-
-    r = Roots[Order64( l )];
-
-    do
-    {
-      s = r;
-      r = ( r + l/r ) >> 1;
-    }
-    while ( r > s || r*r > l );
-
-    return r;
-  }
-
-#else /* LONG64 */
-
 
   /* The TT_MulDiv function has been optimized thanks to ideas from      */
   /* Graham Asher. The trick is to optimize computation when everything  */
@@ -463,6 +374,57 @@
   LOCAL_FUNC
   TT_Int32  Sqrt64( TT_Int64*  l )
   {
+    #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
+    __asm {
+        mov     esi, l
+        mov     eax, [esi]       ; eax = l->lo
+        mov     edx, [esi+4]     ; edx = l->hi
+
+        ; check for 0 and 1
+        test    edx, edx
+        jnz     start_calc
+        test    eax, eax
+        jz      done             ; return 0
+        cmp     eax, 1
+        je      done             ; return 1
+
+    start_calc:
+        mov     ebx, edx
+        test    ebx, ebx
+        jnz     guess_hi
+        bsr     ecx, eax
+        jmp     set_guess
+    guess_hi:
+        bsr     ecx, edx
+        add     ecx, 32
+    set_guess:
+        shr     ecx, 1           ; n / 2
+        mov     ebx, 1
+        shl     ebx, cl          ; ebx = x
+
+    sqrt_loop:
+        ; Newton: next = (x + (l / x)) / 2
+        mov     eax, [esi]       ; l->lo
+        mov     edx, [esi+4]     ; l->hi
+        div     ebx              ; eax = l / x
+        
+        add     eax, ebx         ; eax = x + (l/x)
+        shr     eax, 1           ; eax = (x + (l/x)) / 2
+        
+        cmp     eax, ebx
+        jae     sqrt_finished    ; if next >= x, finished
+        
+        mov     ebx, eax         ; x = next
+        jmp     sqrt_loop
+
+    sqrt_finished:
+        mov     eax, ebx         ; return x
+    done:
+        mov     edx, eax         ; store result in dx:ax
+        shr     edx, 16
+    }
+    #else
+
 	  long  x = l->hi ? l->hi >> 1 : l->lo >> 1;
 	
     if (l->hi == 0 )
@@ -484,9 +446,8 @@
       // Update approximation
       x = next;
     }
+    #endif
   }
-
-#endif /* LONG64 */
 
 
 /* This convenience function applies TT_MulDiv to a list.                  */
