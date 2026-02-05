@@ -48,55 +48,47 @@
   {
   #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
     __asm {
-        mov     eax, a
-        mov     ebx, b
-        mov     ecx, c
+        mov     eax, a          ; edx:eax = a * b
+        imul    b               ; signed multiplication (64-bit result)
 
-        ; Calculate sign
-        mov     esi, eax
-        xor     esi, ebx
-        xor     esi, ecx        ; esi now holds the sign bit
-
-        ; Take absolute values
-        test    eax, eax
-        jns     skip_abs_a
-        neg     eax
-    skip_abs_a:
+        ; check for division by zero
+        mov     ebx, c
         test    ebx, ebx
-        jns     skip_abs_b
-        neg     ebx
-    skip_abs_b:
-        test    ecx, ecx
-        jns     skip_abs_c
-        neg     ecx
-    skip_abs_c:
-
-        ; Check for division by zero
-        test    ecx, ecx
         jz      divide_by_zero
 
-        ; Perform (a * b + c/2) / c
-        mov     edx, 0          ; Clear upper 32 bits for 64-bit multiplication
-        mul     ebx             ; EDX:EAX = a * b
-        mov     edi, ecx        ; Save c in edi
-        shr     edi, 1          ; edi = c/2
-        add     eax, edi        ; Add c/2 to lower 32 bits
-        adc     edx, 0          ; Add carry to upper 32 bits
-        idiv    ecx             ; Divide EDX:EAX by c
-        jmp     apply_sign
+        ; prepare rounding value: abs(c) / 2
+        mov     ecx, ebx
+        sar     ecx, 31         ; Create sign mask (0xFFFFFFFF if c < 0, else 0)
+        xor     ebx, ecx
+        sub     ebx, ecx        ; ebx = abs(c)
+        shr     ebx, 1          ; ebx = abs(c) / 2
+
+        ; apply rounding based on the sign of the product (in edx)
+        test    edx, edx
+        js      is_negative     ; product is negative (bit 31 of edx set)
+
+        ; product is positive: add rounding offset
+        add     eax, ebx
+        adc     edx, 0
+        jmp     do_div
+
+    is_negative:
+        ; product is negative: subtract rounding offset (round away from zero)
+        sub     eax, ebx
+        sbb     edx, 0
+
+    do_div:
+        ; divide: edx:eax / c
+        idiv    c               ; signed division: result in eax
+        jmp     done
 
     divide_by_zero:
-        ; Handle division by zero (return max positive or min negative)
-        mov     eax, 80000000h  ; Load min negative value
-
-    apply_sign:
-        ; Apply sign
-        test    esi, 80000000h  ; Test sign bit
-        jz      done
-        neg     eax
+        ; handle division by zero (returning max 32-bit signed integer)
+        mov     eax, 7FFFFFFFh
 
     done:
-        mov     edx, eax        ; Store result in dx:ax
+        ; result into dx:ax for 16:16 return format
+        mov     edx, eax
         shr     edx, 16
     }
   #else
