@@ -2380,7 +2380,6 @@ EC( ECCheckBounds( (void*)target_map ) );
 EC( ECCheckMemHandle( ras.buffer ) );
 EC( ECCheckBounds( (void*)map ) );
 
-
     ras.target = *map;
 
     Initialize_Raster_Instance( RAS_VARS glyph );

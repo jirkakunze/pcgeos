@@ -673,8 +673,8 @@
   /* will be zeroed.                                                */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Face_Properties( TT_Face              face,
-                                    TT_Face_Properties*  properties );
+  void  TT_Get_Face_Properties( TT_Face              face,
+                                TT_Face_Properties*  properties );
 
 
   /* Close a given font object, destroying all associated */
@@ -776,15 +776,15 @@
   /* it.  The client application should _not_ change the pointers.       */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Glyph_Outline( TT_Glyph     glyph,
-                                  TT_Outline*  outline );
+  void  TT_Get_Glyph_Outline( TT_Glyph     glyph,
+                              TT_Outline*  outline );
 
 
   /* Copy the glyph metrics into `metrics'. */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Glyph_Metrics( TT_Glyph           glyph,
-                                  TT_Glyph_Metrics*  metrics );
+  void  TT_Get_Glyph_Metrics( TT_Glyph           glyph,
+                              TT_Glyph_Metrics*  metrics );
 
 
   EXPORT_DEF
@@ -908,12 +908,12 @@
   /* used to enumerate the charmaps present in a TrueType file.   */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Name_ID( TT_Face     face,
-                            TT_UShort   nameIndex,
-                            TT_UShort*  platformID,
-                            TT_UShort*  encodingID,
-                            TT_UShort*  languageID,
-                            TT_UShort*  nameID );
+  void  TT_Get_Name_ID( TT_Face     face,
+                        TT_UShort   nameIndex,
+                        TT_UShort*  platformID,
+                        TT_UShort*  encodingID,
+                        TT_UShort*  languageID,
+                        TT_UShort*  nameID );
 
 
   /* Return the address and length of the name number `nameIndex' */
