@@ -353,19 +353,11 @@
     /* We need the left side bearing and advance width. */
 
     /* pp1 = xMin - lsb */
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
     vec[n_points].x = subg->metrics.bbox.xMin - subg->metrics.bearingX;
-#else
-    vec[n_points].x = subg->metrics.bbox.xMin - subg->metrics.horiBearingX;
-#endif
     vec[n_points].y = 0;
 
     /* pp2 = pp1 + aw */
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
     vec[n_points+1].x = vec[n_points].x + subg->metrics.advance;
-#else
-    vec[n_points+1].x = vec[n_points].x + subg->metrics.horiAdvance;
-#endif
     vec[n_points+1].y = 0;
 
     /* clear the touch flags */
@@ -577,13 +569,8 @@
     element->transform.ox = 0;
     element->transform.oy = 0;
 
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
     element->metrics.bearingX = 0;
     element->metrics.advance  = 0;
-#else
-    element->metrics.horiBearingX = 0;
-    element->metrics.horiAdvance  = 0;
-#endif
   }
 
 
@@ -759,14 +746,8 @@
           if ( (!(load_flags & TTLOAD_IGNORE_GLOBAL_ADVANCE_WIDTH)) && face->postscript.isFixedPitch )
             advance_width = face->horizontalHeader.advance_Width_Max;
 
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
           subglyph->metrics.bearingX = left_bearing;
           subglyph->metrics.advance  = advance_width;
-#else
-          subglyph->metrics.horiBearingX = left_bearing;
-          subglyph->metrics.horiAdvance  = advance_width;
-#endif
-
         }
 
         phase = Load_Header;
@@ -803,11 +784,8 @@
           subglyph->metrics.bbox.yMax = 0;
 
           subglyph->pp1.x = 0;
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
           subglyph->pp2.x = subglyph->metrics.advance;
-#else
-          subglyph->pp2.x = subglyph->metrics.horiAdvance;
-#endif
+
           if (load_flags & TTLOAD_SCALE_GLYPH)
             subglyph->pp2.x = Scale_X( &exec->metrics, subglyph->pp2.x );
 
@@ -840,15 +818,9 @@
           goto Fail;
         }
 
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
         subglyph->pp1.x = subglyph->metrics.bbox.xMin - subglyph->metrics.bearingX;
         subglyph->pp1.y = 0;
         subglyph->pp2.x = subglyph->pp1.x + subglyph->metrics.advance;
-#else
-        subglyph->pp1.x = subglyph->metrics.bbox.xMin - subglyph->metrics.horiBearingX;
-        subglyph->pp1.y = 0;
-        subglyph->pp2.x = subglyph->pp1.x + subglyph->metrics.horiAdvance;
-#endif
 
         if (load_flags & TTLOAD_SCALE_GLYPH)
         {
@@ -1046,13 +1018,8 @@
           if ( !subglyph->preserve_pps &&
                subglyph->element_flag & USE_MY_METRICS )
           {
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
             subglyph->metrics.bearingX = subglyph2->metrics.bearingX;
             subglyph->metrics.advance  = subglyph2->metrics.advance;
-#else
-            subglyph->metrics.horiBearingX = subglyph2->metrics.horiBearingX;
-            subglyph->metrics.horiAdvance  = subglyph2->metrics.horiAdvance;
-#endif
 
             subglyph->pp1 = subglyph2->pp1;
             subglyph->pp2 = subglyph2->pp2;
@@ -1202,14 +1169,8 @@
       TT_Pos  left_bearing;
       TT_Pos  advance;
 
-
- #ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
       left_bearing = subglyph->metrics.bearingX;
       advance      = subglyph->metrics.advance;
-#else
-      left_bearing = subglyph->metrics.horiBearingX;
-      advance      = subglyph->metrics.horiAdvance;
-#endif
 
       if ( face->postscript.isFixedPitch )
         advance = face->horizontalHeader.advance_Width_Max;
@@ -1219,34 +1180,13 @@
         left_bearing = Scale_X( &exec->metrics, left_bearing );
         advance      = Scale_X( &exec->metrics, advance      );
       }
-
-#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
-      glyph->metrics.linearHoriBearingX = left_bearing;
-      glyph->metrics.linearHoriAdvance  = advance;
-#endif
     }
 
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
     glyph->metrics = subglyph->metrics;
-#else
-    glyph->metrics.horiBearingX = glyph->metrics.bbox.xMin;
-    glyph->metrics.horiBearingY = glyph->metrics.bbox.yMax;
-    glyph->metrics.horiAdvance  = subglyph->pp2.x - subglyph->pp1.x;
-#endif
 
     /* Now take care of vertical metrics.  In the case where there is    */
     /* no vertical information within the font (relatively common), make */
     /* up some metrics `by hand' ...                                     */
-#ifndef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
-    {
-      Short   top_bearing;    /* vertical top side bearing (EM units) */
-      UShort  advance_height; /* vertical advance height (EM units)   */
-
-      TT_Pos  left;     /* scaled vertical left side bearing          */
-      TT_Pos  Top;      /* scaled original vertical top side bearing  */
-      TT_Pos  top;      /* scaled vertical top side bearing           */
-      TT_Pos  advance;  /* scaled vertical advance height             */
-
 
 #ifdef TT_CONFIG_OPTION_PROCESS_VMTX
       /* Get the unscaled `tsb' and `ah' values */
@@ -1261,69 +1201,8 @@
                         &top_bearing,
                         &advance_height );
       }
-      else
-#endif
-      {
-        /* Make up the distances from the horizontal header..     */
-
-        /* NOTE: The OS/2 values are the only `portable' ones,    */
-        /*       which is why we use them...                      */
-        /*                                                        */
-        /* NOTE2: The sTypoDescender is negative, which is why    */
-        /*        we compute the baseline-to-baseline distance    */
-        /*        here with :                                     */
-        /*             ascender - descender + linegap             */
-        /*                                                        */
-        top_bearing    = (Short) (face->os2.sTypoLineGap >> 1 );
-        advance_height = (UShort)(face->os2.sTypoAscender -
-                                  face->os2.sTypoDescender +
-                                  face->os2.sTypoLineGap);
-      }
-
-      /* We must adjust the top_bearing value from the bounding box given
-         in the glyph header to te bounding box calculated with
-         TT_Get_Outline_BBox()                                            */
-
-      /* scale the metrics */
-      if ( load_flags & TTLOAD_SCALE_GLYPH )
-      {
-        Top     = Scale_Y( &exec->metrics, top_bearing );
-        top     = Scale_Y( &exec->metrics,
-                           top_bearing + subglyph->metrics.bbox.yMax ) -
-                    glyph->metrics.bbox.yMax;
-        advance = Scale_Y( &exec->metrics, advance_height );
-      }
-      else
-      {
-        Top     = top_bearing;
-        top     = top_bearing + subglyph->metrics.bbox.yMax -
-                    glyph->metrics.bbox.yMax;
-        advance = advance_height;
-      }
-
-#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
-      glyph->metrics.linearVertBearingY = Top;
-      glyph->metrics.linearVertAdvance  = advance;
 #endif
 
-      /* XXX : for now, we have no better algo for the lsb, but it should */
-      /*       work ok..                                                  */
-      /*                                                                  */
-      left = ( glyph->metrics.bbox.xMin - glyph->metrics.bbox.xMax ) >> 1;
-
-      /* grid-fit them if necessary */
-      if ( subglyph->is_hinted )
-      {
-        left   &= -64;
-        top     = (top + 63) & -64;
-        advance = (advance + 32) & -64;
-      }
-
-      glyph->metrics.vertBearingX = left;
-      glyph->metrics.vertBearingY = top;
-      glyph->metrics.vertAdvance  = advance;
-    }
-#endif
 
 #ifdef TT_CONFIG_OPTION_PROCESS_HDMX
     /* Adjust advance width to the value contained in the hdmx table. */
@@ -1333,11 +1212,7 @@
       widths = Get_Advance_Widths( exec->face,
                                    exec->instance->metrics.x_ppem );
       if ( widths )
-#ifdef TT_CONFIG_OPTION_LIGHT_GLYPH_METRICS
         glyph->metrics.advance = widths[glyph_index] << 6;
-#else
-        glyph->metrics.horiAdvance = widths[glyph_index] << 6;
-#endif
     }
 #endif
 
