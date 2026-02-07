@@ -598,7 +598,7 @@
 
     ADD_64( T1, T2, T1 );
 
-    return (TT_F26Dot6)SQRT_64( T1 );
+    return (TT_F26Dot6)Sqrt64( &T1 );
   }
 
 
@@ -668,36 +668,18 @@
     return CUR.cvt[index];
   }
 
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-  static TT_F26Dot6  _near Read_CVT_Stretched( EXEC_OPS UShort  index )
-  {
-    return TT_MulFix( CUR.cvt[index], CURRENT_Ratio() );
-  }
-#endif
 
   static void  _near Write_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] = value;
   }
 
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-  static void  _near Write_CVT_Stretched( EXEC_OPS UShort  index, TT_F26Dot6  value )
-  {
-    CUR.cvt[index] = TT_MulDiv( value, 0x10000, CURRENT_Ratio() );
-  }
-#endif
-
+  
   static void  _near Move_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] += value;
   }
 
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-  static void  __near Move_CVT_Stretched( EXEC_OPS UShort  index, TT_F26Dot6  value )
-  {
-    CUR.cvt[index] += TT_MulDiv( value, 0x10000, CURRENT_Ratio() );
-  }
-#endif
 
 /******************************************************************
  *
@@ -868,10 +850,7 @@
 
     if ( v != 0 )
     {
-      zone->cur[point].x += TT_MulDiv( distance,
-                                       v * 0x10000L,
-                                       CUR.F_dot_P );
-
+      zone->cur[point].x += TT_MulDiv( distance, ( v << 16 ), CUR.F_dot_P );
       zone->touch[point] |= TT_Flag_Touched_X;
     }
 
@@ -879,10 +858,7 @@
 
     if ( v != 0 )
     {
-      zone->cur[point].y += TT_MulDiv( distance,
-                                       v * 0x10000L,
-                                       CUR.F_dot_P );
-
+      zone->cur[point].y += TT_MulDiv( distance, ( v << 16 ), CUR.F_dot_P );
       zone->touch[point] |= TT_Flag_Touched_Y;
     }
   }
@@ -1609,11 +1585,11 @@
  *  Input  :  Vx, Vy    input vector
  *            R         normed unit vector
  *
- *  Output :  Returns FAILURE if a vector parameter is zero.
+ *  Output :  void
  *
  *****************************************************************/
 
-  static Bool  Normalize( TT_F26Dot6      Vx,
+  static void  Normalize( TT_F26Dot6      Vx,
                           TT_F26Dot6      Vy,
                           TT_UnitVector*  R )
   {
@@ -1623,8 +1599,8 @@
 
     if ( ABS( Vx ) < 0x10000L && ABS( Vy ) < 0x10000L )
     {
-      Vx *= 0x100;
-      Vy *= 0x100;
+      Vx <<= 8;
+      Vy <<= 8;
 
       W = Norm( Vx, Vy );
 
@@ -1632,13 +1608,13 @@
       {
         /* XXX : UNDOCUMENTED! It seems that it's possible to try  */
         /*       to normalize the vector (0,0). Return immediately */
-        return SUCCESS;
+        return;
       }
 
       R->x = (TT_F2Dot14)TT_MulDiv( Vx, 0x4000L, W );
       R->y = (TT_F2Dot14)TT_MulDiv( Vy, 0x4000L, W );
 
-      return SUCCESS;
+      return;
     }
 
     W = Norm( Vx, Vy );
@@ -1700,8 +1676,6 @@
 
     R->x = (TT_F2Dot14)Vx;   /* Type conversion */
     R->y = (TT_F2Dot14)Vy;   /* Type conversion */
-
-    return SUCCESS;
   }
 
 
@@ -5556,7 +5530,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
             ++B;
-          B = B * 64L / (1L << CUR.GS.delta_shift);
+          B = ( B << 6 ) / (1L << CUR.GS.delta_shift);
 
           FarCUR_Func_move( EXEC_ARGS &CUR.zp0, A, B );
         }
@@ -6046,22 +6020,11 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
     /* set CVT functions */
     CUR.metrics.ratio = 0;
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-    if ( CUR.metrics.x_ppem != CUR.metrics.y_ppem )
-    {
-      /* non-square pixels, use the stretched routines */
-      CUR.func_read_cvt  = Read_CVT_Stretched;
-      CUR.func_write_cvt = Write_CVT_Stretched;
-      CUR.func_move_cvt  = Move_CVT_Stretched;
-    }
-    else
-#endif /* TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS */
-    {
-      /* square pixels, use normal routines */
-      CUR.func_read_cvt  = Read_CVT;
-      CUR.func_write_cvt = Write_CVT;
-      CUR.func_move_cvt  = Move_CVT;
-    }
+
+    /* square pixels, use normal routines */
+    CUR.func_read_cvt  = Read_CVT;
+    CUR.func_write_cvt = Write_CVT;
+    CUR.func_move_cvt  = Move_CVT;
 
     COMPUTE_Funcs();
     Compute_Round( EXEC_ARGS (Byte)exc->GS.round_state );

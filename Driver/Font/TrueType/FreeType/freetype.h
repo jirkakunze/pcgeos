@@ -925,10 +925,10 @@
   /* returned.                                                    */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Name_String( TT_Face      face,
-                                TT_UShort    nameIndex,
-                                TT_String**  stringPtr,
-                                TT_UShort*   length );
+  void  TT_Get_Name_String( TT_Face      face,
+                            TT_UShort    nameIndex,
+                            TT_String**  stringPtr,
+                            TT_UShort*   length );
 
 
 #ifdef __cplusplus

@@ -1256,7 +1256,7 @@ EC( EC_ERROR_IF( nameIndex >= faze->nameTable.numNameRecords, -1 ) );
  *            stringPtr   address of returned pointer to string
  *            length      address of returned string length
  *
- *  Output :  Error code.
+ *  Output :  void
  *
  *  Notes  :  If the string's platformID is invalid,
  *            stringPtr is NULL, and length is 0.
@@ -1266,26 +1266,22 @@ EC( EC_ERROR_IF( nameIndex >= faze->nameTable.numNameRecords, -1 ) );
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Get_Name_String( TT_Face      face,
-                                TT_UShort    nameIndex,
-                                TT_String**  stringPtr,
-                                TT_UShort*   length )
+  void  TT_Get_Name_String( TT_Face      face,
+                            TT_UShort    nameIndex,
+                            TT_String**  stringPtr,
+                            TT_UShort*   length )
   {
     TNameRec*  namerec;
     PFace      faze = HANDLE_Face( face );
 
 
 EC( ECCheckBounds( faze ) );
-
-    if ( nameIndex >= faze->nameTable.numNameRecords )
-      return TT_Err_Invalid_Argument;
+EC( EC_ERROR_IF( nameIndex >= faze->nameTable.numNameRecords, -1 ) );
 
     namerec = faze->nameTable.names + nameIndex;
 
     *stringPtr = (String*)namerec->string;
     *length    = namerec->stringLength;
-
-    return TT_Err_Ok;
   }
 
 
