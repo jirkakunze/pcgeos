@@ -614,7 +614,7 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  FUnits_To_Pixels( EXEC_OPS Short  distance )
+  static inline TT_F26Dot6  FUnits_To_Pixels( EXEC_OPS Short  distance )
   {
     return TT_MulDiv( distance,
                       CUR.metrics.scale1,
