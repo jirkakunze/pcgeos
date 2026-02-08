@@ -5957,8 +5957,6 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     PDefRecord   WITH;
     PCallRecord  WITH1;
 
-    Short        ins_counter = 0;  /* executed instructions counter */
-
 #ifdef TT_CONFIG_OPTION_STATIC_INTERPRETER
     cur = *exc;
 #endif
@@ -6604,14 +6602,6 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
       if ( CUR.step_ins )
         CUR.IP += CUR.length;
-
-      /* increment instruction counter and check if we didn't   */
-      /* run this program for too long ?? (e.g. infinite loops) */
-      if ( ++ins_counter > MAX_RUNNABLE_OPCODES )
-      {
-        CUR.error = TT_Err_Execution_Too_Long;
-        goto LErrorLabel_;
-      }
 
   LSuiteLabel_:
 
