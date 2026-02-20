@@ -690,36 +690,18 @@
     return CUR.cvt[index];
   }
 
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-  static TT_F26Dot6  _near Read_CVT_Stretched( EXEC_OPS UShort  index )
-  {
-    return TT_MulFix( CUR.cvt[index], CURRENT_Ratio() );
-  }
-#endif
 
   static void  _near Write_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] = value;
   }
 
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-  static void  _near Write_CVT_Stretched( EXEC_OPS UShort  index, TT_F26Dot6  value )
-  {
-    CUR.cvt[index] = TT_MulDiv( value, 0x10000, CURRENT_Ratio() );
-  }
-#endif
 
   static void  _near Move_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
   {
     CUR.cvt[index] += value;
   }
 
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-  static void  __near Move_CVT_Stretched( EXEC_OPS UShort  index, TT_F26Dot6  value )
-  {
-    CUR.cvt[index] += TT_MulDiv( value, 0x10000, CURRENT_Ratio() );
-  }
-#endif
 
 /******************************************************************
  *
@@ -6068,22 +6050,9 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
     /* set CVT functions */
     CUR.metrics.ratio = 0;
-#ifdef TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS
-    if ( CUR.metrics.x_ppem != CUR.metrics.y_ppem )
-    {
-      /* non-square pixels, use the stretched routines */
-      CUR.func_read_cvt  = Read_CVT_Stretched;
-      CUR.func_write_cvt = Write_CVT_Stretched;
-      CUR.func_move_cvt  = Move_CVT_Stretched;
-    }
-    else
-#endif /* TT_CONGIG_OPTION_SUPPORT_NON_SQUARE_PIXELS */
-    {
-      /* square pixels, use normal routines */
-      CUR.func_read_cvt  = Read_CVT;
-      CUR.func_write_cvt = Write_CVT;
-      CUR.func_move_cvt  = Move_CVT;
-    }
+    CUR.func_read_cvt  = Read_CVT;
+    CUR.func_write_cvt = Write_CVT;
+    CUR.func_move_cvt  = Move_CVT;
 
     COMPUTE_Funcs();
     Compute_Round( EXEC_ARGS (Byte)exc->GS.round_state );
