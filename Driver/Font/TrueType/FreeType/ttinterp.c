@@ -182,11 +182,11 @@
 
 #define CUR_Func_round( d, c )     CUR.func_round( EXEC_ARGS d, c )
 
-#define CUR_Func_read_cvt( index )  CUR.func_read_cvt( EXEC_ARGS index )
+#define WRITE_CVT( index, value )  (CUR.cvt[(index)] = (value))
 
-#define CUR_Func_write_cvt( index, val ) CUR.func_write_cvt( EXEC_ARGS index, val )
+#define MOVE_CVT( index, value )   (CUR.cvt[(index)] += (value))
 
-#define CUR_Func_move_cvt( index, val ) CUR.func_move_cvt( EXEC_ARGS index, val )
+#define READ_CVT( index )          (CUR.cvt[(index)])
 
 #define CURRENT_Ratio()  Current_Ratio( EXEC_ARG )
 #define CURRENT_Ppem()   Current_Ppem( EXEC_ARG )
@@ -682,24 +682,6 @@
   static Long  Current_Ppem( EXEC_OP )
   {
     return TT_MulFixLocal( CUR.metrics.ppem, CURRENT_Ratio() );
-  }
-
-
-  static TT_F26Dot6  _near Read_CVT( EXEC_OPS UShort  index )
-  {
-    return CUR.cvt[index];
-  }
-
-
-  static void  _near Write_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
-  {
-    CUR.cvt[index] = value;
-  }
-
-
-  static void  _near Move_CVT( EXEC_OPS UShort  index, TT_F26Dot6  value )
-  {
-    CUR.cvt[index] += value;
   }
 
 
@@ -1386,23 +1368,6 @@
     CUR.func_move(EXEC_ARGS zone, point, distance);
   }
 
-#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
-#pragma code_seg(InterpEntry)
-#endif
-
-  static TT_F26Dot6 _far FarCUR_Func_read_cvt(EXEC_OPS UShort index)
-  {
-    return CUR.func_read_cvt(EXEC_ARGS index);
-  }
-
-  static void _far FarCUR_Func_move_cvt(EXEC_OPS UShort index, TT_F26Dot6  value)
-  {
-    CUR.func_move_cvt(EXEC_ARGS index, value);
-  }
-
-#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
-#pragma code_seg()
-#endif
 
 /*******************************************************************
  *
@@ -2184,56 +2149,22 @@
 #endif
 
 
-#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
 #define DO_RCVT  \
    {                                                            \
-     UShort  I = (UShort)args[0];                                 \
-     if ( BOUNDS( I, CUR.cvtSize ) )                            \
-     {                                                          \
-       if ( CUR.pedantic_hinting )                              \
-       {                                                        \
-         ARRAY_BOUND_ERROR;                                     \
-       }                                                        \
-       else                                                     \
-         args[0] = 0;                                           \
-     }                                                          \
-     else                                                       \
-       args[0] = CUR_Func_read_cvt(I);                          \
-   }
-#else
-#define DO_RCVT  \
-   {                                                            \
-     UShort  I = (UShort)args[0];                                 \
+     UShort  I = (UShort)args[0];                               \
      if ( BOUNDS( I, CUR.cvtSize ) )                            \
          args[0] = 0;                                           \
      else                                                       \
-       args[0] = CUR_Func_read_cvt(I);                          \
+       args[0] = READ_CVT(I);                                   \
    }
-#endif
 
 
-#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
-#define DO_WCVTP                             \
-   {                                                            \
-     UShort  I = (UShort)args[0];                                 \
-     if ( BOUNDS( I, CUR.cvtSize ) )                            \
-     {                                                          \
-       if ( CUR.pedantic_hinting )                              \
-       {                                                        \
-         ARRAY_BOUND_ERROR;                                     \
-       }                                                        \
-     }                                                          \
-     else                                                       \
-       CUR_Func_write_cvt( I, args[1] );                        \
-   }
-#else
-#define DO_WCVTP                             \
+#define DO_WCVTP                                                \
    {                                                            \
      UShort  I = (UShort)args[0];                               \
      if ( ! BOUNDS( I, CUR.cvtSize ) )                          \
-       CUR_Func_write_cvt( I, args[1] );                        \
+       WRITE_CVT( I, args[1] );                                 \
    }
-#endif
 
 
 #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
@@ -4778,7 +4709,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     /* twilight zone. This is a bad hack, but it seems   */
     /* to work.                                          */
 
-    distance = FarCUR_Func_read_cvt( EXEC_ARGS cvtEntry );
+    distance = READ_CVT( EXEC_ARGS cvtEntry );
 
     if ( CUR.GS.gep0 == 0 )   /* If in twilight zone */
     {
@@ -4921,7 +4852,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     if ( !cvtEntry )
       cvt_dist = 0;
     else
-      cvt_dist = FarCUR_Func_read_cvt( EXEC_ARGS cvtEntry - 1 );
+      cvt_dist = READ_CVT( EXEC_ARGS cvtEntry - 1 );
 
     /* single width test */
 
@@ -5636,7 +5567,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
             ++B;
           B = (B << 6) / (1L << CUR.GS.delta_shift);
 
-          FarCUR_Func_move_cvt( EXEC_ARGS A, B );
+          MOVE_CVT( EXEC_ARGS A, B );
         }
       }
     }
@@ -6048,11 +5979,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     cur = *exc;
 #endif
 
-    /* set CVT functions */
     CUR.metrics.ratio = 0;
-    CUR.func_read_cvt  = Read_CVT;
-    CUR.func_write_cvt = Write_CVT;
-    CUR.func_move_cvt  = Move_CVT;
 
     COMPUTE_Funcs();
     Compute_Round( EXEC_ARGS (Byte)exc->GS.round_state );

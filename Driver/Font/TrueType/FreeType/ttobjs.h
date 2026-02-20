@@ -697,14 +697,9 @@
     TProject_Function  _near * func_dualproj;  /* current dual proj. function */
 
     TMove_Function     _near * func_move;      /* current point move function */
-
-    TGet_CVT_Function  _near * func_read_cvt;  /* read a cvt entry              */
-    TSet_CVT_Function  _near * func_write_cvt; /* write a cvt entry (in pixels) */
-    TSet_CVT_Function  _near * func_move_cvt;  /* incr a cvt entry (in pixels)  */
-
+    
     UShort             loadSize;
     PSubglyph_Stack    loadStack;      /* loading subglyph stack */
-
   };
 
 
