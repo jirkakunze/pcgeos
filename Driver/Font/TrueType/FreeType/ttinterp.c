@@ -887,9 +887,11 @@
  *******************************************************************/
 
   static void _near Direct_Move_X( EXEC_OPS PGlyph_Zone  zone,
-                                       UShort       point,
-                                       TT_F26Dot6   distance )
+                                            UShort       point,
+                                            TT_F26Dot6   distance )
   {
+    (void)exc;
+
     zone->cur[point].x += distance;
     zone->touch[point] |= TT_Flag_Touched_X;
   }
@@ -1054,6 +1056,8 @@
   {
     TT_F26Dot6  val;
 
+
+    (void)exc;
 
     if ( distance >= 0 )
     {
@@ -1468,6 +1472,8 @@
   static TT_F26Dot6 _near Project_x( EXEC_OPS TT_Vector*  v1,
                                               TT_Vector*  v2 )
   {
+    (void)exc;
+
     return (v1->x - v2->x);
   }
 
@@ -3265,6 +3271,8 @@
   static void _near Ins_ROLL( INS_ARG )
   {
     Long temp = args[2];
+
+    (void)exc;
 
     args[2] = args[0];
     args[0] = args[1];
@@ -5593,6 +5601,8 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
   static void  Ins_GETINFO( INS_ARG )
   {
+    (void)exc;
+
     /* Return the Windows 3.1 version number for the font scaler */
     args[0] = (args[0] & 1) ? 3 : 0;
   }
