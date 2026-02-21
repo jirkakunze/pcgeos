@@ -206,7 +206,7 @@
   /* Instruction dispatch function, as used by the interpreter */
   typedef void (_near *TInstruction_Function)( INS_ARG );
 
-#define BOUNDS( x, n )  ( (x) >= (n) )
+#define BOUNDS( x, n )    ( (unsigned short)(x) >= (unsigned short)(n) )
 
 #ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
 #pragma code_seg(InterpEntry)
