@@ -636,7 +636,7 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6  FUnits_To_Pixels( EXEC_OPS Short  distance )
+  static inline TT_F26Dot6  FUnits_To_Pixels( EXEC_OPS Short  distance )
   {
     return TT_MulDiv( distance,
                       CUR.metrics.scale1,
@@ -6323,11 +6323,11 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
           DO_FLIPOFF
           break;
 
+  #ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
         case 0x4F:  /* DEBUG */
-        #ifdef TT_CONFIG_OPTION_SUPPORT_OBSOLET_INSTRUCTIONS
           DO_DEBUG
-        #endif
           break;
+  #endif
 
         case 0x50:  /* LT */
           DO_LT
