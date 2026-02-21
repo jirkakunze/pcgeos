@@ -161,7 +161,8 @@
 
 #define SKIP_Code()     SkipCode( EXEC_ARG )
 
-#define GET_ShortIns()  GetShortIns( EXEC_ARG )
+#define GET_SHORT_INS()            ( (CUR.IP += 2), \
+                                     (Short)((CUR.code[CUR.IP - 2] << 8) | CUR.code[CUR.IP - 1]) )
 
 #define COMPUTE_Funcs() Compute_Funcs( EXEC_ARG )
 
@@ -693,7 +694,7 @@
  *
  *****************************************************************/
 
-  static Bool  Calc_Length( EXEC_OP )
+ static Bool  Calc_Length( EXEC_OP )
   {
     CUR.opcode = CUR.code[CUR.IP];
 
@@ -746,29 +747,6 @@
       return FAILURE;
 
     return SUCCESS;
-  }
-
-
-/*******************************************************************
- *
- *  Function    :  GetShortIns
- *
- *  Description :  Returns a short integer taken from the instruction
- *                 stream at address IP.
- *
- *  Input  :  None
- *
- *  Output :  Short read at Code^[IP..IP+1]
- *
- *  Notes  :  This one could become a Macro in the C version.
- *
- *****************************************************************/
-
-  static Short  GetShortIns( EXEC_OP )
-  {
-    /* Reading a byte stream so there is no endianess (DaveP) */
-    CUR.IP += 2;
-    return (Short)((CUR.code[CUR.IP - 2] << 8) | CUR.code[CUR.IP - 1]);
   }
 
 
@@ -1584,99 +1562,64 @@
  *  Input  :  Vx, Vy    input vector
  *            R         normed unit vector
  *
- *  Output :  Returns FAILURE if a vector parameter is zero.
+ *  Output :  void
  *
  *****************************************************************/
 
-  static Bool  Normalize( TT_F26Dot6      Vx,
-                          TT_F26Dot6      Vy,
-                          TT_UnitVector*  R )
+  static void Normalize(TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R)
   {
     TT_F26Dot6  W;
-    Bool        S1, S2;
+    Bool        s1 = FALSE, s2 = FALSE;
 
 
-    if ( ABS( Vx ) < 0x10000L && ABS( Vy ) < 0x10000L )
+    /* Extract signs to work with absolute values and simplify logic */
+    if (Vx < 0) { Vx = -Vx; s1 = TRUE; }
+    if (Vy < 0) { Vy = -Vy; s2 = TRUE; }
+
+    /* Handle small vectors by scaling up to maintain precision */
+    if (Vx < 0x10000L && Vy < 0x10000L)
     {
-      Vx *= 0x100;
-      Vy *= 0x100;
+        if ((Vx | Vy) == 0) return;
 
-      W = Norm( Vx, Vy );
-
-      if ( W == 0 )
-      {
-        /* XXX : UNDOCUMENTED! It seems that it's possible to try  */
-        /*       to normalize the vector (0,0). Return immediately */
-        return SUCCESS;
-      }
-
-      R->x = (TT_F2Dot14)TT_MulDiv( Vx, 0x4000L, W );
-      R->y = (TT_F2Dot14)TT_MulDiv( Vy, 0x4000L, W );
-
-      return SUCCESS;
+        W = Norm(Vx << 8, Vy << 8);
+        Vx = (TT_F26Dot6)TT_MulDiv(Vx << 8, 0x4000L, W);
+        Vy = (TT_F26Dot6)TT_MulDiv(Vy << 8, 0x4000L, W);
     }
-
-    W = Norm( Vx, Vy );
-
-    Vx = TT_MulDiv( Vx, 0x4000L, W );
-    Vy = TT_MulDiv( Vy, 0x4000L, W );
+    else
+    {
+        W = Norm(Vx, Vy);
+        Vx = (TT_F26Dot6)TT_MulDiv(Vx, 0x4000L, W);
+        Vy = (TT_F26Dot6)TT_MulDiv(Vy, 0x4000L, W);
+    }
 
     W = Vx * Vx + Vy * Vy;
 
-    /* Now, we want that Sqrt( W ) = 0x4000 */
-    /* Or 0x1000000 <= W < 0x1004000        */
-
-    if ( Vx < 0 )
+    /* Incrementally adjust W to reach 0x1000000 <= W < 0x1004000     */
+    /* Uses (n+1)^2 = n^2 + 2n + 1 to avoid expensive multiplications */
+    while (W < 0x1000000L)
     {
-      Vx = -Vx;
-      S1 = TRUE;
-    }
-    else
-      S1 = FALSE;
-
-    if ( Vy < 0 )
-    {
-      Vy = -Vy;
-      S2 = TRUE;
-    }
-    else
-      S2 = FALSE;
-
-    while ( W < 0x1000000L )
-    {
-      /* We need to increase W, by a minimal amount */
-      if ( Vx < Vy )
-        ++Vx;
-      else
-        ++Vy;
-
-      W = Vx * Vx + Vy * Vy;
+        if (Vx < Vy) {
+            W += (Vx << 1) + 1;
+            ++Vx;
+        } else {
+            W += (Vy << 1) + 1;
+            ++Vy;
+        }
     }
 
-    while ( W >= 0x1004000L )
+    while (W >= 0x1004000L)
     {
-      /* We need to decrease W, by a minimal amount */
-      if ( Vx < Vy )
-        --Vx;
-      else
-        --Vy;
-
-      W = Vx * Vx + Vy * Vy;
+        if (Vx < Vy) {
+            W -= (Vx << 1) - 1;
+            --Vx;
+        } else {
+            W -= (Vy << 1) - 1;
+            --Vy;
+        }
     }
 
-    /* Note that in various cases, we can only  */
-    /* compute a Sqrt(W) of 0x3FFF, eg. Vx = Vy */
-
-    if ( S1 )
-      Vx = -Vx;
-
-    if ( S2 )
-      Vy = -Vy;
-
-    R->x = (TT_F2Dot14)Vx;   /* Type conversion */
-    R->y = (TT_F2Dot14)Vy;   /* Type conversion */
-
-    return SUCCESS;
+    R->x = (TT_F2Dot14)(s1 ? -Vx : Vx);
+    R->y = (TT_F2Dot14)(s2 ? -Vy : Vy);
   }
 
 
@@ -3291,8 +3234,6 @@
 
   static Bool  SkipCode( EXEC_OP )
   {
-    (void)exc;
-
     CUR.IP += CUR.length;
 
     if ( CUR.IP < CUR.codeSize )
@@ -3302,7 +3243,6 @@
     CUR.error = TT_Err_Code_Overflow;
     return FAILURE;
   }
-
 
 
 /*******************************************/
@@ -3729,7 +3669,7 @@
     CUR.IP += 2;
 
     for ( K = 0; K < L; ++K )
-      args[K] = GET_ShortIns();
+      args[K] = GET_SHORT_INS();
 
     CUR.step_ins = FALSE;
     CUR.new_top += L;
@@ -3783,7 +3723,7 @@
     CUR.IP++;
 
     for ( K = 0; K < L; ++K )
-      args[K] = GET_ShortIns();
+      args[K] = GET_SHORT_INS();
 
     CUR.step_ins = FALSE;
   }
