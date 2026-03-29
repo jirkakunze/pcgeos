@@ -542,8 +542,8 @@
     /* and recycled instances and execution contexts   */
     /* objects.  See 'ttcache.h'                       */
 
-    TCache  instances;   /* current instances for this face */
-    TCache  glyphs;      /* current glyph containers for this face */
+    PInstance /*TCache*/  instance;   /* current instances for this face */
+    PGlyph/*TCache*/  glyph;      /* current glyph containers for this face */
   };
 
 

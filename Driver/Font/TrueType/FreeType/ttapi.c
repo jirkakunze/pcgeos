@@ -473,6 +473,7 @@ TT_Error  TT_Close_Face( TT_Face  face )
  *
  ******************************************************************/
 
+ #if 0
   EXPORT_FUNC
   TT_Error  TT_New_Instance( TT_Face       face,
                              TT_Instance*  instance )
@@ -486,22 +487,65 @@ TT_Error  TT_Close_Face( TT_Face  face )
       return TT_Err_Invalid_Face_Handle;
 
     /* get a new instance from the face's cache -- this is thread-safe */
-    error = CACHE_New( &_face->instances, _ins, _face );
+    //error = CACHE_New( &_face->instances, _ins, _face );
 
     HANDLE_Set( *instance, _ins );
 
     if ( !error )
     {
-      error = Instance_Init( _ins );
+      //error = Instance_Init( _ins );
       if ( error )
       {
         HANDLE_Set( *instance, NULL );
-        CACHE_Done( &_face->instances, _ins );
+        //CACHE_Done( &_face->instances, _ins );
       }
     }
 
     return error;
   }
+    #endif /* 0 */
+
+    EXPORT_FUNC
+TT_Error  TT_New_Instance( TT_Face       face,
+                           TT_Instance*  instance )
+{
+    TT_Error   error;
+    PFace      _face = HANDLE_Face( face );
+    PInstance  _ins  = NULL;
+
+    if ( !_face )
+        return TT_Err_Invalid_Face_Handle;
+
+    HANDLE_Set( *instance, NULL );
+
+    if ( _face->instance )
+        return TT_Err_Invalid_Face_Handle;   /* oder besser: eigener Fehler "already exists" */
+
+    if ( ALLOC( _ins, sizeof ( TInstance ) ) )
+        return TT_Err_Out_Of_Memory;
+
+    MEM_Set( _ins, 0, sizeof ( TInstance ) );
+
+    error = Instance_Create( _ins, _face );
+    if ( error )
+    {
+        FREE( _ins );
+        return error;
+    }
+
+    error = Instance_Init( _ins );
+    if ( error )
+    {
+        Instance_Destroy( _ins );
+        FREE( _ins );
+        return error;
+    }
+
+    _face->instance = _ins;
+    HANDLE_Set( *instance, _ins );
+
+    return TT_Err_Ok;
+}
 
 
 /*******************************************************************
@@ -574,7 +618,7 @@ TT_Error  TT_Close_Face( TT_Face  face )
  *  MT-Safe : YES!
  *
  ******************************************************************/
-
+#if 0
   EXPORT_FUNC
   TT_Error  TT_Done_Instance( TT_Instance  instance )
   {
@@ -587,7 +631,31 @@ TT_Error  TT_Close_Face( TT_Face  face )
     /* delete the instance -- this is thread-safe */
     return CACHE_Done( &ins->owner->instances, ins );
   }
+#endif
 
+EXPORT_FUNC
+TT_Error  TT_Done_Instance( TT_Instance  instance )
+{
+    PInstance  ins = HANDLE_Instance( instance );
+    PFace      face;
+
+    if ( !ins )
+        return TT_Err_Invalid_Instance_Handle;
+
+    face = ins->owner;
+    if ( !face )
+        return TT_Err_Invalid_Instance_Handle;
+
+    if ( face->instance != ins )
+        return TT_Err_Invalid_Instance_Handle;
+
+    face->instance = NULL;
+
+    Instance_Destroy( ins );
+    FREE( ins );
+
+    return TT_Err_Ok;
+}
 
 /*******************************************************************
  *
@@ -604,7 +672,8 @@ TT_Error  TT_Close_Face( TT_Face  face )
  *  MT-Safe : YES!
  *
  ******************************************************************/
-
+#if 0
+   EXPORT_FUNC
   EXPORT_FUNC
   TT_Error  TT_New_Glyph( TT_Face    face,
                           TT_Glyph*  glyph )
@@ -624,7 +693,41 @@ TT_Error  TT_Close_Face( TT_Face  face )
 
     return error;
   }
+#endif /* 0 */
 
+EXPORT_FUNC
+TT_Error  TT_New_Glyph( TT_Face    face,
+                        TT_Glyph*  glyph )
+{
+    PFace    _face  = HANDLE_Face( face );
+    PGlyph   _glyph = NULL;
+    TT_Error error;
+
+    if ( !_face )
+        return TT_Err_Invalid_Face_Handle;
+
+    HANDLE_Set( *glyph, NULL );
+
+    if ( _face->glyph )
+        return TT_Err_Invalid_Face_Handle;   /* besser: eigener Fehlercode */
+
+    if ( ALLOC( _glyph, sizeof ( TGlyph ) ) )
+        return TT_Err_Out_Of_Memory;
+
+    MEM_Set( _glyph, 0, sizeof ( TGlyph ) );
+
+    error = Glyph_Create( _glyph, _face );
+    if ( error )
+    {
+        FREE( _glyph );
+        return error;
+    }
+
+    _face->glyph = _glyph;
+    HANDLE_Set( *glyph, _glyph );
+
+    return TT_Err_Ok;
+}
 
 /*******************************************************************
  *
@@ -639,7 +742,8 @@ TT_Error  TT_Close_Face( TT_Face  face )
  *  MT-Safe : YES!
  *
  ******************************************************************/
-
+#if 0
+   EXPORT_FUNC
   EXPORT_FUNC
   TT_Error  TT_Done_Glyph( TT_Glyph  glyph )
   {
@@ -652,7 +756,31 @@ TT_Error  TT_Close_Face( TT_Face  face )
     /* delete the engine -- this is thread-safe */
     return CACHE_Done( &_glyph->face->glyphs, _glyph );
   }
+#endif /* 0 */
 
+EXPORT_FUNC
+TT_Error  TT_Done_Glyph( TT_Glyph  glyph )
+{
+    PGlyph  _glyph = HANDLE_Glyph( glyph );
+    PFace   face;
+
+    if ( !_glyph )
+        return TT_Err_Invalid_Glyph_Handle;
+
+    face = _glyph->face;
+    if ( !face )
+        return TT_Err_Invalid_Glyph_Handle;
+
+    if ( face->glyph != _glyph )
+        return TT_Err_Invalid_Glyph_Handle;
+
+    face->glyph = NULL;
+
+    Glyph_Destroy( _glyph );
+    FREE( _glyph );
+
+    return TT_Err_Ok;
+}
 
 /*******************************************************************
  *

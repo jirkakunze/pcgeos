@@ -608,9 +608,9 @@ extern TEngine_Instance engineInstance;
  *  Output :  void.
  *
  ******************************************************************/
-#pragma code_seg(ttcache_TEXT)
+//#pragma code_seg(ttcache_TEXT)
   LOCAL_FUNC
-  void  _near Instance_Destroy( void* _instance )
+  void  /*_near*/ Instance_Destroy( void* _instance )
   {
     PInstance  ins = (PInstance)_instance;
 
@@ -642,7 +642,7 @@ extern TEngine_Instance engineInstance;
     ins->valid = FALSE;
 
   }
-#pragma code_seg()
+//#pragma code_seg()
 
 
 /*******************************************************************
@@ -658,9 +658,9 @@ extern TEngine_Instance engineInstance;
  *            released on error.
  *
  ******************************************************************/
-#pragma code_seg(ttcache_TEXT)
+//#pragma code_seg(ttcache_TEXT)
   LOCAL_FUNC
-  TT_Error  _near Instance_Create( void*  _instance,
+  TT_Error  /*_near*/ Instance_Create( void*  _instance,
                              void*  _face )
   {
     PInstance  ins  = (PInstance)_instance;
@@ -719,7 +719,7 @@ extern TEngine_Instance engineInstance;
     Instance_Destroy( ins );
     return error;
   }
-#pragma code_seg()
+//#pragma code_seg()
 
 
 /*******************************************************************
@@ -974,8 +974,21 @@ extern TEngine_Instance engineInstance;
       return;
 
     /* first of all, destroys the cached sub-objects */
-    Cache_Destroy( &face->instances );
-    Cache_Destroy( &face->glyphs );
+    //Cache_Destroy( &face->instances );
+if ( face->instance )
+{
+    Instance_Destroy( face->instance );
+    FREE( face->instance );
+    face->instance = NULL;
+}
+
+    //Cache_Destroy( &face->glyphs );
+    if ( face->glyph )
+{
+    Glyph_Destroy( face->glyph );
+    FREE( face->glyph );
+    face->glyph = NULL;
+}
 
     /* freeing table directory */
     FREE( face->dirTables );
@@ -1066,11 +1079,13 @@ extern TEngine_Instance engineInstance;
 
     face->stream = input->stream;
 
-    Cache_Create( engineInstance.objs_instance_class,
-                  &face->instances );
+    /*Cache_Create( engineInstance.objs_instance_class,
+                  &face->instances );*/
+    face->instance = NULL;
 
-    Cache_Create( engineInstance.objs_glyph_class,
-                  &face->glyphs );
+    /*Cache_Create( engineInstance.objs_glyph_class,
+                  &face->glyphs );*/
+    face->glyph = NULL;
 
     /* Load collection directory if present, then font directory */
 
@@ -1136,9 +1151,9 @@ extern TEngine_Instance engineInstance;
  *  Output :  void.
  *
  ******************************************************************/
-  #pragma code_seg(ttcache_TEXT)
+ // #pragma code_seg(ttcache_TEXT)
   LOCAL_FUNC
-  void  _near Glyph_Destroy( void*  _glyph )
+  void /* _near*/ Glyph_Destroy( void*  _glyph )
   {
     PGlyph  glyph = (PGlyph)_glyph;
 
@@ -1149,7 +1164,7 @@ extern TEngine_Instance engineInstance;
     glyph->outline.owner = TRUE;
     TT_Done_Outline( &glyph->outline );
   }
-  #pragma code_seg()
+ // #pragma code_seg()
 
 
 /*******************************************************************
@@ -1164,9 +1179,9 @@ extern TEngine_Instance engineInstance;
  *  Output :  Error code.
  *
  ******************************************************************/
-  #pragma code_seg(ttcache_TEXT)
+ // #pragma code_seg(ttcache_TEXT)
   LOCAL_FUNC
-  TT_Error  _near Glyph_Create( void*  _glyph,
+  TT_Error  /*_near*/ Glyph_Create( void*  _glyph,
                           void*  _face )
   {
     PFace     face  = (PFace)_face;
@@ -1186,7 +1201,7 @@ extern TEngine_Instance engineInstance;
                            glyph->face->maxContours,
                            &glyph->outline );
   }
-  #pragma code_seg()
+ // #pragma code_seg()
 
 
 /*******************************************************************
@@ -1212,6 +1227,8 @@ extern TEngine_Instance engineInstance;
     Face_Destroy
   };
 #endif
+
+#if 0
   static
   const TCache_Class  objs_instance_class =
   {
@@ -1220,6 +1237,7 @@ extern TEngine_Instance engineInstance;
     Instance_Create,
     Instance_Destroy
   };
+  #endif
 
   /* Note that we use a cache size of 1 for the execution context.  */
   /* This is to avoid re-creating a new context each time we        */
@@ -1234,7 +1252,7 @@ extern TEngine_Instance engineInstance;
     Context_Create,
     Context_Destroy
   };
-
+#if 0
   static
   const TCache_Class  objs_glyph_class =
   {
@@ -1243,7 +1261,7 @@ extern TEngine_Instance engineInstance;
     Glyph_Create,
     Glyph_Destroy
   };
-
+#endif
 
   LOCAL_FUNC
   TT_Error  TTObjs_Init( )
@@ -1264,9 +1282,9 @@ extern TEngine_Instance engineInstance;
     engineInstance.objs_exec_cache = exec_cache;
 
     //engineInstance.objs_face_class      = NULL; //(PCache_Class)&objs_face_class;
-    engineInstance.objs_instance_class  = (PCache_Class)&objs_instance_class;
+    //engineInstance.objs_instance_class  = (PCache_Class)&objs_instance_class;
     engineInstance.objs_execution_class = (PCache_Class)&objs_exec_class;
-    engineInstance.objs_glyph_class     = (PCache_Class)&objs_glyph_class;
+    //engineInstance.objs_glyph_class     = (PCache_Class)&objs_glyph_class;
 
     goto Exit;
 
