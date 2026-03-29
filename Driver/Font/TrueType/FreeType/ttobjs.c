@@ -962,9 +962,9 @@ extern TEngine_Instance engineInstance;
  *  Output :  void.
  *
  ******************************************************************/
-  #pragma code_seg(ttcache_TEXT)
+  //#pragma code_seg(ttcache_TEXT)
   LOCAL_FUNC
-  void  _near Face_Destroy( void*  _face )
+  void  /*_near*/ Face_Destroy( void*  _face )
   {
     PFace   face = (PFace)_face;
     UShort  n;
@@ -1031,7 +1031,7 @@ extern TEngine_Instance engineInstance;
 #endif
 
   }
-  #pragma code_seg()
+  //#pragma code_seg()
 
 
 /*******************************************************************
@@ -1054,9 +1054,9 @@ extern TEngine_Instance engineInstance;
 #define LOAD_( table ) \
           (error = Load_TrueType_##table (face)) != TT_Err_Ok
 
-  #pragma code_seg(ttcache_TEXT)
+  //#pragma code_seg(ttcache_TEXT)
   LOCAL_FUNC
-  TT_Error  _near Face_Create( void*  _face,
+  TT_Error  /*_near*/ Face_Create( void*  _face,
                                void*  _input )
   {
     TFont_Input*  input = (TFont_Input*)_input;
@@ -1121,7 +1121,7 @@ extern TEngine_Instance engineInstance;
     Face_Destroy( face );
     return error;
   }
-#pragma code_seg()
+//#pragma code_seg()
 #undef LOAD_
 
 
@@ -1202,7 +1202,7 @@ extern TEngine_Instance engineInstance;
  *  Output :  Error code.
  *
  ******************************************************************/
-
+#if 0
   static
   const TCache_Class  objs_face_class =
   {
@@ -1211,7 +1211,7 @@ extern TEngine_Instance engineInstance;
     Face_Create,
     Face_Destroy
   };
-
+#endif
   static
   const TCache_Class  objs_instance_class =
   {
@@ -1248,22 +1248,22 @@ extern TEngine_Instance engineInstance;
   LOCAL_FUNC
   TT_Error  TTObjs_Init( )
   {
-    PCache        face_cache, exec_cache;
+    PCache        /*face_cache, */exec_cache;
     TT_Error      error;
 
 
-    if ( ALLOC( face_cache, sizeof ( TCache ) ) ||
+    if ( /*ALLOC( face_cache, sizeof ( TCache ) ) ||*/
          ALLOC( exec_cache, sizeof ( TCache ) ) )
       goto Fail;
 
     /* create face cache */
-    Cache_Create( (PCache_Class)&objs_face_class, face_cache ); 
+    //Cache_Create( (PCache_Class)&objs_face_class, face_cache ); 
     Cache_Create( (PCache_Class)&objs_exec_class, exec_cache );
     
-    engineInstance.objs_face_cache = face_cache;
+   // engineInstance.objs_face_cache = NULL; //face_cache;
     engineInstance.objs_exec_cache = exec_cache;
 
-    engineInstance.objs_face_class      = (PCache_Class)&objs_face_class;
+    //engineInstance.objs_face_class      = NULL; //(PCache_Class)&objs_face_class;
     engineInstance.objs_instance_class  = (PCache_Class)&objs_instance_class;
     engineInstance.objs_execution_class = (PCache_Class)&objs_exec_class;
     engineInstance.objs_glyph_class     = (PCache_Class)&objs_glyph_class;
@@ -1271,7 +1271,7 @@ extern TEngine_Instance engineInstance;
     goto Exit;
 
   Fail:
-    FREE( face_cache );
+    //FREE( face_cache );
     FREE( exec_cache );
 
   Exit:
@@ -1297,11 +1297,11 @@ extern TEngine_Instance engineInstance;
     /* destroy all active faces and contexts before releasing the */
     /* caches                                                     */
     Cache_Destroy( (TCache*)engineInstance.objs_exec_cache );
-    Cache_Destroy( (TCache*)engineInstance.objs_face_cache );
+    //Cache_Destroy( (TCache*)engineInstance.objs_face_cache );
 
     /* Now frees caches and cache classes */
     FREE( engineInstance.objs_exec_cache );
-    FREE( engineInstance.objs_face_cache );
+    //FREE( engineInstance.objs_face_cache );
   }
 
 

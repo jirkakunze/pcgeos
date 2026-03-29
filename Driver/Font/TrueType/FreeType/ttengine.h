@@ -50,12 +50,12 @@
   {
      void*   list_free_elements;
 
-     void*   objs_face_class;       /* the face cache class     */
+    // void*   objs_face_class;       /* the face cache class     */
      void*   objs_instance_class;   /* the instance cache class */
      void*   objs_execution_class;  /* the context cache class  */
      void*   objs_glyph_class;      /* the glyph cache class    */
 
-     void*   objs_face_cache;       /* these caches are used to track */
+    // void*   objs_face_cache;       /* these caches are used to track */
      void*   objs_exec_cache;       /* the current face and execution */
                                     /* context objects                */
 

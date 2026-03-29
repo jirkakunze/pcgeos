@@ -158,7 +158,7 @@ extern TEngine_Instance engineInstance;
  *  MT-Note : YES!
  *
  ******************************************************************/
-
+#if 0
   EXPORT_FUNC
   TT_Error  TT_Open_Face( const FileHandle  file,
                           TT_Face*          face )
@@ -189,6 +189,44 @@ extern TEngine_Instance engineInstance;
 
     return error;
   }
+#endif /* 0 */
+
+EXPORT_FUNC
+TT_Error  TT_Open_Face( const FileHandle  file,
+                        TT_Face*          face )
+{
+  TFont_Input  input;
+  TT_Error     error;
+  TT_Stream    stream;
+  PFace        _face = NULL;
+
+  HANDLE_Set( *face, NULL );
+
+  error = TT_Open_Stream( file, &stream );
+  if ( error )
+    return error;
+
+  input.stream = stream;
+
+  if ( ALLOC( _face, sizeof ( TFace ) ) )
+  {
+    TT_Close_Stream( &stream );
+    return TT_Err_Out_Of_Memory;
+  }
+
+  MEM_Set( _face, 0, sizeof ( TFace ) );   /* oder memset, je nach Umgebung */
+
+  error = Face_Create( _face, &input );
+  if ( error )
+  {
+    FREE( _face );
+    TT_Close_Stream( &stream );   /* nur falls Face_Create den Stream im Fehlerfall nicht selbst schließt */
+    return error;
+  }
+
+  HANDLE_Set( *face, _face );
+  return TT_Err_Ok;
+}
 
 
 /*******************************************************************
@@ -386,6 +424,7 @@ extern TEngine_Instance engineInstance;
  *
  ******************************************************************/
 
+ #if 0
   EXPORT_FUNC
   TT_Error  TT_Close_Face( TT_Face  face )
   {
@@ -400,7 +439,22 @@ extern TEngine_Instance engineInstance;
     /* delete the face object -- this is thread-safe */
     return CACHE_Done( engineInstance.objs_face_cache, _face );
   }
+#endif /* 0 */
 
+ EXPORT_FUNC
+TT_Error  TT_Close_Face( TT_Face  face )
+{
+  PFace  _face = HANDLE_Face( face );
+
+  if ( !_face )
+    return TT_Err_Invalid_Face_Handle;
+
+  TT_Close_Stream( &_face->stream );
+  Face_Destroy( _face );
+  FREE( _face );
+
+  return TT_Err_Ok;
+}
 
 /*******************************************************************
  *
