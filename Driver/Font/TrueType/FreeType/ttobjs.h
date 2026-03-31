@@ -20,7 +20,6 @@
 
 #include "ttconfig.h"
 #include "ttengine.h"
-#include "ttcache.h"
 #include "tttables.h"
 #include "ttcmap.h"
 #include <heap.h>
@@ -538,12 +537,8 @@
     UShort  maxContours;   /* max glyph contours numb, simple and composite */
     UShort  maxComponents; /* max components in a composite glyph */
 
-    /* the following are object caches to track active */
-    /* and recycled instances and execution contexts   */
-    /* objects.  See 'ttcache.h'                       */
-
-    PInstance /*TCache*/  instance;   /* current instances for this face */
-    PGlyph/*TCache*/  glyph;      /* current glyph containers for this face */
+    PInstance  instance;   /* current instances for this face */
+    PGlyph     glyph;      /* current glyph containers for this face */
   };
 
 

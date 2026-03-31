@@ -50,7 +50,16 @@ extern TEngine_Instance engineInstance;
     if ( !face )
       return NULL;
 
-    CACHE_New( engineInstance.objs_exec_cache, exec, face );
+    exec = engineInstance.exec;
+    if ( !exec )
+        return NULL;
+
+    if ( engineInstance.exec_in_use )
+        return NULL;
+
+    engineInstance.exec_in_use = TRUE;
+    exec->face = face;
+
     return exec;
   }
 
@@ -69,7 +78,14 @@ extern TEngine_Instance engineInstance;
     if ( !exec )
       return TT_Err_Ok;
 
-    return CACHE_Done( engineInstance.objs_exec_cache, exec );
+    if ( exec != engineInstance.exec )
+        return TT_Err_Invalid_Argument;
+
+    exec->instance = NULL;
+    exec->face     = NULL;
+    engineInstance.exec_in_use = FALSE;
+
+    return TT_Err_Ok;
   }
 
 
@@ -258,9 +274,9 @@ extern TEngine_Instance engineInstance;
  *  Function    :  Context_Destroy
  *
  *****************************************************************/
-  #pragma code_seg(ttcache_TEXT)
-  LOCAL_FUNC
-  void  _near Context_Destroy( void*  _context )
+
+  static
+  void  Context_Destroy( void*  _context )
   {
     PExecution_Context  exec = (PExecution_Context)_context;
 
@@ -293,7 +309,6 @@ extern TEngine_Instance engineInstance;
     exec->face     = NULL;
 
   }
-  #pragma code_seg()
 
 
 /*******************************************************************
@@ -301,9 +316,9 @@ extern TEngine_Instance engineInstance;
  *  Function    :  Context_Create
  *
  *****************************************************************/
-  #pragma code_seg(ttcache_TEXT)
-  LOCAL_FUNC
-  TT_Error  _near Context_Create( void*  _context, void*  _face )
+
+  static
+  TT_Error  Context_Create( void*  _context, void*  _face )
   {
     PExecution_Context  exec = (PExecution_Context)_context;
 
@@ -340,7 +355,6 @@ extern TEngine_Instance engineInstance;
     Context_Destroy( exec );
     return error;
   }
-  #pragma code_seg()
 
 
 /*******************************************************************
@@ -516,7 +530,7 @@ extern TEngine_Instance engineInstance;
  *****************************************************************/
 
   LOCAL_FUNC
-  void  Context_Save( PExecution_Context  exec,
+  static void  Context_Save( PExecution_Context  exec,
                       PInstance           ins )
   {
     Int  i;
@@ -608,16 +622,15 @@ extern TEngine_Instance engineInstance;
  *  Output :  void.
  *
  ******************************************************************/
-//#pragma code_seg(ttcache_TEXT)
+
   LOCAL_FUNC
-  void  /*_near*/ Instance_Destroy( void* _instance )
+  void  Instance_Destroy( void* _instance )
   {
     PInstance  ins = (PInstance)_instance;
 
 
     if ( !_instance )
       return;
-
 
     FREE( ins->cvt );
     ins->cvtSize = 0;
@@ -642,7 +655,6 @@ extern TEngine_Instance engineInstance;
     ins->valid = FALSE;
 
   }
-//#pragma code_seg()
 
 
 /*******************************************************************
@@ -815,10 +827,7 @@ extern TEngine_Instance engineInstance;
 
   Fin:
     Context_Save( exec, ins );
-
     Done_Context( exec );
-    /* debugging instances keep their context */
-
     ins->valid = FALSE;
 
     return error;
@@ -842,10 +851,9 @@ extern TEngine_Instance engineInstance;
   TT_Error  Instance_Reset( PInstance  ins )
   {
     PExecution_Context  exec;
-
-    TT_Error  error;
-    UShort    i;
-    PFace     face;
+    TT_Error            error;
+    UShort              i;
+    PFace               face;
 
 
     if ( !ins )
@@ -893,9 +901,7 @@ extern TEngine_Instance engineInstance;
     ins->GS = Default_GraphicsState;
 
     /* get execution context and run prep program */
-
     exec = New_Context(face);
-    /* debugging instances have their own context */
 
     if ( !exec )
       return TT_Err_Could_Not_Find_Context;
@@ -927,14 +933,12 @@ extern TEngine_Instance engineInstance;
     else
       error = TT_Err_Ok;
 
-    ins->GS = exec->GS;
     /* save default graphics state */
+    ins->GS = exec->GS;
 
   Fin:
     Context_Save( exec, ins );
-
     Done_Context( exec );
-    /* debugging instances keep their context */
 
     if ( !error )
       ins->valid = TRUE;
@@ -962,9 +966,9 @@ extern TEngine_Instance engineInstance;
  *  Output :  void.
  *
  ******************************************************************/
-  //#pragma code_seg(ttcache_TEXT)
+
   LOCAL_FUNC
-  void  /*_near*/ Face_Destroy( void*  _face )
+  void  Face_Destroy( void*  _face )
   {
     PFace   face = (PFace)_face;
     UShort  n;
@@ -974,21 +978,19 @@ extern TEngine_Instance engineInstance;
       return;
 
     /* first of all, destroys the cached sub-objects */
-    //Cache_Destroy( &face->instances );
-if ( face->instance )
-{
-    Instance_Destroy( face->instance );
-    FREE( face->instance );
-    face->instance = NULL;
-}
+    if ( face->instance )
+    {
+      Instance_Destroy( face->instance );
+      FREE( face->instance );
+      face->instance = NULL;
+    }
 
-    //Cache_Destroy( &face->glyphs );
     if ( face->glyph )
-{
-    Glyph_Destroy( face->glyph );
-    FREE( face->glyph );
-    face->glyph = NULL;
-}
+    {
+      Glyph_Destroy( face->glyph );
+      FREE( face->glyph );
+      face->glyph = NULL;
+    }
 
     /* freeing table directory */
     FREE( face->dirTables );
@@ -1067,25 +1069,19 @@ if ( face->instance )
 #define LOAD_( table ) \
           (error = Load_TrueType_##table (face)) != TT_Err_Ok
 
-  //#pragma code_seg(ttcache_TEXT)
+
   LOCAL_FUNC
-  TT_Error  /*_near*/ Face_Create( void*  _face,
-                               void*  _input )
+  TT_Error  Face_Create( void*  _face,
+                         void*  _input )
   {
     TFont_Input*  input = (TFont_Input*)_input;
     PFace         face  = (PFace)_face;
     TT_Error      error;
 
 
-    face->stream = input->stream;
-
-    /*Cache_Create( engineInstance.objs_instance_class,
-                  &face->instances );*/
+    face->stream   = input->stream;
     face->instance = NULL;
-
-    /*Cache_Create( engineInstance.objs_glyph_class,
-                  &face->glyphs );*/
-    face->glyph = NULL;
+    face->glyph    = NULL;
 
     /* Load collection directory if present, then font directory */
 
@@ -1136,7 +1132,7 @@ if ( face->instance )
     Face_Destroy( face );
     return error;
   }
-//#pragma code_seg()
+
 #undef LOAD_
 
 
@@ -1151,9 +1147,9 @@ if ( face->instance )
  *  Output :  void.
  *
  ******************************************************************/
- // #pragma code_seg(ttcache_TEXT)
+
   LOCAL_FUNC
-  void /* _near*/ Glyph_Destroy( void*  _glyph )
+  void  Glyph_Destroy( void*  _glyph )
   {
     PGlyph  glyph = (PGlyph)_glyph;
 
@@ -1164,7 +1160,6 @@ if ( face->instance )
     glyph->outline.owner = TRUE;
     TT_Done_Outline( &glyph->outline );
   }
- // #pragma code_seg()
 
 
 /*******************************************************************
@@ -1179,9 +1174,9 @@ if ( face->instance )
  *  Output :  Error code.
  *
  ******************************************************************/
- // #pragma code_seg(ttcache_TEXT)
+
   LOCAL_FUNC
-  TT_Error  /*_near*/ Glyph_Create( void*  _glyph,
+  TT_Error  Glyph_Create( void*  _glyph,
                           void*  _face )
   {
     PFace     face  = (PFace)_face;
@@ -1201,7 +1196,6 @@ if ( face->instance )
                            glyph->face->maxContours,
                            &glyph->outline );
   }
- // #pragma code_seg()
 
 
 /*******************************************************************
@@ -1217,82 +1211,32 @@ if ( face->instance )
  *  Output :  Error code.
  *
  ******************************************************************/
-#if 0
-  static
-  const TCache_Class  objs_face_class =
-  {
-    sizeof ( TFace ),
-    -1,
-    Face_Create,
-    Face_Destroy
-  };
-#endif
-
-#if 0
-  static
-  const TCache_Class  objs_instance_class =
-  {
-    sizeof ( TInstance ),
-    -1,
-    Instance_Create,
-    Instance_Destroy
-  };
-  #endif
-
-  /* Note that we use a cache size of 1 for the execution context.  */
-  /* This is to avoid re-creating a new context each time we        */
-  /* change one instance's attribute (resolution and/or char sizes) */
-  /* or when we load a glyph.                                       */
-
-  static
-  const TCache_Class  objs_exec_class =
-  {
-    sizeof ( TExecution_Context ),
-    1,
-    Context_Create,
-    Context_Destroy
-  };
-#if 0
-  static
-  const TCache_Class  objs_glyph_class =
-  {
-    sizeof ( TGlyph ),
-    -1,
-    Glyph_Create,
-    Glyph_Destroy
-  };
-#endif
 
   LOCAL_FUNC
   TT_Error  TTObjs_Init( )
   {
-    PCache        /*face_cache, */exec_cache;
+    PExecution_Context exec = NULL;
     TT_Error      error;
 
 
-    if ( /*ALLOC( face_cache, sizeof ( TCache ) ) ||*/
-         ALLOC( exec_cache, sizeof ( TCache ) ) )
+    if ( ALLOC( exec, sizeof ( TExecution_Context ) ) )
       goto Fail;
 
-    /* create face cache */
-    //Cache_Create( (PCache_Class)&objs_face_class, face_cache ); 
-    Cache_Create( (PCache_Class)&objs_exec_class, exec_cache );
-    
-   // engineInstance.objs_face_cache = NULL; //face_cache;
-    engineInstance.objs_exec_cache = exec_cache;
+    error = Context_Create( exec, NULL );
+    if ( error )
+        goto Fail;
 
-    //engineInstance.objs_face_class      = NULL; //(PCache_Class)&objs_face_class;
-    //engineInstance.objs_instance_class  = (PCache_Class)&objs_instance_class;
-    engineInstance.objs_execution_class = (PCache_Class)&objs_exec_class;
-    //engineInstance.objs_glyph_class     = (PCache_Class)&objs_glyph_class;
+    engineInstance.exec = exec;
+    engineInstance.exec_in_use = FALSE;
 
-    goto Exit;
+    return TT_Err_Ok;
 
   Fail:
-    //FREE( face_cache );
-    FREE( exec_cache );
+    if( exec) {
+      Context_Destroy( exec );
+      FREE( exec );
+    }
 
-  Exit:
     return error;
   }
 
@@ -1312,14 +1256,14 @@ if ( face->instance )
   LOCAL_FUNC
   void  TTObjs_Done( )
   {
-    /* destroy all active faces and contexts before releasing the */
-    /* caches                                                     */
-    Cache_Destroy( (TCache*)engineInstance.objs_exec_cache );
-    //Cache_Destroy( (TCache*)engineInstance.objs_face_cache );
+    if ( engineInstance.exec )
+    {
+        Context_Destroy( engineInstance.exec );
+        FREE( engineInstance.exec );
+        engineInstance.exec = NULL;
+    }
 
-    /* Now frees caches and cache classes */
-    FREE( engineInstance.objs_exec_cache );
-    //FREE( engineInstance.objs_face_cache );
+    engineInstance.exec_in_use = FALSE;
   }
 
 

@@ -82,25 +82,7 @@
     GEO_UNLOCK( header->short_metrics_block );
   }
 
-
-/********************************************************/
-/* Return horizontal metrics in font units for a given  */
-/* glyph.  If `check' is true, take care of mono-spaced */
-/* fonts by returning the advance width max.            */
-#if 0
-  static void Get_HMetrics( PFace    face,
-                            UShort   index,
-                            Bool     check,
-                            Short*   lsb,
-                            UShort*  aw )
-  {
-    TT_Get_Metrics( &face->horizontalHeader, index, lsb, aw );
-
-    if ( check && face->postscript.isFixedPitch )
-      *aw = face->horizontalHeader.advance_Width_Max;
-  }
-#endif
-
+  
 #ifdef TT_CONFIG_OPTION_PROCESS_HDMX
 /********************************************************/
 /* Return advance width table for a given pixel size    */

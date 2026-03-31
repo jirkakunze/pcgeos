@@ -29,7 +29,6 @@
 #include "ttengine.h"
 #include "ttcalc.h"
 #include "ttmemory.h"
-#include "ttcache.h"
 #include "ttfile.h"
 #include "ttobjs.h"
 #include "ttload.h"
@@ -96,8 +95,6 @@ extern TEngine_Instance engineInstance;
 #define TT_FAIL( x )  ( error = x () ) != TT_Err_Ok
 
     /* Initalize components */
-    TTCache_Init();
-    
     if ( 
          TT_FAIL( TTObjs_Init )   ||
          TT_FAIL( TTRaster_Init ) )
@@ -137,7 +134,6 @@ extern TEngine_Instance engineInstance;
   {
     TTRaster_Done();
     TTObjs_Done  ();
-    TTCache_Done ();
     TTMemory_Done();
   }
 
@@ -158,38 +154,6 @@ extern TEngine_Instance engineInstance;
  *  MT-Note : YES!
  *
  ******************************************************************/
-#if 0
-  EXPORT_FUNC
-  TT_Error  TT_Open_Face( const FileHandle  file,
-                          TT_Face*          face )
-  {
-    TFont_Input  input;
-    TT_Error     error;
-    TT_Stream    stream;
-    PFace        _face;
-
-
-    /* open the file */
-    error = TT_Open_Stream( file, &stream );
-    if ( error )
-      return error;
-
-    input.stream    = stream;
-
-    /* Create and load the new face object - this is thread-safe */
-    error = CACHE_New( engineInstance.objs_face_cache,
-                       _face,
-                       &input );
-
-    /* Set the handle */
-    HANDLE_Set( *face, _face );
-
-    if (error)
-      TT_Close_Stream(&stream);
-
-    return error;
-  }
-#endif /* 0 */
 
 EXPORT_FUNC
 TT_Error  TT_Open_Face( const FileHandle  file,
@@ -214,13 +178,11 @@ TT_Error  TT_Open_Face( const FileHandle  file,
     return TT_Err_Out_Of_Memory;
   }
 
-  MEM_Set( _face, 0, sizeof ( TFace ) );   /* oder memset, je nach Umgebung */
-
   error = Face_Create( _face, &input );
   if ( error )
   {
     FREE( _face );
-    TT_Close_Stream( &stream );   /* nur falls Face_Create den Stream im Fehlerfall nicht selbst schließt */
+    TT_Close_Stream( &stream );
     return error;
   }
 
@@ -424,37 +386,20 @@ TT_Error  TT_Open_Face( const FileHandle  file,
  *
  ******************************************************************/
 
- #if 0
   EXPORT_FUNC
   TT_Error  TT_Close_Face( TT_Face  face )
   {
     PFace  _face = HANDLE_Face( face );
 
-
     if ( !_face )
       return TT_Err_Invalid_Face_Handle;
 
     TT_Close_Stream( &_face->stream );
+    Face_Destroy( _face );
+    FREE( _face );
 
-    /* delete the face object -- this is thread-safe */
-    return CACHE_Done( engineInstance.objs_face_cache, _face );
+    return TT_Err_Ok;
   }
-#endif /* 0 */
-
- EXPORT_FUNC
-TT_Error  TT_Close_Face( TT_Face  face )
-{
-  PFace  _face = HANDLE_Face( face );
-
-  if ( !_face )
-    return TT_Err_Invalid_Face_Handle;
-
-  TT_Close_Stream( &_face->stream );
-  Face_Destroy( _face );
-  FREE( _face );
-
-  return TT_Err_Ok;
-}
 
 /*******************************************************************
  *
@@ -473,39 +418,7 @@ TT_Error  TT_Close_Face( TT_Face  face )
  *
  ******************************************************************/
 
- #if 0
-  EXPORT_FUNC
-  TT_Error  TT_New_Instance( TT_Face       face,
-                             TT_Instance*  instance )
-  {
-    TT_Error   error;
-    PFace      _face = HANDLE_Face( face );
-    PInstance  _ins;
-
-
-    if ( !_face )
-      return TT_Err_Invalid_Face_Handle;
-
-    /* get a new instance from the face's cache -- this is thread-safe */
-    //error = CACHE_New( &_face->instances, _ins, _face );
-
-    HANDLE_Set( *instance, _ins );
-
-    if ( !error )
-    {
-      //error = Instance_Init( _ins );
-      if ( error )
-      {
-        HANDLE_Set( *instance, NULL );
-        //CACHE_Done( &_face->instances, _ins );
-      }
-    }
-
-    return error;
-  }
-    #endif /* 0 */
-
-    EXPORT_FUNC
+EXPORT_FUNC
 TT_Error  TT_New_Instance( TT_Face       face,
                            TT_Instance*  instance )
 {
@@ -519,12 +432,10 @@ TT_Error  TT_New_Instance( TT_Face       face,
     HANDLE_Set( *instance, NULL );
 
     if ( _face->instance )
-        return TT_Err_Invalid_Face_Handle;   /* oder besser: eigener Fehler "already exists" */
+        return TT_Err_Invalid_Face_Handle;
 
     if ( ALLOC( _ins, sizeof ( TInstance ) ) )
         return TT_Err_Out_Of_Memory;
-
-    MEM_Set( _ins, 0, sizeof ( TInstance ) );
 
     error = Instance_Create( _ins, _face );
     if ( error )
@@ -687,7 +598,7 @@ TT_Error  TT_Done_Instance( TT_Instance  instance )
       return TT_Err_Invalid_Face_Handle;
 
     /* get a new glyph from the face's cache -- this is thread-safe */
-    error = CACHE_New( &_face->glyphs, _glyph, _face );
+   // error = CACHE_New( &_face->glyphs, _glyph, _face );
 
     HANDLE_Set( *glyph, _glyph );
 
@@ -709,7 +620,7 @@ TT_Error  TT_New_Glyph( TT_Face    face,
     HANDLE_Set( *glyph, NULL );
 
     if ( _face->glyph )
-        return TT_Err_Invalid_Face_Handle;   /* besser: eigener Fehlercode */
+        return TT_Err_Invalid_Face_Handle; 
 
     if ( ALLOC( _glyph, sizeof ( TGlyph ) ) )
         return TT_Err_Out_Of_Memory;
@@ -742,25 +653,10 @@ TT_Error  TT_New_Glyph( TT_Face    face,
  *  MT-Safe : YES!
  *
  ******************************************************************/
-#if 0
-   EXPORT_FUNC
+
   EXPORT_FUNC
   TT_Error  TT_Done_Glyph( TT_Glyph  glyph )
   {
-    PGlyph  _glyph = HANDLE_Glyph( glyph );
-
-
-    if ( !_glyph )
-      return TT_Err_Invalid_Glyph_Handle;
-
-    /* delete the engine -- this is thread-safe */
-    return CACHE_Done( &_glyph->face->glyphs, _glyph );
-  }
-#endif /* 0 */
-
-EXPORT_FUNC
-TT_Error  TT_Done_Glyph( TT_Glyph  glyph )
-{
     PGlyph  _glyph = HANDLE_Glyph( glyph );
     PFace   face;
 
@@ -780,7 +676,7 @@ TT_Error  TT_Done_Glyph( TT_Glyph  glyph )
     FREE( _glyph );
 
     return TT_Err_Ok;
-}
+  }
 
 /*******************************************************************
  *
@@ -1179,7 +1075,7 @@ TT_Error  TT_Get_Outline_Region( TT_Outline*     outline,
  *            xOffset
  *            yOffset
  *
- *  Output :  Error code.
+ *  Output :  void
  *
  *  MT-Safe : YES!
  *
