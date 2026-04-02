@@ -103,7 +103,6 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         charIndex = TT_Char_Index( CHAR_MAP, GeosCharToUnicode( character ) );
 
         // load glyph
-        TT_New_Glyph( FACE, &GLYPH );
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, 0 );
 
         // transform glyphs outline
@@ -134,7 +133,6 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
                         break;
         }
 
-        TT_Done_Glyph( GLYPH );
         TrueType_Unlock_Face( trueTypeVars );
 
 Fail:

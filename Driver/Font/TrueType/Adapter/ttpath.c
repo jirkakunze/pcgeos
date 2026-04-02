@@ -162,8 +162,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
 
         InitConvertHeader(trueTypeVars, fontHeader);
 
-        TT_New_Glyph( FACE, &GLYPH );
-
         /* get TT char index */
         charIndex = TT_Char_Index( CHAR_MAP, GeosCharToUnicode( character ) );
         if( charIndex == 0 )
@@ -231,8 +229,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         /* write epilogue */
         if( pathFlags & FGPF_SAVE_STATE )
                 GrRestoreState( gstate );
-
-        TT_Done_Glyph( GLYPH );
 
 Fail:
         TrueType_Unlock_Face( trueTypeVars );
@@ -317,7 +313,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
                 goto Fail;
 
         /* load glyph */
-        TT_New_Glyph( FACE, &GLYPH );
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, 0 );
         TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
 
@@ -341,8 +336,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         renderFunctions.Proc_ConicTo = RegionPathConicTo;
 
         ConvertOutline( regionPath, &OUTLINE, &renderFunctions );
-
-        TT_Done_Glyph( GLYPH );
 
 Fail:
         TrueType_Unlock_Face( trueTypeVars );
