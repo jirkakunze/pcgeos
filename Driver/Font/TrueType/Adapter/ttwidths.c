@@ -824,8 +824,8 @@ static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf )
         ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->sTypoAscender - FACE_PROPERTIES.header->yMax, scaleHeight );
         fontBuf->FB_heightAdjust.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
         fontBuf->FB_heightAdjust.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_baseAdjust.WBF_int    = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
-        fontBuf->FB_baseAdjust.WBF_frac   = 0;
+        fontBuf->FB_baseAdjust.WBF_int    = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_baseAdjust.WBF_frac   = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
         ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->sxHeight, scaleHeight );
         fontBuf->FB_mean.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
@@ -837,7 +837,7 @@ static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf )
 
         ttfElement = SCALE_WORD( ascender + descender, scaleHeight );
         fontBuf->FB_height.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_height.WBF_frac = 0;
+        fontBuf->FB_height.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
         ttfElement = SCALE_WORD( ascender - FACE_PROPERTIES.os2->sCapHeight, scaleHeight );
         fontBuf->FB_accent.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
