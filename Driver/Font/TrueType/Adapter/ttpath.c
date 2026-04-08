@@ -77,7 +77,6 @@ static void CalcScaleAndScaleOutline( TRUETYPE_VARS );
 
 static void InitDriversTransformMatrix( TRUETYPE_VARS,
                                         TransformMatrix*  transMatrix,
-                                        FontHeader*       fontHeader,
                                         WWFixedAsDWord    pointSize,
                                         TextStyle         stylesToImplement,
                                         Byte              width,
@@ -322,7 +321,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
 
         /* store font matrix */
-        InitDriversTransformMatrix( trueTypeVars, &transform, fontHeader, pointSize, stylesToImplement, width, weight );
+        InitDriversTransformMatrix( trueTypeVars, &transform, pointSize, stylesToImplement, width, weight );
         CalcDriversTransformMatrix( &transform, gstate, GrGetWinHandle( gstate ) );
 
         /* get current cursor position */
@@ -787,7 +786,6 @@ static void CalcScaleAndScaleOutline( TRUETYPE_VARS )
  * PARAMETERS:    TRUETYPE_VARS         Cached variables needed by driver.
  *                *transmatrix          Ptr. to drivers transformation 
  *                                      matrix to fill.
- *                *fontHeader           Ptr to FontHeader structure.
  *                pointsize             Desired point size.
  *                stylesToImplement     Styles that must be added.
  *                width                 Desired glyph width.
@@ -803,7 +801,6 @@ static void CalcScaleAndScaleOutline( TRUETYPE_VARS )
 
 static void InitDriversTransformMatrix( TRUETYPE_VARS,
                                         TransformMatrix*  transMatrix,
-                                        FontHeader*       fontHeader,
                                         WWFixedAsDWord    pointSize,
                                         TextStyle         stylesToImplement,
                                         Byte              width,
