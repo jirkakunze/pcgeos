@@ -687,7 +687,7 @@
   /* instances.                                           */
 
   EXPORT_DEF
-  TT_Error  TT_Close_Face( TT_Face  face );
+  void  TT_Close_Face( TT_Face  face );
 
 
 /* A simple macro to build table tags from ASCII chars */
@@ -782,15 +782,15 @@
   /* it.  The client application should _not_ change the pointers.       */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Glyph_Outline( TT_Glyph     glyph,
-                                  TT_Outline*  outline );
+  void  TT_Get_Glyph_Outline( TT_Glyph     glyph,
+                              TT_Outline*  outline );
 
 
   /* Copy the glyph metrics into `metrics'. */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Glyph_Metrics( TT_Glyph           glyph,
-                                  TT_Glyph_Metrics*  metrics );
+  void  TT_Get_Glyph_Metrics( TT_Glyph           glyph,
+                              TT_Glyph_Metrics*  metrics );
 
 
   EXPORT_DEF
@@ -835,8 +835,8 @@
   /* the most accurate values.                                       */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Outline_BBox( TT_Outline*  outline,
-                                 TT_BBox*     bbox );
+  void  TT_Get_Outline_BBox( TT_Outline*  outline,
+                             TT_BBox*     bbox );
 
 
   /* Apply a transformation to a glyph outline. */
