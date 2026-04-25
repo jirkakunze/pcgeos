@@ -28,10 +28,6 @@
 #include "tttags.h"
 #include <ec.h>
 
-/* Required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT  trace_any
-
 
 /*******************************************************************
  *
@@ -454,8 +450,7 @@ EC( ECCheckBounds( pairs ) );
     PFace        faze = HANDLE_Face( face );
 
 
-    if ( !faze )
-      return TT_Err_Invalid_Face_Handle;
+EC( ECCheckBounds( faze ) );
 
     /* copy directory header */
     return Kerning_Create( directory, faze );
@@ -489,11 +484,8 @@ EC( ECCheckBounds( pairs ) );
 
     PFace  faze = HANDLE_Face( face );
 
-    if ( !faze )
-      return TT_Err_Invalid_Face_Handle;
-
-    if ( !directory )
-      return TT_Err_Bad_Argument;
+EC( ECCheckBounds( faze ) );
+EC( ECCheckBounds( directory ) );
 
     if ( directory->nTables == 0 )
       return TT_Err_Table_Missing;

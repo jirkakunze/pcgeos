@@ -55,11 +55,6 @@
 #include "ttfile.h"     /* our prototypes */
 
 
-/* required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT  trace_file
-
-
 /* For now, we don't define additional error messages in the core library */
 /* to report open-on demand errors. Define these error as standard ones   */
 
