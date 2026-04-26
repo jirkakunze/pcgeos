@@ -21,10 +21,6 @@
 #include "ttload.h"
 #include "ttcmap.h"
 
-/* required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT      trace_cmap
-
 
 /*******************************************************************
  *
@@ -162,9 +158,11 @@
         goto Fail;
 
       cmap4->segCountX2    = GET_UShort();
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
       cmap4->searchRange   = GET_UShort();
       cmap4->entrySelector = GET_UShort();
       cmap4->rangeShift    = GET_UShort();
+#endif
 
       num_Seg = cmap4->segCountX2 >> 1;
 
@@ -469,7 +467,7 @@
  ******************************************************************/
 
   UShort  code_to_index4( UShort  charCode,
-                                 PCMap4  cmap4 )
+                          PCMap4  cmap4 )
   {
     UShort         index1, segCount;
     UShort         i, result;

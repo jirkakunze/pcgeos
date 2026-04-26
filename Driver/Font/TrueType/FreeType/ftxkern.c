@@ -62,9 +62,11 @@
 
     num_pairs            = GET_UShort();
     kern0->nPairs        = 0;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     kern0->searchRange   = GET_UShort();
     kern0->entrySelector = GET_UShort();
     kern0->rangeShift    = GET_UShort();
+#endif
 
     /* we only set kern0->nPairs if the subtable has been loaded */
 
@@ -388,9 +390,11 @@ EC( ECCheckBounds( pairs ) );
         case 0:
           GEO_FREE( sub->t.kern0.pairsBlock );
           sub->t.kern0.nPairs        = 0;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
           sub->t.kern0.searchRange   = 0;
           sub->t.kern0.entrySelector = 0;
           sub->t.kern0.rangeShift    = 0;
+#endif
           break;
 
 #ifdef TT_CONFIG_OPTION_SUPPORT_KERN2

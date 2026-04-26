@@ -93,9 +93,11 @@
     tableDir.version   = GET_Long();
     tableDir.numTables = GET_UShort();
 
+#ifdef TT_CONFIG_OPTION_OPTIONAL_FIELDS
     tableDir.searchRange   = GET_UShort();
     tableDir.entrySelector = GET_UShort();
     tableDir.rangeShift    = GET_UShort();
+#endif
 
     FORGET_Frame();
 
