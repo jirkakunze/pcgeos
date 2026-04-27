@@ -679,8 +679,8 @@
   /* will be zeroed.                                                */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Face_Properties( TT_Face              face,
-                                    TT_Face_Properties*  properties );
+  void  TT_Get_Face_Properties( TT_Face              face,
+                                TT_Face_Properties*  properties );
 
 
   /* Close a given font object, destroying all associated */
@@ -722,7 +722,7 @@
   /* Close a given instance object, destroying all associated data. */
 
   EXPORT_DEF
-  TT_Error  TT_Done_Instance( TT_Instance  instance );
+  void  TT_Done_Instance( TT_Instance  instance );
 
 
 
@@ -738,7 +738,7 @@
   /* Discard (and destroy) a given glyph object. */
 
   EXPORT_DEF
-  TT_Error  TT_Done_Glyph( TT_Glyph  glyph );
+  void  TT_Done_Glyph( TT_Glyph  glyph );
 
 
 #define TTLOAD_SCALE_GLYPH                    1
@@ -879,10 +879,10 @@
   /* used to enumerate the charmaps present in a TrueType file.     */
 
   EXPORT_DEF
-  TT_Error  TT_Get_CharMap_ID( TT_Face     face,
-                               TT_UShort   charmapIndex,
-                               TT_UShort*  platformID,
-                               TT_UShort*  encodingID );
+  void  TT_Get_CharMap_ID( TT_Face     face,
+                           TT_UShort   charmapIndex,
+                           TT_UShort*  platformID,
+                           TT_UShort*  encodingID );
 
 
   /* Look up the character maps found in `face' and return a handle */
@@ -914,12 +914,12 @@
   /* used to enumerate the charmaps present in a TrueType file.   */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Name_ID( TT_Face     face,
-                            TT_UShort   nameIndex,
-                            TT_UShort*  platformID,
-                            TT_UShort*  encodingID,
-                            TT_UShort*  languageID,
-                            TT_UShort*  nameID );
+  void  TT_Get_Name_ID( TT_Face     face,
+                        TT_UShort   nameIndex,
+                        TT_UShort*  platformID,
+                        TT_UShort*  encodingID,
+                        TT_UShort*  languageID,
+                        TT_UShort*  nameID );
 
 
   /* Return the address and length of the name number `nameIndex' */
@@ -931,10 +931,10 @@
   /* returned.                                                    */
 
   EXPORT_DEF
-  TT_Error  TT_Get_Name_String( TT_Face      face,
-                                TT_UShort    nameIndex,
-                                TT_String**  stringPtr,
-                                TT_UShort*   length );
+  void  TT_Get_Name_String( TT_Face      face,
+                            TT_UShort    nameIndex,
+                            TT_String**  stringPtr,
+                            TT_UShort*   length );
 
 
 #ifdef __cplusplus

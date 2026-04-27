@@ -38,7 +38,7 @@
     TT_Fixed  version;      /* should be 0x10000 */
     UShort    numTables;    /* number of tables  */
 
-#ifdef TT_CONFIG_OPTION_OPTIONAL_FIELDS
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     UShort  searchRange;    /* These parameters are only used  */
     UShort  entrySelector;  /* for a dichotomy search in the   */
     UShort  rangeShift;     /* directory. We ignore them.      */

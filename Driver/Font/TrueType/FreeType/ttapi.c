@@ -159,32 +159,33 @@ TT_Error  TT_Open_Face( const FileHandle  file,
   TFont_Input  input;
   TT_Error     error;
   TT_Stream    stream;
-  PFace        _face = NULL;
-
-  HANDLE_Set( *face, NULL );
+  PFace        _face;
 
   error = TT_Open_Stream( file, &stream );
-  if ( error )
-    return error;
+    if ( error )
+        return error;
 
-  input.stream = stream;
+    input.stream = stream;
 
-  if ( ALLOC( _face, sizeof ( TFace ) ) )
-  {
+    if ( ALLOC( _face, sizeof( TFace ) ) )
+    {
+        error = TT_Err_Out_Of_Memory;
+        goto Fail;
+    }
+
+    error = Face_Create( _face, &input );
+    if ( error )
+    {
+        FREE( _face );
+        goto Fail;
+    }
+
+    HANDLE_Set( *face, _face );
+    return TT_Err_Ok;
+
+Fail:
     TT_Close_Stream( &stream );
-    return TT_Err_Out_Of_Memory;
-  }
-
-  error = Face_Create( _face, &input );
-  if ( error )
-  {
-    FREE( _face );
-    TT_Close_Stream( &stream );
     return error;
-  }
-
-  HANDLE_Set( *face, _face );
-  return TT_Err_Ok;
 }
 
 
@@ -197,7 +198,7 @@ TT_Error  TT_Open_Face( const FileHandle  file,
  *  Input  :  face          the face handle
  *            properties    address of target properties record
  *
- *  Output :  Error code.
+ *  Output :  void
  *
  *  Note :    Currently, max_Faces is always set to 0.
  *
@@ -206,7 +207,7 @@ TT_Error  TT_Open_Face( const FileHandle  file,
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Get_Face_Properties( TT_Face              face,
+  void  TT_Get_Face_Properties( TT_Face              face,
                                     TT_Face_Properties*  properties )
   {
     PFace _face = HANDLE_Face( face );
@@ -236,8 +237,6 @@ EC( ECCheckBounds( _face ) );
   #ifdef TT_CONFIG_OPTION_PROCESS_HDMX
     properties->hdmx         = &_face->hdmx;
   #endif
-
-    return TT_Err_Ok;
   }
 
 
@@ -417,38 +416,33 @@ TT_Error  TT_New_Instance( TT_Face       face,
 {
     TT_Error   error;
     PFace      _face = HANDLE_Face( face );
-    PInstance  _ins  = NULL;
+    PInstance  _ins;
 
 
 EC( ECCheckBounds( _face ) );
+EC_ERROR_IF( _face->instance, TT_Err_Invalid_Face_Handle );
 
-    HANDLE_Set( *instance, NULL );
-
-    if ( _face->instance )
-        return TT_Err_Invalid_Face_Handle;
-
-    if ( ALLOC( _ins, sizeof ( TInstance ) ) )
+    if ( ALLOC( _ins, sizeof( TInstance ) ) )
         return TT_Err_Out_Of_Memory;
 
     error = Instance_Create( _ins, _face );
     if ( error )
-    {
-        FREE( _ins );
-        return error;
-    }
+        goto Fail;
 
     error = Instance_Init( _ins );
     if ( error )
     {
         Instance_Destroy( _ins );
-        FREE( _ins );
-        return error;
+        goto Fail;
     }
 
     _face->instance = _ins;
     HANDLE_Set( *instance, _ins );
-
     return TT_Err_Ok;
+
+Fail:
+    FREE( _ins );
+    return error;
 }
 
 
@@ -516,14 +510,14 @@ EC( ECCheckBounds( ins ) );
  *
  *  Input  :  instance      address of instance handle
  *
- *  Output :  Error code.
+ *  Output :  void
  *
  *  MT-Safe : YES!
  *
  ******************************************************************/
 
 EXPORT_FUNC
-TT_Error  TT_Done_Instance( TT_Instance  instance )
+void  TT_Done_Instance( TT_Instance  instance )
 {
     PInstance  ins = HANDLE_Instance( instance );
     PFace      face;
@@ -532,18 +526,14 @@ TT_Error  TT_Done_Instance( TT_Instance  instance )
 EC( ECCheckBounds( ins ) );
 
     face = ins->owner;
-    if ( !face )
-        return TT_Err_Invalid_Instance_Handle;
 
-    if ( face->instance != ins )
-        return TT_Err_Invalid_Instance_Handle;
+EC( ECCheckBounds( face ) );
+EC_ERROR_IF( face->instance != ins, TT_Err_Invalid_Instance_Handle );
 
     face->instance = NULL;
 
     Instance_Destroy( ins );
     FREE( ins );
-
-    return TT_Err_Ok;
 }
 
 /*******************************************************************
@@ -567,21 +557,15 @@ TT_Error  TT_New_Glyph( TT_Face    face,
                         TT_Glyph*  glyph )
 {
     PFace    _face  = HANDLE_Face( face );
-    PGlyph   _glyph = NULL;
+    PGlyph   _glyph;
     TT_Error error;
 
 
 EC( ECCheckBounds( _face ) );
-
-    HANDLE_Set( *glyph, NULL );
-
-    if ( _face->glyph )
-        return TT_Err_Invalid_Face_Handle; 
+EC_ERROR_IF( _face->glyph, TT_Err_Invalid_Face_Handle );
 
     if ( ALLOC( _glyph, sizeof ( TGlyph ) ) )
         return TT_Err_Out_Of_Memory;
-
-    MEM_Set( _glyph, 0, sizeof ( TGlyph ) );
 
     error = Glyph_Create( _glyph, _face );
     if ( error )
@@ -611,7 +595,7 @@ EC( ECCheckBounds( _face ) );
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Done_Glyph( TT_Glyph  glyph )
+  void  TT_Done_Glyph( TT_Glyph  glyph )
   {
     PGlyph  _glyph = HANDLE_Glyph( glyph );
     PFace   face;
@@ -620,18 +604,13 @@ EC( ECCheckBounds( _face ) );
 EC( ECCheckBounds( _glyph ) );
 
     face = _glyph->face;
-    if ( !face )
-        return TT_Err_Invalid_Glyph_Handle;
 
-    if ( face->glyph != _glyph )
-        return TT_Err_Invalid_Glyph_Handle;
+EC_ERROR_IF( !face, TT_Err_Invalid_Glyph_Handle );
+EC_ERROR_IF( face->glyph != _glyph, TT_Err_Invalid_Glyph_Handle );
 
     face->glyph = NULL;
-
     Glyph_Destroy( _glyph );
     FREE( _glyph );
-
-    return TT_Err_Ok;
   }
 
 /*******************************************************************
@@ -662,27 +641,24 @@ EC( ECCheckBounds( _glyph ) );
     PGlyph     _glyph = HANDLE_Glyph( glyph );
     TT_Error   error;
 
+    if ( !_ins || !(loadFlags & TTLOAD_SCALE_GLYPH) )
+    {
+        loadFlags &= ~(TTLOAD_SCALE_GLYPH | TTLOAD_HINT_GLYPH);
+        _ins = NULL;
+    }
 
-    if ( !_ins )
-      loadFlags &= ~(TTLOAD_SCALE_GLYPH | TTLOAD_HINT_GLYPH);
-
-    if ( (loadFlags & TTLOAD_SCALE_GLYPH) == 0 )
-      _ins = 0;
-
-EC( ECCheckBounds( _glyph ) );
+    EC( ECCheckBounds( _glyph ) );
 
     if ( _ins )
     {
-      if ( _ins->owner != _glyph->face )
-        return TT_Err_Invalid_Face_Handle;
+        EC_ERROR_IF( _ins->owner != _glyph->face, TT_Err_Invalid_Face_Handle );
 
-      if ( !_ins->valid )
-      {
-        /* This code can only be called in non thread-safe builds */
-        error = Instance_Reset( _ins );
-        if ( error )
-          return error;
-      }
+        if ( !_ins->valid )
+        {
+            error = Instance_Reset( _ins );
+            if ( error )
+                return error;
+        }
     }
 
     return Load_TrueType_Glyph( _ins, _glyph, glyphIndex, loadFlags );
@@ -774,13 +750,11 @@ EC( ECCheckBounds( _glyph ) );
     PStorage  glyphLocations;
     Short     bearing;
     UShort    advance;
-    Long      offset;
 
 
 EC( ECCheckBounds( faze ) );
+EC_ERROR_IF( index >= faze->numGlyphs, TT_Err_Invalid_Argument ); 
 
-    if ( index >= faze->numGlyphs )
-      return TT_Err_Invalid_Argument;
 
     /* find "glyf" table */
     table = TT_LookUp_Table( faze, TTAG_glyf );
@@ -807,10 +781,8 @@ EC( ECCheckBounds( faze ) );
       goto Fin;
     }
 
-    offset = faze->dirTables[table].Offset + glyphLocations[index];
-
     /* read first glyph header */
-    if ( FILE_Seek( offset ) || ACCESS_Frame( 10 ) )
+    if ( FILE_Seek( faze->dirTables[table].Offset + glyphLocations[index] ) || ACCESS_Frame( 10 ) )
       goto Fail;
 
     SKIP( 2 );
@@ -949,8 +921,7 @@ EC( ECCheckBounds( map ) );
     if ( outline->n_points == 0 || outline->n_contours <= 0 )
       return TT_Err_Ok; 
 
-    if ( outline->n_points < outline->contours[outline->n_contours - 1] )
-      return TT_Err_Too_Many_Points; 
+EC_ERROR_IF( outline->n_points < outline->contours[outline->n_contours - 1], TT_Err_Too_Many_Points );
 
     return RENDER_Glyph( outline, map );
   }
@@ -1114,33 +1085,30 @@ EC( ECCheckBounds( bbox ) );
  *            platformID       address of returned platform ID
  *            encodingID       address of returned encoding ID
  *
- *  Output :  error code
+ *  Output :  void
  *
  *  MT-Safe : YES !
  *
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Get_CharMap_ID( TT_Face     face,
-                               TT_UShort   charmapIndex,
-                               TT_UShort*  platformID,
-                               TT_UShort*  encodingID )
+  void  TT_Get_CharMap_ID( TT_Face     face,
+                           TT_UShort   charmapIndex,
+                           TT_UShort*  platformID,
+                           TT_UShort*  encodingID )
   {
     PCMapTable  cmap;
     PFace       faze = HANDLE_Face( face );
 
 
 EC( ECCheckBounds( faze ) );
+EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
 
-    if ( charmapIndex >= faze->numCMaps )
-      return TT_Err_Invalid_Argument;
 
     cmap = faze->cMaps + charmapIndex;
 
     *platformID = cmap->platformID;
     *encodingID = cmap->platformEncodingID;
-
-    return TT_Err_Ok;
   }
 
 
@@ -1172,9 +1140,7 @@ EC( ECCheckBounds( faze ) );
 
 
 EC( ECCheckBounds( faze ) );
-
-    if ( charmapIndex >= faze->numCMaps )
-      return TT_Err_Invalid_Argument;
+EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
 
     cmap = faze->cMaps + charmapIndex;
 
@@ -1249,7 +1215,7 @@ EC( ECCheckBounds( faze ) );
  *            languageID
  *            nameID
  *
- *  Output :  Error code.
+ *  Output :  void
  *
  *  Notes  :  Some files have a corrupt or unusual name table, with some
  *            entries having a platformID > 3.  These can usually
@@ -1260,21 +1226,19 @@ EC( ECCheckBounds( faze ) );
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Get_Name_ID( TT_Face     face,
-                            TT_UShort   nameIndex,
-                            TT_UShort*  platformID,
-                            TT_UShort*  encodingID,
-                            TT_UShort*  languageID,
-                            TT_UShort*  nameID )
+  void  TT_Get_Name_ID( TT_Face     face,
+                        TT_UShort   nameIndex,
+                        TT_UShort*  platformID,
+                        TT_UShort*  encodingID,
+                        TT_UShort*  languageID,
+                        TT_UShort*  nameID )
   {
     TNameRec*  namerec;
     PFace      faze = HANDLE_Face( face );
 
 
 EC( ECCheckBounds( faze ) );
-
-    if ( nameIndex >= faze->nameTable.numNameRecords )
-      return TT_Err_Invalid_Argument;
+EC_ERROR_IF( nameIndex >= faze->nameTable.numNameRecords, TT_Err_Invalid_Argument );
 
     namerec = faze->nameTable.names + nameIndex;
 
@@ -1282,8 +1246,6 @@ EC( ECCheckBounds( faze ) );
     *encodingID = namerec->encodingID;
     *languageID = namerec->languageID;
     *nameID     = namerec->nameID;
-
-    return TT_Err_Ok;
   }
 
 
@@ -1299,7 +1261,7 @@ EC( ECCheckBounds( faze ) );
  *            stringPtr   address of returned pointer to string
  *            length      address of returned string length
  *
- *  Output :  Error code.
+ *  Output :  void
  *
  *  Notes  :  If the string's platformID is invalid,
  *            stringPtr is NULL, and length is 0.
@@ -1309,26 +1271,23 @@ EC( ECCheckBounds( faze ) );
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Get_Name_String( TT_Face      face,
-                                TT_UShort    nameIndex,
-                                TT_String**  stringPtr,
-                                TT_UShort*   length )
+  void  TT_Get_Name_String( TT_Face      face,
+                            TT_UShort    nameIndex,
+                            TT_String**  stringPtr,
+                            TT_UShort*   length )
   {
     TNameRec*  namerec;
     PFace      faze = HANDLE_Face( face );
 
 
 EC( ECCheckBounds( faze ) );
+EC_ERROR_IF( nameIndex >= faze->nameTable.numNameRecords, TT_Err_Invalid_Argument );
 
-    if ( nameIndex >= faze->nameTable.numNameRecords )
-      return TT_Err_Invalid_Argument;
 
     namerec = faze->nameTable.names + nameIndex;
 
     *stringPtr = (String*)namerec->string;
     *length    = namerec->stringLength;
-
-    return TT_Err_Ok;
   }
 
 
