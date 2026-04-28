@@ -26,9 +26,6 @@
 #include "tttags.h"
 #include "ttload.h"
 
-/* required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT      trace_load
 
 /* In all functions, the stream is taken from the 'face' object */
 #define DEFINE_LOCALS           DEFINE_LOAD_LOCALS( face->stream )
@@ -859,11 +856,10 @@
   {
     DEFINE_LOCALS;
 
-    Long   off, table_start;
+    Long   off, table_start, entry_offset;
     Short  n, limit;
 
     TCMapDir       cmap_dir;
-    TCMapDirEntry  entry_;
     PCMapTable     cmap;
 
 
@@ -901,16 +897,15 @@
 
       /* extra code using entry_ for platxxx could be cleaned up later */
       cmap->loaded             = FALSE;
-      cmap->platformID         = entry_.platformID         = GET_UShort();
-      cmap->platformEncodingID = entry_.platformEncodingID = GET_UShort();
-
-      entry_.offset = GET_Long();
+      cmap->platformID         = GET_UShort();
+      cmap->platformEncodingID = GET_UShort();
+      entry_offset             = GET_Long();
 
       FORGET_Frame();
 
       off = FILE_Pos();
 
-      if ( FILE_Seek( table_start + entry_.offset ) ||
+      if ( FILE_Seek( table_start + entry_offset ) ||
            ACCESS_Frame( 6 ) )
         return error;
 

@@ -1144,26 +1144,6 @@
       glyph->metrics.bbox.yMax  = (glyph->metrics.bbox.yMax+63) & -64;
     }
 
-    /* get the device-independent scaled horizontal metrics */
-    /* take care of fixed-pitch fonts...                    */
-    {
-      TT_Pos  left_bearing;
-      TT_Pos  advance;
-
-
-      left_bearing = subglyph->metrics.bearingX;
-      advance      = subglyph->metrics.advance;
-
-      if ( face->postscript.isFixedPitch )
-        advance = face->horizontalHeader.advance_Width_Max;
-
-      if ( load_flags & TTLOAD_SCALE_GLYPH )
-      {
-        left_bearing = Scale_X( &exec->metrics, left_bearing );
-        advance      = Scale_X( &exec->metrics, advance      );
-      }
-    }
-
     glyph->metrics.bearingX = glyph->metrics.bbox.xMin;
     glyph->metrics.bearingY = glyph->metrics.bbox.yMax;
     glyph->metrics.advance  = subglyph->pp2.x - subglyph->pp1.x;
