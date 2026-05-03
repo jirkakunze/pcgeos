@@ -465,53 +465,95 @@
  *            0 if the glyph does not exist.
  *
  ******************************************************************/
-
-  UShort  code_to_index4( UShort  charCode,
+#if 0
+UShort  code_to_index4( UShort  charCode,
                           PCMap4  cmap4 )
   {
-    UShort         index1, segCount;
-    UShort         i, result;
-    PUShort        glyphIdArray;
+    UShort         i, segCount;
+    UShort         result;
     TCMap4Segment  seg4;
     PCMap4Segment  segments;
+    PUShort        glyphIdArray;
 
 
-    segCount     = cmap4->segCountX2 >> 1;
-    segments     = GEO_LOCK( cmap4->segmentBlock );
-    glyphIdArray = GEO_LOCK( cmap4->glyphIdBlock );
-    result       = 0;
+    segCount = cmap4->segCountX2 >> 1;
+    segments = GEO_LOCK( cmap4->segmentBlock );
 
     for ( i = 0; i < segCount; ++i )
       if ( charCode <= segments[i].endCount )
         break;
 
-    /* Safety check - even though the last endCount should be 0xFFFF */
-    if ( i >= segCount ) 
-      goto Fin;
+    if ( i < segCount )
+      seg4 = segments[i];
 
-    seg4 = segments[i];
+    GEO_UNLOCK( cmap4->segmentBlock );
 
-    if ( charCode < seg4.startCount )
-      goto Fin;
+    if ( i >= segCount || charCode < seg4.startCount )
+      return 0;
 
     if ( seg4.idRangeOffset == 0 )
-      result = ( charCode + seg4.idDelta ) & 0xFFFF;
-    else
-    {
-      index1 = seg4.idRangeOffset / 2 + (charCode - seg4.startCount) -
-               (segCount - i);
+      return ( charCode + seg4.idDelta );
 
-      if ( index1 < cmap4->numGlyphId )
-        if ( glyphIdArray[index1] != 0 )
-          result = ( glyphIdArray[index1] + seg4.idDelta ) & 0xFFFF;
-    }
+    result       = 0;
+    glyphIdArray = GEO_LOCK( cmap4->glyphIdBlock );
 
-  Fin:
-    GEO_UNLOCK( cmap4->segmentBlock );
+    i = seg4.idRangeOffset / 2 + ( charCode - seg4.startCount )
+        - ( segCount - i );
+
+    if ( i < cmap4->numGlyphId && glyphIdArray[i] != 0 )
+      result = ( glyphIdArray[i] + seg4.idDelta );
+
     GEO_UNLOCK( cmap4->glyphIdBlock );
     return result;
   }
+#endif
 
+UShort  code_to_index4( UShort  charCode,
+                        PCMap4  cmap4 )
+{
+  UShort         i, segCount;
+  UShort         result;
+  UShort         glyphIndex;
+  TCMap4Segment  seg4;
+  PCMap4Segment  segments;
+  PUShort        glyphIdArray;
+
+
+  segCount = cmap4->segCountX2 >> 1;
+  segments = GEO_LOCK( cmap4->segmentBlock );
+
+  for ( i = 0; i < segCount; ++i )
+    if ( charCode <= segments[i].endCount )
+      break;
+
+  if ( i < segCount )
+    seg4 = segments[i];
+
+  GEO_UNLOCK( cmap4->segmentBlock );
+
+  if ( i >= segCount || charCode < seg4.startCount )
+    return 0;
+
+  if ( seg4.idRangeOffset == 0 )
+    return (UShort)( charCode + seg4.idDelta );
+
+  glyphIndex = (UShort)( seg4.idRangeOffset / 2 +
+                         ( charCode - seg4.startCount ) -
+                         ( segCount - i ) );
+
+  if ( glyphIndex >= cmap4->numGlyphId )
+    return 0;
+
+  glyphIdArray = GEO_LOCK( cmap4->glyphIdBlock );
+
+  result = glyphIdArray[glyphIndex];
+  if ( result != 0 )
+    result = (UShort)( result + seg4.idDelta );
+
+  GEO_UNLOCK( cmap4->glyphIdBlock );
+
+  return result;
+}
 
 #ifdef TT_CONFIG_OPTION_SUPPORT_CMAP6
 /*******************************************************************
@@ -573,7 +615,7 @@ TT_Error getCharMap( TT_Face face, TT_Face_Properties* faceProperties, TT_CharMa
 {
         TT_UShort           platform;
         TT_UShort           encoding;
-        int                 map;
+        UShort              map;
 
 
 	for ( map = 0; map < faceProperties->num_CharMaps; ++map ) 
@@ -581,10 +623,7 @@ TT_Error getCharMap( TT_Face face, TT_Face_Properties* faceProperties, TT_CharMa
 		TT_Get_CharMap_ID( face, map, &platform, &encoding );
 
 		if ( platform == TT_PLATFORM_MICROSOFT && encoding == TT_MS_ID_UNICODE_CS )
-    {
-		  TT_Get_CharMap( face, map, charMap);
-			return TT_Err_Ok;
-		}
+		  return TT_Get_CharMap( face, map, charMap);
 	}
 
   return TT_Err_CMap_Table_Missing;

@@ -27,10 +27,6 @@
 #include "tttags.h"
 #include "ttload.h"
 
-/* required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT  trace_gload
-
 
 /* composite font flags */
 

@@ -52,10 +52,6 @@
 extern TEngine_Instance engineInstance;
 #endif  /* __GEOS__ */
 
-/* required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT      trace_raster
-
 
 /* render pool size */
 #define  RASTER_RENDER_POOL_INITIAL     1
@@ -1261,36 +1257,6 @@ extern TEngine_Instance engineInstance;
   }
 
 
-/*************************************************/
-/*                                               */
-/*  DelOld :                                     */
-/*                                               */
-/*    Removes an old Profile from a linked list. */
-/*                                               */
-/*************************************************/
-
-  static void _near  DelOld( PProfileList  list,
-                             PProfile      profile )
-  {
-    PProfile* previous = list;
-    PProfile current = *previous;
-
-
-    while (current) {
-        if (current == profile) {
-            *previous = current->link;
-            return;
-        }
-
-        previous = &current->link;
-        current = *previous;
-    }
-
-    /* we should never get there, unless the Profile was not part of */
-    /* the list.                                                     */
-  }
-
-
 /************************************************/
 /*                                              */
 /*  Update :                                    */
@@ -2044,24 +2010,26 @@ extern TEngine_Instance engineInstance;
     {
       /* look in the wait list for new activations */
 
-      P = wait;
-
-      while ( P )
       {
-        Q = P->link;
-        P->countL -= y_height;
-        if ( P->countL == 0 )
+        PProfile  *aP, P;
+
+        aP = &wait;
+        while ( (P = *aP) != NULL )
         {
-          DelOld( &wait, P );
-
-          switch ( P->flow )
+          P->countL -= y_height;
+          if ( P->countL == 0 )
           {
-            case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
-            case TT_Flow_Down:  InsNew( &draw_right, P ); break;
-          } 
-        }
+            *aP = P->link;    /* unlink directly, don't advance aP */
 
-        P = Q;
+            switch ( P->flow )
+            {
+              case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
+              case TT_Flow_Down:  InsNew( &draw_right, P ); break;
+            }
+          }
+          else
+            aP = &P->link;
+        }
       }
 
       /* Sort the drawing lists */
@@ -2147,31 +2115,29 @@ extern TEngine_Instance engineInstance;
       }
 
       /* Now finalize the profiles that needs it */
-
       {
-        PProfile  Q, P;
-        P = draw_left;
-        while ( P )
+        PProfile  *aP, P;
+      
+        aP = &draw_left;
+        while ( (P = *aP) != NULL )
         {
-          Q = P->link;
           if ( P->height == 0 )
-            DelOld( &draw_left, P );
-          P = Q;
+            *aP = P->link;    /* unlink dead profile, don't advance aP */
+          else
+            aP = &P->link;    /* profile lives, move forward */
         }
-      }
-
-      {
-        PProfile  Q, P = draw_right;
-        while ( P )
+      
+        aP = &draw_right;
+        while ( (P = *aP) != NULL )
         {
-          Q = P->link;
           if ( P->height == 0 )
-            DelOld( &draw_right, P );
-          P = Q;
+            *aP = P->link;
+          else
+            aP = &P->link;
         }
       }
     }
-
+  
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
     /* for gray-scaling, flushes the bitmap scanline cache */
     while ( y <= max_Y )
@@ -2274,7 +2240,7 @@ Scan_DropOuts :
     return TT_Err_Ok;
   }
 
-  LOCAL_FUNC
+  
   static void Initialize_Raster_Instance( RAS_ARGS TT_Outline*  glyph )
   {
     ras.outs      = glyph->contours;
@@ -2418,10 +2384,15 @@ EC( ECCheckBounds( (void*)map ) );
 static void Lock_Render_Pool( RAS_ARGS  TT_Outline*  glyph )
 {
   /* estimated size of the renderpool */
-  TT_UShort   renderpoolSize = ( glyph->y_ppem >> 3 ) * RASTER_RENDER_POOL_FACTOR 
-                                                      + RASTER_RENDER_POOL_MIN_SIZE;
+  TT_UShort   renderpoolSize = ( ( glyph->y_ppem >> 3 ) * RASTER_RENDER_POOL_FACTOR 
+                                                        + RASTER_RENDER_POOL_MIN_SIZE ) & ~255;
 
-  MemReAlloc( ras.buffer, renderpoolSize, HAF_NO_ERR | HAF_LOCK);
+                                                        TT_UShort currentSize = (TT_UShort)MemGetInfo( ras.buffer, MGIT_SIZE );
+
+  if ( currentSize != renderpoolSize )
+    MemReAlloc( ras.buffer, renderpoolSize, HAF_NO_ERR | HAF_LOCK );
+  else
+    MemLock( ras.buffer );
 
   ras.sizeBuff = (PStorage)MemDeref( ras.buffer ) + ( renderpoolSize >> 2 );
 }

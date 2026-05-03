@@ -71,11 +71,6 @@
 #endif /* DEBUG_INTEPRETER */
 
 
-/* required by the tracing mode */
-#undef  TT_COMPONENT
-#define TT_COMPONENT      trace_interp
-
-
 /* In order to detect infinite loops in the code, we set-up         */
 /* a counter within the run loop. a singly stroke of interpretation */
 /* is now limited to a maximum number of opcodes defined below..    */
@@ -5901,7 +5896,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     PDefRecord   WITH;
     PCallRecord  WITH1;
 
-    Short        ins_counter = 0;  /* executed instructions counter */
+    UShort        ins_counter = 0;  /* executed instructions counter */
 
 #ifdef TT_CONFIG_OPTION_STATIC_INTERPRETER
     cur = *exc;
@@ -6499,12 +6494,10 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
         switch ( (Int)(CUR.error) )
         {
         case TT_Err_Invalid_Opcode: /* looking for redefined instructions */
-          A = 0;
-
-          while ( A < CUR.numIDefs )
+          
+          for ( A = 0; A < CUR.numIDefs; ++A )
           {
             WITH = &CUR.IDefs[A];
-
             if ( WITH->Active && CUR.opcode == WITH->Opc )
             {
               if ( CUR.callTop >= CUR.callSize )
@@ -6522,13 +6515,6 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
               if ( INS_Goto_CodeRange( WITH->Range, WITH->Start ) == FAILURE )
                 goto LErrorLabel_;
-
-              goto LSuiteLabel_;
-            }
-            else
-            {
-              ++A;
-              continue;
             }
           }
 

@@ -28,10 +28,6 @@ extern TEngine_Instance engineInstance;
 #endif  /* __GEOS__ */
 
 
-/* Required by tracing mode */
-#undef   TT_COMPONENT
-#define  TT_COMPONENT  trace_objs
-
 /*******************************************************************
  *
  *  Function    :  New_Context
@@ -335,7 +331,8 @@ extern TEngine_Instance engineInstance;
 
     /* all values in the context are set to 0 already, but this is */
     /* here as a remainder                                         */
-    exec->maxPoints   = 0;
+    
+    /*exec->maxPoints   = 0;
     exec->maxContours = 0;
 
     exec->stackSize = 0;
@@ -347,7 +344,7 @@ extern TEngine_Instance engineInstance;
     exec->glyphIns  = NULL;
 
     exec->face     = face;
-    exec->instance = NULL;
+    exec->instance = NULL;*/
 
     return TT_Err_Ok;
 
@@ -443,7 +440,6 @@ extern TEngine_Instance engineInstance;
                          PFace               face,
                          PInstance           ins )
   {
-    Int           i;
     TMaxProfile*  maxp;
     TT_Error      error;
 
@@ -465,8 +461,9 @@ extern TEngine_Instance engineInstance;
       exec->maxFunc  = ins->maxFunc;
       exec->maxIns   = ins->maxIns;
 
-      for ( i = 0; i < MAX_CODE_RANGES; ++i )
-        exec->codeRangeTable[i] = ins->codeRangeTable[i];
+      ins->codeRangeTable[0] = exec->codeRangeTable[0];
+      ins->codeRangeTable[1] = exec->codeRangeTable[1];
+      ins->codeRangeTable[2] = exec->codeRangeTable[2];
 
       /* set graphics state */
       exec->GS = ins->GS;
@@ -529,12 +526,9 @@ extern TEngine_Instance engineInstance;
  *
  *****************************************************************/
 
-  LOCAL_FUNC
   static void  Context_Save( PExecution_Context  exec,
-                      PInstance           ins )
+                             PInstance           ins )
   {
-    Int  i;
-
     /* XXXX : Will probably disappear soon with all the coderange */
     /*        management, which is now rather obsolete.           */
 
@@ -543,8 +537,9 @@ extern TEngine_Instance engineInstance;
     ins->maxFunc  = exec->maxFunc;
     ins->maxIns   = exec->maxIns;
 
-    for ( i = 0; i < MAX_CODE_RANGES; ++i )
-      ins->codeRangeTable[i] = exec->codeRangeTable[i];
+    ins->codeRangeTable[0] = exec->codeRangeTable[0];
+    ins->codeRangeTable[1] = exec->codeRangeTable[1];
+    ins->codeRangeTable[2] = exec->codeRangeTable[2];
   }
 
 

@@ -547,7 +547,7 @@
 
     CUR_Frame.cursor = CUR_Frame.address;
     return error;
-  }
+  } 
 
 
 /*******************************************************************
@@ -891,8 +891,11 @@
   EXPORT_FUNC
   TT_Error  TT_Skip_File( STREAM_ARGS Long  distance )
   {
-    return TT_Seek_File( STREAM_VARS FilePos( CUR_Stream->file, 0, FILE_POS_RELATIVE ) +
-                                    distance );
+    FilePos( CUR_Stream->file, distance, FILE_POS_RELATIVE );
+    if ( ThreadGetError() != NO_ERROR_RETURNED )
+      return TT_Err_Invalid_File_Offset;
+
+    return TT_Err_Ok;
   }
 
 

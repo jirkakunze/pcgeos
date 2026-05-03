@@ -472,27 +472,40 @@ Fail:
                                                       TT_UShort    xResolution,
                                                       TT_UShort    yResolution )
   {
-    PInstance  ins = HANDLE_Instance( instance );
+    PInstance   ins = HANDLE_Instance( instance );
+    TT_F26Dot6  x_scale1;
+    TT_F26Dot6  y_scale1;
 
 
 EC( ECCheckBounds( ins ) );
+
+    if ( charSize < 1 * 64 )
+      charSize = 1 * 64;
+
+    x_scale1 = ( charSize * xResolution ) / 72;
+    y_scale1 = ( charSize * yResolution ) / 72;
+
+    if ( ins->owner->fontHeader.Flags & 8 )
+    {
+      x_scale1 = (x_scale1+32) & -64;
+      y_scale1 = (y_scale1+32) & -64;
+    }
+
+    if ( ins->valid &&
+         ins->metrics.x_resolution == xResolution &&
+         ins->metrics.y_resolution == yResolution &&
+         ins->metrics.x_scale1     == x_scale1 &&
+         ins->metrics.y_scale1     == y_scale1 &&
+         ins->metrics.pointSize    == charSize )
+      return TT_Err_Ok;
 
     ins->metrics.x_resolution = xResolution;
     ins->metrics.y_resolution = yResolution;
     ins->valid                = FALSE;
 
-    if ( charSize < 1 * 64 )
-      charSize = 1 * 64;
-
-    ins->metrics.x_scale1     = ( charSize * ins->metrics.x_resolution ) / 72;
-    ins->metrics.y_scale1     = ( charSize * ins->metrics.y_resolution ) / 72;
+    ins->metrics.x_scale1     = x_scale1;
+    ins->metrics.y_scale1     = y_scale1;
     ins->metrics.units_per_em = ins->owner->fontHeader.Units_Per_EM;
-
-    if ( ins->owner->fontHeader.Flags & 8 )
-    {
-      ins->metrics.x_scale1 = (ins->metrics.x_scale1+32) & -64;
-      ins->metrics.y_scale1 = (ins->metrics.y_scale1+32) & -64;
-    }
 
     ins->metrics.x_ppem = ins->metrics.x_scale1 >> 6;
     ins->metrics.y_ppem = ins->metrics.y_scale1 >> 6;
