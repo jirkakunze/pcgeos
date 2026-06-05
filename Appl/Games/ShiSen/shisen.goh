@@ -119,6 +119,7 @@ typedef WordFlags ShisenBoardSizeFlags;  /* Board-size specification flags   */
    @instance int     SBI_fieldHeight;
 
    @instance TimerHandle SBI_timerHan;
+   @instance word        SBI_timerId;
 
 @endc;
 

@@ -50,12 +50,14 @@ library ansic
 resource AppResource	ui-object
 resource Interface	ui-object
 resource BoardResource	ui-object
-resource CrakTiles  	ui-object
-resource DotTiles   	ui-object
-resource BambooTiles	ui-object
-resource SeasonTiles	ui-object
-resource DirectionTiles ui-object
-resource FlowerTiles	ui-object
+
+resource CrakTiles  	lmem data
+resource DotTiles   	lmem data
+resource BambooTiles	lmem data
+resource SeasonTiles	lmem data
+resource DirectionTiles lmem data
+resource FlowerTiles	lmem data
+resource DragonTiles    lmem data
 resource TextStrings    lmem data
 
 export ShisenProcessClass

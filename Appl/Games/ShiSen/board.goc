@@ -71,9 +71,9 @@
  ***********************************************************************/
 @method ShisenBoardClass, MSG_VIS_DRAW
 {
-  int     x, y, num;
-  byte*   data;
-  word*   last;
+  int           x, y, num;
+  byte*         data;
+  word          element;
   GStateHandle  string;
   optr    tileList[] =
         {@Crak1, @Crak2, @Crak3, @Crak4, @Crak5, /* defined in craks.goh */
@@ -99,7 +99,7 @@
         MemLock(OptrToHandle(tileList[pself->SBI_playField[x][y]]));
         data = LMemDeref(tileList[pself->SBI_playField[x][y]]);
         string = GrLoadGString(PtrToSegment(data), GST_PTR, PtrToOffset(data));
-        GrDrawGString(gstate, string, x * TILE_WIDTH, y * TILE_HEIGHT, 0, last);
+        GrDrawGString(gstate, string, x * TILE_WIDTH, y * TILE_HEIGHT, 0, &element);
         GrDestroyGString(string, NULL, GSKT_LEAVE_DATA);
         MemUnlock(OptrToHandle(tileList[pself->SBI_playField[x][y]]));
 
@@ -168,7 +168,7 @@
  * REVISION HISTORY:
  *      Name    Date            Description
  *      ----    ----            -----------
- *      JK      08.08.00        Initial Revision
+ *      JK      08.08.00        initial revision
  *      JK      14.11.25        clean up
  *
  ***********************************************************************/
@@ -176,7 +176,6 @@
 {
   int      x1, y1, x2, y2;
   int      selX, selY;
-  word     timerId;
 
   /* get current selected positions */
   @call self::MSG_SHISEN_GET_SELECTION(&x1, &y1, &x2, &y2);
@@ -211,7 +210,7 @@
           pself->SBI_timerHan =
               TimerStart(TIMER_EVENT_ONE_SHOT,
                          oself, 60, MSG_SHISEN_UPDATE_BOARD,
-                         60, &timerId);
+                         60, &pself->SBI_timerId);
         }
       }
     }
@@ -337,7 +336,6 @@
 @method ShisenBoardClass, MSG_SHISEN_GET_HINT
 {
   int      x1, y1, x2, y2;
-  word     timerId;
 
   /* get position for an allowed move */
   @call self::MSG_SHISEN_GET_MOVE(&x1, &y1, &x2, &y2);
@@ -349,7 +347,7 @@
 
     /* update playfield after 1 second */
     pself->SBI_timerHan = TimerStart(TIMER_EVENT_ONE_SHOT,
-                   oself, 60, MSG_SHISEN_UPDATE_BOARD, 60, &timerId);
+                   oself, 60, MSG_SHISEN_UPDATE_BOARD, 60, &pself->SBI_timerId);
   }
 }
 
@@ -591,15 +589,12 @@
         sword newx = startX + dx[i];
         sword newy = startY + dy[i];
 
-        while (pself->SBI_playField[newx][newy] == EMPTY &&
-               newx >= 0 && newx <= pself->SBI_fieldWidth &&
-               newy >= 0 && newy <= pself->SBI_fieldHeight &&
-               ret == FALSE)
+        while (newx >= 0 && newx <= pself->SBI_fieldWidth &&
+            newy >= 0 && newy <= pself->SBI_fieldHeight &&
+            pself->SBI_playField[newx][newy] == EMPTY && ret == FALSE)
         {
           if (@call self::MSG_SHISEN_FIND_2WAY_PATH(newx, newy, endX, endY))
-          {
             ret = TRUE;
-          }
 
           newx += dx[i];
           newy += dy[i];
@@ -849,6 +844,10 @@
 @method ShisenBoardClass, MSG_SHISEN_UPDATE_BOARD
 {
   int x1, y1, x2, y2;
+
+  /* stop board timer */
+  TimerStop(pself->SBI_timerHan, pself->SBI_timerId);
+  pself->SBI_timerHan = NullHandle;
 
   /* delete selected tiles when needed */
   if(pself->SBI_historyX[0] && pself->SBI_historyY[0])
