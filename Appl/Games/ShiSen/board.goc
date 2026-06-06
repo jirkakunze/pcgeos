@@ -75,7 +75,7 @@
   byte*         data;
   word          element;
   GStateHandle  string;
-  optr    tileList[] =
+  optr          tileList[] =
         {@Crak1, @Crak2, @Crak3, @Crak4, @Crak5, /* defined in craks.goh */
          @Crak6, @Crak7, @Crak8, @Crak9,
          @Dot1, @Dot2, @Dot3, @Dot4, @Dot5,      /* defined in dots.goh  */
@@ -89,9 +89,9 @@
 
   GrSetAreaColor(gstate, CF_INDEX, C_GREEN, 0, 0);
 
-  for (x = 0; x <= pself->SBI_fieldWidth; x++)
+  for (x = 0; x <= pself->SBI_fieldWidth; ++x)
   {
-    for (y = 0; y <= pself->SBI_fieldHeight; y++)
+    for (y = 0; y <= pself->SBI_fieldHeight; ++y)
     {
       if (pself->SBI_playField[x][y] != EMPTY)
       {
@@ -128,7 +128,7 @@
   /* Draw path between tiles if present */
   GrSetLineWidth(gstate, MakeWWFixed(3));
   GrSetLineColor(gstate, CF_INDEX, C_RED, 0, 0);
-  for (num = 0; num < 3; num++)
+  for (num = 0; num < 3; ++num)
   {
     if (pself->SBI_historyX[num+1] || pself->SBI_historyY[num+1])
     {
@@ -184,6 +184,11 @@
   selX = xPosition / TILE_WIDTH;
   selY = yPosition / TILE_HEIGHT;
 
+  /* ensure the click is within the board */
+  if (selX < 0 || selX > pself->SBI_fieldWidth ||
+      selY < 0 || selY > pself->SBI_fieldHeight)
+    goto Fin;
+
   /* is mouse event inside a valid tile? */
   if (pself->SBI_playField[selX][selY] != EMPTY)
   {
@@ -217,6 +222,8 @@
   }
 
   @call self::MSG_VIS_REDRAW_ENTIRE_OBJECT();
+
+Fin:
   retVal->flags = MRF_PROCESSED | MRF_CLEAR_POINTER_IMAGE;
 }
 
@@ -242,7 +249,7 @@
 {
   int i;
 
-  for (i = 0; i < 4; i++)
+  for (i = 0; i < 4; ++i)
   {
     pself->SBI_historyX[i] = 0;
     pself->SBI_historyY[i] = 0;
@@ -473,8 +480,8 @@
   @call self::MSG_SHISEN_CLEAR_HISTORY();
 
   /* mark all field entries as EMPTY */
-  for (x1 = 0; x1 <= pself->SBI_fieldWidth; x1++)
-    for (y1 = 0; y1 <= pself->SBI_fieldHeight; y1++)
+  for (x1 = 0; x1 <= pself->SBI_fieldWidth; ++x1)
+    for (y1 = 0; y1 <= pself->SBI_fieldHeight; ++y1)
       pself->SBI_playField[x1][y1] = EMPTY;
 
   /* set object size in pixels */
@@ -494,11 +501,11 @@
 
     while (pself->SBI_playField[x1][y1] != EMPTY)
     {
-      x1++;
+      ++x1;
       if (x1 == width)
       {
         x1 = 1;
-        y1++;
+        ++y1;
         if (y1 == height) y1 = 1;
       }
     }
@@ -510,18 +517,18 @@
 
     while (pself->SBI_playField[x1][y1] != EMPTY)
     {
-      x1++;
+      ++x1;
       if (x1 == width)
       {
         x1 = 1;
-        y1++;
+        ++y1;
         if (y1 == height) y1 = 1;
       }
     }
     pself->SBI_playField[x1][y1] = tile;
 
     /* next tile index, wrap around if needed */
-    tile++;
+    ++tile;
     if (tile == maxTileIndex)
       tile = 0;
   }
@@ -544,8 +551,7 @@
  *              int endX    – X-coordinate of the second tile
  *              int endY    – Y-coordinate of the second tile
  *
- * STRATEGY:
- *              1. Clear any previously stored path.
+ * STRATEGY:    1. Clear any previously stored path.
  *              2. Ensure both tiles have the same value.
  *              3. Attempt direct two-segment paths (MSG_SHISEN_FIND_2WAY_PATH).
  *              4. If not found, search outward from the start tile in
@@ -565,12 +571,10 @@
  ***********************************************************************/
 @method ShisenBoardClass, MSG_SHISEN_TEST_PATH
 {
-  sword dx[4] = {-1, 0, 1, 0};
-  sword dy[4] = { 0,-1, 0, 1};
-  word  i;
-  Boolean ret = FALSE;
-
-  @call self::MSG_SHISEN_CLEAR_HISTORY();
+  const sword dx[4] = {-1, 0, 1, 0};
+  const sword dy[4] = { 0,-1, 0, 1};
+  word        i;
+  Boolean     ret = FALSE;
 
   /* tiles must match to form a valid pair */
   if (pself->SBI_playField[startX][startY] ==
@@ -631,8 +635,7 @@
  *              int endX    – X-coordinate of target tile
  *              int endY    – Y-coordinate of target tile
  *
- * STRATEGY:
- *              1. First test a direct one-segment path using
+ * STRATEGY:    1. First test a direct one-segment path using
  *                 MSG_SHISEN_FIND_1WAY_PATH.  
  *                 If successful, the path is simply start → end.
  *
@@ -724,8 +727,7 @@
  *              int endX    – X-coordinate of the end tile
  *              int endY    – Y-coordinate of the end tile
  *
- * STRATEGY:
- *              1. If tiles lie in the same column, scan vertically between
+ * STRATEGY:    1. If tiles lie in the same column, scan vertically between
  *                 them for obstacles.
  *              2. If tiles lie in the same row, scan horizontally.
  *              3. Return TRUE only if all intermediate cells are EMPTY.
@@ -747,7 +749,7 @@
   /* vertical alignment */
   if (startX == endX)
   {
-    for (i = MIN(startY, endY) + 1; i < MAX(startY, endY); i++)
+    for (i = MIN(startY, endY) + 1; i < MAX(startY, endY); ++i)
     {
       if (pself->SBI_playField[startX][i] != EMPTY)
         return FALSE;
@@ -758,7 +760,7 @@
   /* horizontal alignment */
   if (startY == endY)
   {
-    for (i = MIN(startX, endX) + 1; i < MAX(startX, endX); i++)
+    for (i = MIN(startX, endX) + 1; i < MAX(startX, endX); ++i)
     {
       if (pself->SBI_playField[i][startY] != EMPTY)
         return FALSE;
@@ -781,8 +783,7 @@
  *  
  * PARAMETERS:  void
  *
- * STRATEGY:
- *              Iterate through the entire playfield and count all cells
+ * STRATEGY:    Iterate through the entire playfield and count all cells
  *              that are not EMPTY.  
  *              The resulting number indicates how many tiles remain.
  *
@@ -801,12 +802,12 @@
   int  x, y;
   word numTiles = 0;
 
-  for (x = 1; x <= pself->SBI_fieldWidth; x++)
+  for (x = 1; x <= pself->SBI_fieldWidth; ++x)
   {
-    for (y = 1; y <= pself->SBI_fieldHeight; y++)
+    for (y = 1; y <= pself->SBI_fieldHeight; ++y)
     {
       if (pself->SBI_playField[x][y] != EMPTY)
-        numTiles++;
+        ++numTiles;
     }
   }
 
@@ -824,8 +825,7 @@
  *  
  * PARAMETERS:  void
  *
- * STRATEGY:
- *              1. Delete previously matched tiles using the history buffer.
+ * STRATEGY:    1. Delete previously matched tiles using the history buffer.
  *              2. Clear selection and history.
  *              3. Redraw the board.
  *              4. Check if the game is finished (no tiles left).
