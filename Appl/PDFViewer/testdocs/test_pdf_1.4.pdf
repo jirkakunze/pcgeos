@@ -1,0 +1,44 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> /ExtGState << /GS1 6 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 451 >>
+stream
+BT /F1 24 Tf 72 760 Td (PC/GEOS PDF Viewer Test - PDF 1.4) Tj ET
+BT /F1 12 Tf 72 730 Td (Classic cross-reference table) Tj ET
+0.85 0.85 0.85 rg 72 620 450 70 re f
+0 0 0 RG 2 w 72 620 450 70 re S
+0 g BT /F1 14 Tf 92 654 Td (Text, vector graphics, page resources and font test) Tj ET
+q /GS1 gs 1 0 0 rg 120 500 180 120 re f Q
+q /GS1 gs 0 0 1 rg 220 540 180 120 re f Q
+BT /F1 12 Tf 72 470 Td (PDF 1.4 transparency test using ExtGState /ca and /CA) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /ExtGState /ca 0.45 /CA 0.45 >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000275 00000 n 
+0000000345 00000 n 
+0000000846 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+902
+%%EOF
