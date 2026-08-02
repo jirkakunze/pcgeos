@@ -4,22 +4,22 @@
 # If you edit it, you will lose your changes, should it be regenerated.
 #
 GEODE           = pdfviewer
+MAIN            = parser.goc obj.goc gfxState.goc gfx.goc page.goc\
+                  stream.goc gfxFont.goc lexer.goc pdfEngine.goc array.goc\
+                  xref.goc dict.goc catalog.goc
 UI              = pdfvu.goc
-MAIN            = catalog.goc stream.goc gfxState.goc page.goc xref.goc\
-                  array.goc gfxFont.goc lexer.goc dict.goc gfx.goc\
-                  parser.goc obj.goc
 UTIL            = gmem.goc gstr.goc
 UI_TO_RDFS      =
-OBJS            = pdfvu.obj catalog.obj stream.obj gfxState.obj page.obj\
-                  xref.obj array.obj gfxFont.obj lexer.obj dict.obj gfx.obj\
-                  parser.obj obj.obj gmem.obj gstr.obj
-COMMON          = obj.goh ccitt.h pdfvu.goh stream.goh gfxFont2.goh\
-                  gfxFont.goh pdfGeode.goh catalog.goh gtypes.goh gstr.goh\
-                  gmem.goh lexer.goh xref.goh page.goh array.goh parser.goh\
-                  gfxState.goh diction.goh gfx.goh
+OBJS            = parser.obj obj.obj gfxState.obj gfx.obj page.obj\
+                  stream.obj gfxFont.obj lexer.obj pdfEngine.obj array.obj\
+                  xref.obj dict.obj catalog.obj pdfvu.obj gmem.obj gstr.obj
+COMMON          = pdfEngine.h gmem.goh gtypes.goh gfx.goh stream.goh\
+                  obj.goh xref.goh diction.goh page.goh parser.goh\
+                  catalog.goh array.goh ccitt.h lexer.goh gfxState.goh\
+                  gfxFont.goh gstr.goh pdfGeode.goh pdfvu.goh gfxFont2.goh
 MODULES         =
-CMODULES        = ui main util
-SRCS            = $(UI) $(MAIN) $(UTIL) $(COMMON)
+CMODULES        = main ui util
+SRCS            = $(MAIN) $(UI) $(UTIL) $(COMMON)
 LOBJS           =
 
 SYSMAKEFILE     = geode.mk

@@ -1,0 +1,396 @@
+/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+	Copyright (c) GlobalPC 1999.  All rights reserved.
+	GLOBALPC CONFIDENTIAL
+
+PROJECT:	GEOS
+MODULE:		PDF Viewer
+FILE:		main/pdfEngine.goc
+
+DESCRIPTION:
+
+	Implementation of the PDF engine facade declared in pdfEngine.h.
+
+	PHASE 0 STATUS -- read this before changing anything below:
+
+	This file only establishes the handle-management skeleton. Every
+	function has the correct signature and behaves safely (no crashes,
+	no leaks, no dangling handles), but none of them do real PDF work
+	yet:
+
+	  - PdfOpen allocates and zero-initializes the PdfDocInternal
+	    block and wires up XRefInitNull/CatalogInitNull, but does NOT
+	    yet call XRefInit/CatalogInit against the given file. It
+	    always comes back with an unopened (PdfIsValid() == FALSE)
+	    but perfectly well-formed and closeable handle.
+	  - PdfClose, by contrast, IS fully correct already: freeing a
+	    handle that only ever went through PdfOpen's placeholder body
+	    is exactly the same code path as freeing one after a real
+	    parse failure (both start from XRefInitNull/CatalogInitNull),
+	    so this doubles as the Phase 1 error-cleanup path.
+	  - PdfIsValid, PdfGetPageCount, PdfSetProgressCallback,
+	    PdfCancelDecode are fully implemented (they only touch the
+	    handle's own bookkeeping fields, not XRef/Catalog/Gfx).
+	  - PdfGetPageSize, PdfDecodePage, PdfDrawPage, PdfDiscardPage,
+	    PdfDiscardAllPages are stubs that return PDF_ERR_NOT_A_PDF
+	    (nothing to report on an unopened document) and are marked
+	    "TODO(Phase N)" below; wiring them up is Phase 2/3 work.
+
+	See pdfEngine.h for the public contract and the project's phased
+	migration plan for what happens in later phases.
+
+	$Id$
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
+
+@include "pdfvu.goh"
+#include "pdfEngine.h"
+@include "catalog.goh"
+@include "xref.goh"
+@include "obj.goh"
+@include "page.goh"
+#include <graphics.h>		/* for GStateHandle, used by PdfDrawPage --
+				 * not part of the pdfvu.goh chain, see
+				 * main/gfx.goc which needs it for the same
+				 * reason */
+
+
+/***********************************************************************
+ *		Internal layout behind the opaque handles
+ ***********************************************************************
+ *
+ * Private to this file. Nothing outside main/pdfEngine.goc may know
+ * these shapes -- that is the entire point of PdfDocHandle/
+ * PdfPageHandle being opaque MemHandles in pdfEngine.h.
+ *
+ * Field-for-field, PdfDocInternal is today's PDFDoc_* instance data
+ * (see ui/pdfvu.goc) moved out of the UI class and into the engine,
+ * plus the new per-document progress/cancel bookkeeping from Phase 4
+ * of the plan (added now so the struct layout doesn't have to change
+ * again later; the fields are simply unused until Phase 4 wires up
+ * the callback from gfx.goc).
+ */
+
+typedef struct {
+    XRef		xref;
+    Catalog		catalog;
+
+    VMFileHandle	gstringFile;		/* scratch VM file for decoded pages */
+    char		gstringFileName[PATH_LENGTH_ZT];
+
+    MemHandle		pageBlockTable;		/* MemHandle -> array of VMBlockHandle, one per page */
+    word		pageCount;		/* number of pages in the source PDF */
+    word		cachedPageCount;	/* number of pages currently decoded/cached,
+						 * for the eviction limit (today's
+						 * PDFDOC_PAGE_COUNT_LIMIT) -- Phase 3 */
+
+    Boolean		ok;			/* mirrors today's PDFDoc_ok */
+
+    PdfProgressCallback	progressCallback;	/* Phase 4; NULL until then */
+    void		*progressUserData;
+    Boolean		cancelRequested;	/* Phase 4; replaces the global stopLoadingImage */
+} PdfDocInternal;
+
+typedef struct {
+    PdfDocHandle	doc;			/* owning document, needed by PdfDrawPage
+						 * to reach the gstring VM file */
+    word		pageNum;
+    VMBlockHandle	gstringBlock;		/* Phase 3: decoded page's GString block */
+} PdfPageInternal;
+
+
+/***********************************************************************
+ *		Small internal helpers
+ ***********************************************************************
+ */
+
+/*
+ * Lock a document handle and return a pointer to its internals, or
+ * NULL if the handle is bogus. Every public function below starts
+ * with this instead of trusting its caller.
+ */
+static PdfDocInternal *
+PdfLockDoc(PdfDocHandle doc)
+{
+    if (doc == PDF_NULL_DOC) {
+	return NULL;
+    }
+    return (PdfDocInternal *) MemLock((MemHandle) doc);
+}
+
+static void
+PdfUnlockDoc(PdfDocHandle doc)
+{
+    if (doc != PDF_NULL_DOC) {
+	MemUnlock((MemHandle) doc);
+    }
+}
+
+
+/***********************************************************************
+ *		A. Lifecycle
+ ***********************************************************************
+ */
+
+/***********************************************************************
+ *		PdfOpen
+ ***********************************************************************
+ * SYNOPSIS:	    Allocate and zero-initialize a document handle.
+ * PARAMETERS:	    FileHandle file, PdfDocHandle *docOut
+ * RETURNS:	    PdfError
+ * SIDE EFFECTS:    none
+ *
+ * STRATEGY:	    TODO(Phase 1): this currently only allocates the
+ *		    block and null-initializes XRef/Catalog. It does
+ *		    not yet call XRefInit/CatalogInit against `file`,
+ *		    open the gstring scratch file, or set ok = TRUE.
+ *		    Replace the body between the markers below with
+ *		    the logic currently in
+ *		    MSG_GEN_DOCUMENT_PHYSICAL_OPEN (ui/pdfvu.goc),
+ *		    following the same structure: on any failure, jump
+ *		    to a cleanup path that calls PdfClose(*docOut) and
+ *		    returns the appropriate PdfError -- do not
+ *		    duplicate the cleanup logic, PdfClose already does
+ *		    it.
+ *
+ ***********************************************************************/
+PdfError
+PdfOpen(FileHandle file, PdfDocHandle *docOut)
+{
+    MemHandle		mh;
+    PdfDocInternal	*pdoc;
+
+    *docOut = PDF_NULL_DOC;
+
+    mh = MemAlloc(sizeof(PdfDocInternal), HF_DYNAMIC | HF_SWAPABLE,
+		  HAF_ZERO_INIT | HAF_NO_ERR);
+    if (mh == NullHandle) {
+	return PDF_ERR_OUT_OF_MEMORY;
+    }
+
+    pdoc = (PdfDocInternal *) MemLock(mh);
+
+    XRefInitNull(&pdoc->xref);
+    CatalogInitNull(&pdoc->catalog);
+    pdoc->ok = FALSE;
+    pdoc->gstringFile = 0;
+    pdoc->pageBlockTable = NullHandle;
+    pdoc->pageCount = 0;
+    pdoc->cachedPageCount = 0;
+    pdoc->progressCallback = NULL;
+    pdoc->progressUserData = NULL;
+    pdoc->cancelRequested = FALSE;
+
+    MemUnlock(mh);
+
+    /* ----- TODO(Phase 1) begin: real XRefInit/CatalogInit/VMOpen ----- */
+    /* `file` is intentionally unused for now. */
+    /* ----- TODO(Phase 1) end ----- */
+
+    *docOut = (PdfDocHandle) mh;
+    return PDF_OK;
+}
+
+/***********************************************************************
+ *		PdfClose
+ ***********************************************************************
+ * SYNOPSIS:	    Free a document handle and everything it owns.
+ * PARAMETERS:	    PdfDocHandle doc
+ * RETURNS:	    nothing
+ * SIDE EFFECTS:    frees the MemHandle; doc is invalid after this call
+ *
+ * STRATEGY:	    Fully implemented already -- this is deliberately
+ *		    correct from Phase 0 onward, since PdfOpen's error
+ *		    paths in later phases will call straight into this.
+ *		    Mirrors today's `errorClose:` label in
+ *		    MSG_GEN_DOCUMENT_PHYSICAL_OPEN plus the cleanup half
+ *		    of MSG_GEN_DOCUMENT_CLOSE.
+ *
+ ***********************************************************************/
+void
+PdfClose(PdfDocHandle doc)
+{
+    PdfDocInternal *pdoc;
+
+    if (doc == PDF_NULL_DOC) {
+	return;
+    }
+
+    pdoc = PdfLockDoc(doc);
+
+    /* TODO(Phase 3): once PdfDecodePage exists, this should call
+     * PdfDiscardAllPages(doc) here first, before freeing pageBlockTable
+     * itself. Harmless no-op today since cachedPageCount is always 0. */
+
+    CatalogFree(&pdoc->catalog);
+    XRefFree(&pdoc->xref);
+
+    if (pdoc->gstringFile) {
+	VMClose(pdoc->gstringFile, FALSE);
+	FileDelete(pdoc->gstringFileName);
+    }
+
+    if (pdoc->pageBlockTable != NullHandle) {
+	MemFree(pdoc->pageBlockTable);
+    }
+
+    PdfUnlockDoc(doc);
+    MemFree((MemHandle) doc);
+}
+
+/***********************************************************************
+ *		PdfIsValid
+ ***********************************************************************
+ * SYNOPSIS:	    Report whether a document opened successfully.
+ * PARAMETERS:	    PdfDocHandle doc
+ * RETURNS:	    Boolean
+ * SIDE EFFECTS:    none
+ *
+ ***********************************************************************/
+Boolean
+PdfIsValid(PdfDocHandle doc)
+{
+    PdfDocInternal	*pdoc;
+    Boolean		valid;
+
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL) {
+	return FALSE;
+    }
+
+    valid = pdoc->ok;
+
+    PdfUnlockDoc(doc);
+    return valid;
+}
+
+
+/***********************************************************************
+ *		B. Document metadata
+ ***********************************************************************
+ */
+
+/***********************************************************************
+ *		PdfGetPageCount
+ ***********************************************************************
+ * SYNOPSIS:	    Return the number of pages in the document.
+ * PARAMETERS:	    PdfDocHandle doc
+ * RETURNS:	    word
+ * SIDE EFFECTS:    none
+ *
+ * STRATEGY:	    Reads pdoc->pageCount, which PdfOpen will set from
+ *		    CatalogGetNumPages in Phase 1. Returns 0 for an
+ *		    invalid handle or an unopened document, which is
+ *		    the same thing a real empty/failed document would
+ *		    report, so callers don't need a special case.
+ *
+ ***********************************************************************/
+word
+PdfGetPageCount(PdfDocHandle doc)
+{
+    PdfDocInternal	*pdoc;
+    word		count;
+
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL) {
+	return 0;
+    }
+
+    count = pdoc->pageCount;
+
+    PdfUnlockDoc(doc);
+    return count;
+}
+
+/***********************************************************************
+ *		PdfGetPageSize
+ ***********************************************************************
+ * STRATEGY:	    TODO(Phase 5, per the migration plan): real per-page
+ *		    MediaBox lookup. Stub for now.
+ *
+ ***********************************************************************/
+PdfError
+PdfGetPageSize(PdfDocHandle doc, word pageNum, Point *sizeOut)
+{
+    return PDF_ERR_NOT_A_PDF;
+}
+
+
+/***********************************************************************
+ *		C. Rendering
+ ***********************************************************************
+ *
+ * TODO(Phase 3): wrap PDFGetPageGString / PDFSetupGState / GrCopyGString.
+ * All four stubs below are placeholders only.
+ */
+
+PdfError
+PdfDecodePage(PdfDocHandle doc, word pageNum, PdfPageHandle *pageOut)
+{
+    *pageOut = PDF_NULL_PAGE;
+    return PDF_ERR_NOT_A_PDF;
+}
+
+PdfError
+PdfDrawPage(PdfPageHandle page, GStateHandle target)
+{
+    return PDF_ERR_INVALID_HANDLE;
+}
+
+void
+PdfDiscardPage(PdfPageHandle page)
+{
+    /* nothing cached yet in Phase 0 */
+}
+
+void
+PdfDiscardAllPages(PdfDocHandle doc)
+{
+    /* nothing cached yet in Phase 0 */
+}
+
+
+/***********************************************************************
+ *		D. Progress / cancellation
+ ***********************************************************************
+ *
+ * Bookkeeping only in Phase 0 -- nothing calls these back yet.
+ * gfx.goc keeps calling PDFUpdateProgress etc. directly until Phase 4.
+ */
+
+/***********************************************************************
+ *		PdfSetProgressCallback
+ ***********************************************************************/
+void
+PdfSetProgressCallback(PdfDocHandle doc, PdfProgressCallback callback, void *userData)
+{
+    PdfDocInternal *pdoc;
+
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL) {
+	return;
+    }
+
+    pdoc->progressCallback = callback;
+    pdoc->progressUserData = userData;
+
+    PdfUnlockDoc(doc);
+}
+
+/***********************************************************************
+ *		PdfCancelDecode
+ ***********************************************************************/
+void
+PdfCancelDecode(PdfDocHandle doc)
+{
+    PdfDocInternal *pdoc;
+
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL) {
+	return;
+    }
+
+    pdoc->cancelRequested = TRUE;
+
+    PdfUnlockDoc(doc);
+}
