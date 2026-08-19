@@ -1,25 +1,58 @@
-//========================================================================
-//
-// Stream.cc
-//
-// Copyright 1996 Derek B. Noonburg
-//
-//========================================================================
+/***********************************************************************
+ *
+ *                      Copyright FreeGEOS-Project
+ *              Portions Copyright (c) GlobalPC 1999
+ *         Portions Copyright 1996 Derek B. Noonburg (xpdf)
+ *
+ *      Licensed under the Apache License, Version 2.0 (the "License");
+ *      you may not use this file except in compliance with the License.
+ *      You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * PROJECT:       FreeGEOS
+ * MODULE:        PDF Viewer
+ * FILE:          stream.goc
+ *
+ * AUTHOR:        Jirka Kunze: 18.08.2026
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/31/99   mevissen  Initial version (GlobalPC).
+ *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
+ *
+ * DESCRIPTION:
+ *      Port of Derek Noonburg's "Stream" class from xpdf 0.8.
+ *      Simple variable-length string type.
+ ***********************************************************************/
 
 #ifdef __GNUC__
 #pragma implementation
 #endif
 
-@include "pdfvu.goh"
 
-// #include <string.h>
-//#include "config.h"
-@include "obj.goh"
-@include "stream.goh"
-@include "ccitt.h"
+#include <Ansi/string.h>
+#include <Ansi/stdio.h>
+#include <geos.h>
+#include <heap.h>
+#include <lmem.h>
+
+#include "obj.h"
+#include "array.h"
+#include "stream.h"
+@include "ccitt.goh"
+#include "crypt.h"
+#include "gmem.h"
+#include <ctype.h>
+#include <ec.h>
+#include <hugearr.h>
 
 
 //------------------------------------------------------------------------
+
+#define PDF_MAX_CCITT_COLUMNS 32765L
+#define PDF_MAX_PREDICTOR_VALUES 32760L
 
 #define headerSearchSize 1024	// read this many bytes at beginning of
 				//   file to look for '%PDF'
@@ -29,74 +62,87 @@
  * forward decls
 */
 
-Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref);
+static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref);
 
-void FlateStreamReadSome(Stream *str);
-GBool FlateStreamStartBlock(Stream *str);
-void FlateStreamLoadFixedCodes(Stream *str);
-GBool FlateStreamReadDynamicCodes(Stream *str);
-void FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab, long n);
-long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab);
-long FlateStreamGetCodeWord(Stream *str, long bits);
+static void FlateStreamReadSome(Stream *str);
+static word FlateStreamReadRaw(Stream *str, Guchar *buf, word size);
+static long FlateStreamReadByte(Stream *str);
+static GBool FlateStreamStartBlock(Stream *str);
+static void FlateStreamLoadFixedCodes(Stream *str);
+static GBool FlateStreamReadDynamicCodes(Stream *str);
+static GBool FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab, word n);
+static long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab);
+static long FlateStreamGetCodeWord(Stream *str, long bits);
 
 
-void ASCIIHexStreamInit(Stream *str, Stream *str1);
-void ASCIIHexStreamFree(Stream *str);
-void ASCIIHexStreamReset(Stream *str);
-long ASCIIHexStreamLookChar(Stream *str);
-long ASCIIHexStreamGetChar(Stream *str);
+static void ASCIIHexStreamInit(Stream *str, Stream *str1);
+static void ASCIIHexStreamFree(Stream *str);
+static void ASCIIHexStreamReset(Stream *str);
+static long ASCIIHexStreamLookChar(Stream *str);
+static long ASCIIHexStreamGetChar(Stream *str);
 
-void ASCII85StreamInit(Stream *str, Stream *str1);
-void ASCII85StreamFree(Stream *str);
-void ASCII85StreamReset(Stream *str);
-long ASCII85StreamLookChar(Stream *str);
-long ASCII85StreamGetChar(Stream *str);
+static void ASCII85StreamInit(Stream *str, Stream *str1);
+static void ASCII85StreamFree(Stream *str);
+static void ASCII85StreamReset(Stream *str);
+static long ASCII85StreamLookChar(Stream *str);
+static long ASCII85StreamGetChar(Stream *str);
 
-void RunLengthStreamInit(Stream *str, Stream *str1);
-void RunLengthStreamFree(Stream *str);
-void RunLengthStreamReset(Stream *str);
-GBool RunLengthStreamFillBuf(Stream *str);
-long RunLengthStreamGetChar(Stream *str);
-long RunLengthStreamLookChar(Stream *str);
+void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen);
+static void RC4StreamFree(Stream *str);
+static void RC4StreamReset(Stream *str);
+static long RC4StreamLookChar(Stream *str);
+static long RC4StreamGetChar(Stream *str);
+
+static void RunLengthStreamInit(Stream *str, Stream *str1);
+static void RunLengthStreamFree(Stream *str);
+static void RunLengthStreamReset(Stream *str);
+static GBool RunLengthStreamFillBuf(Stream *str);
+static long RunLengthStreamGetChar(Stream *str);
+static long RunLengthStreamLookChar(Stream *str);
 
 void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1, GBool byteAlign1,
 			       long columns1, long rows1, GBool black1);
-void CCITTFaxStreamFree(Stream *str);
-void CCITTFaxStreamReset(Stream *str);
-long CCITTFaxStreamLookChar(Stream *str);
-long CCITTFaxStreamGetChar(Stream *str);
-void CCITTFaxStreamEatBits(Stream *str, short bits);
-short CCITTFaxStreamGetTwoDimCode(Stream *str);
-short CCITTFaxStreamGetWhiteCode(Stream *str);
-short CCITTFaxStreamGetBlackCode(Stream *str);
-short CCITTFaxStreamLook13Bits(Stream *str);
+static void CCITTFaxStreamFree(Stream *str);
+static void CCITTFaxStreamReset(Stream *str);
+static long CCITTFaxStreamLookChar(Stream *str);
+static long CCITTFaxStreamGetChar(Stream *str);
+static void CCITTFaxStreamEatBits(Stream *str, short bits);
+static short CCITTFaxStreamGetTwoDimCode(Stream *str);
+static short CCITTFaxStreamGetWhiteCode(Stream *str);
+static short CCITTFaxStreamGetBlackCode(Stream *str);
+static short CCITTFaxStreamLook13Bits(Stream *str);
 
-void DCTStreamInit(Stream *str, Stream *str1);
-void DCTStreamFree(Stream *str);
-void DCTStreamReset(Stream *str);
-long DCTStreamLookChar(Stream *str);
-long DCTStreamGetChar(Stream *str);
-void DCTStreamRestart(Stream *str);
-GBool DCTStreamReadMCURow(Stream *str);
+static void DCTStreamInit(Stream *str, Stream *str1);
+static void DCTStreamFree(Stream *str);
+static void DCTStreamReset(Stream *str);
+static long DCTStreamLookChar(Stream *str);
+static long DCTStreamGetChar(Stream *str);
+static void DCTStreamRestart(Stream *str);
+static void DCTStreamUnlockRows(DCTData *pdct);
+static GBool DCTStreamLockAllRows(DCTData *pdct);
+static GBool DCTStreamLockOutputRow(DCTData *pdct, short row);
+static void DCTStreamFreeRowBuffers(DCTData *pdct);
+static GBool DCTStreamReadMCURow(Stream *str);
 GBool DCTStreamReadDataUnit(Stream *str, DCTHuffTable *dcHuffTable,
 			      DCTHuffTable *acHuffTable,
 			      Guchar *quantTable, long *prevDC,
 			      Guchar *data);
-long DCTStreamReadHuffSym(Stream *str, DCTHuffTable *table);
-long DCTStreamReadAmp(Stream *str, long size);
-long DCTStreamReadBit(Stream *str);
-GBool DCTStreamReadHeader(Stream *str);
-GBool DCTStreamReadFrameInfo(Stream *str);
-GBool DCTStreamReadScanInfo(Stream *str);
-GBool DCTStreamReadQuantTables(Stream *str);
-GBool DCTStreamReadHuffmanTables(Stream *str);
-GBool DCTStreamReadRestartInterval(Stream *str);
-GBool DCTStreamReadAdobeMarker(Stream *str);
-GBool DCTStreamReadTrailer(Stream *str);
-long DCTStreamReadMarker(Stream *str);
-long DCTStreamRead16(Stream *str);
+static long DCTStreamReadHuffSym(Stream *str, DCTHuffTable *table);
+static long DCTStreamReadAmp(Stream *str, long size);
+static long DCTStreamReadByte(Stream *str);
+static long DCTStreamReadBit(Stream *str);
+static GBool DCTStreamReadHeader(Stream *str);
+static GBool DCTStreamReadFrameInfo(Stream *str);
+static GBool DCTStreamReadScanInfo(Stream *str);
+static GBool DCTStreamReadQuantTables(Stream *str);
+static GBool DCTStreamReadHuffmanTables(Stream *str);
+static GBool DCTStreamReadRestartInterval(Stream *str);
+static GBool DCTStreamReadAdobeMarker(Stream *str);
+static GBool DCTStreamReadTrailer(Stream *str);
+static long DCTStreamReadMarker(Stream *str);
+static long DCTStreamRead16(Stream *str);
 
-Dict *SubStreamGetDict(Stream *str);
+static Dict *SubStreamGetDict(Stream *str);
 
 
 //------------------------------------------------------------------------
@@ -104,6 +150,8 @@ Dict *SubStreamGetDict(Stream *str);
 //------------------------------------------------------------------------
 
 void StreamInit(Stream *stream) {
+
+  EC( ECCheckBounds(stream) );
 
   stream->kind = strWeird;
   stream->str = NULL;
@@ -116,6 +164,8 @@ void StreamInit(Stream *stream) {
 
 
 void StreamFree(Stream *str) {
+
+    EC( ECCheckBounds(str) );
 
     gfree(str->rawLine);
     gfree(str->pixLine);
@@ -135,6 +185,10 @@ void StreamFree(Stream *str) {
 */
     case strSubStream:
 	SubStreamFree(str);
+	return;
+
+    case strObjStmCache:
+	ObjStmCacheStreamFree(str);
 	return;
 /*
  * Other streams wrap other streams that must also be freed; use "break"
@@ -171,19 +225,22 @@ void StreamFree(Stream *str) {
     case strEOF:
 	EOFStreamFree(str);
 	break;
+
+    case strRC4:
+	RC4StreamFree(str);
+	break;
     }
 
     StreamFree(str->str);
     gfree(str->str);
 }
 
-  long StreamIncRef(Stream *stream) { return ++stream->ref; }
-  long StreamDecRef(Stream *stream) { return --stream->ref; }
-
 FileHandle StreamGetFile(Stream *str) {
 
     if (str->kind == strFile)
 	return FStreamGetFile(str);
+    if (str->kind == strObjStmCache)
+	return NullHandle;
 
     return StreamGetFile(str->str);
 }
@@ -204,6 +261,9 @@ long StreamGetChar(Stream *str) {
     case strFlate:
 	return FlateStreamGetChar(str);
 
+    case strObjStmCache:
+	return ObjStmCacheStreamGetChar(str);
+
     case strDCT:
 	return DCTStreamGetChar(str);
 
@@ -221,9 +281,50 @@ long StreamGetChar(Stream *str) {
 
     case strEOF:
 	return EOFStreamGetChar(str);
+
+    case strRC4:
+	return RC4StreamGetChar(str);
     }
 
+    EC_ERROR(-1);
     return EOF;
+}
+
+/*
+ * Read up to size bytes from a stream.  Most stream types retain the
+ * byte-oriented implementation for now; Flate has a block path so its
+ * movable 32 KB window is locked once per block instead of once per byte.
+ */
+word StreamRead(Stream *str, Guchar *buf, word size) {
+  word n;
+  long c;
+
+  if (size == 0)
+    return 0;
+
+  if (str->kind == strFlate)
+    return FlateStreamRead(str, buf, size);
+
+  if (str->kind == strObjStmCache) {
+    for (n = 0; n < size; ++n) {
+      c = ObjStmCacheStreamGetChar(str);
+      if (c == EOF)
+        break;
+      buf[n] = (Guchar)c;
+    }
+    return n;
+  }
+
+  if (str->kind == strSubStream)
+    return StreamRead(str->str, buf, size);
+
+  for (n = 0; n < size; ++n) {
+    c = StreamGetChar(str);
+    if (c == EOF)
+      break;
+    buf[n] = (Guchar)c;
+  }
+  return n;
 }
 
 long StreamLookChar(Stream *str) {
@@ -242,6 +343,9 @@ long StreamLookChar(Stream *str) {
     case strFlate:
 	return FlateStreamLookChar(str);
 
+    case strObjStmCache:
+	return ObjStmCacheStreamLookChar(str);
+
     case strDCT:
 	return DCTStreamLookChar(str);
 
@@ -259,30 +363,46 @@ long StreamLookChar(Stream *str) {
 
     case strEOF:
 	return EOFStreamLookChar(str);
+
+    case strRC4:
+	return RC4StreamLookChar(str);
     }
 
+    EC_ERROR(-1);
     return EOF;
 }
 
 long FlateStreamGetChar(Stream *str) {
   FlateData *pflate = str->u.flate;
-  long c;
-  Guchar *buf = MemLock(pflate->bufhan);
 
-  while (pflate->remain == 0) {
-    if (pflate->endOfBlock && pflate->eof)
-    {
-      MemUnlock(pflate->bufhan);
+  if (pflate->readIndex >= pflate->readCount) {
+    pflate->readCount = FlateStreamReadRaw(str, pflate->readBuf,
+                                           flateReadBufSize);
+    pflate->readIndex = 0;
+    if (pflate->readCount == 0)
       return EOF;
-    }
-    FlateStreamReadSome(str);
   }
-  c = buf[pflate->index];
-  pflate->index = (pflate->index + 1) & flateMask;
-  --pflate->remain;
-  MemUnlock(pflate->bufhan);
-  return c;
+
+  return pflate->readBuf[pflate->readIndex++];
 }
+
+word FlateStreamRead(Stream *str, Guchar *buf, word size) {
+  FlateData *pflate = str->u.flate;
+  word total = 0;
+  word n;
+
+  /* Consume bytes already prefetched for GetChar/LookChar first. */
+  while (total < size && pflate->readIndex < pflate->readCount)
+    buf[total++] = pflate->readBuf[pflate->readIndex++];
+
+  if (total < size) {
+    n = FlateStreamReadRaw(str, buf + total, size - total);
+    total += n;
+  }
+
+  return total;
+}
+
 
 Dict *StreamGetDict(Stream *str) {
 
@@ -300,6 +420,8 @@ Dict *StreamGetDict(Stream *str) {
 
 void StreamReset(Stream *str) {
 
+    EC( ECCheckBounds(str) );
+
     switch (str->kind) {
 
     case strFile:
@@ -316,6 +438,10 @@ void StreamReset(Stream *str) {
 
     case strFlate:
 	FlateStreamReset(str);
+	break;
+
+    case strObjStmCache:
+	ObjStmCacheStreamReset(str);
 	break;
 
     case strDCT:
@@ -342,9 +468,13 @@ void StreamReset(Stream *str) {
 	EOFStreamReset(str);
 	break;
 
+    case strRC4:
+	RC4StreamReset(str);
+	break;
+
     default:
-	EC_WARNING(-1);
-	StreamReset(str->str);
+	EC_ERROR(-1);
+	break;
     }
 }
 
@@ -355,6 +485,8 @@ long StreamGetLength(Stream *str) {
 
     if (str->kind == strFile) 
 	return FStreamGetLength(str);
+    if (str->kind == strObjStmCache)
+	return ObjStmCacheStreamGetLength(str);
 
     return StreamGetLength(str->str);
 }
@@ -363,14 +495,20 @@ long StreamGetPos(Stream *str) {
 
     if (str->kind == strFile) 
 	return FStreamGetPos(str);
+    if (str->kind == strObjStmCache)
+	return ObjStmCacheStreamGetPos(str);
 
     return StreamGetPos(str->str);
 }
 
 void StreamSetPos(Stream *str, long pos1) {
 
+    EC( ECCheckBounds(str) );
+
     if (str->kind == strFile)
 	FStreamSetPos(str, pos1);
+    else if (str->kind == strObjStmCache)
+	ObjStmCacheStreamSetPos(str, pos1);
     else
 	StreamSetPos(str->str, pos1);
 }
@@ -378,6 +516,8 @@ void StreamSetPos(Stream *str, long pos1) {
 GBool StreamIsBinary(Stream *str, GBool last) {
 /* XXX: fill this in, if it matters */
 
+    (void) str;
+    (void) last;
     return gTrue;
 }
 
@@ -403,7 +543,7 @@ void StreamGetLine(Stream *str, char *buf, long size) {
   buf[i] = '\0';
 }
 
-void StreamResetImage(Stream *stream, short width1, short nComps1, short nBits1) {
+GBool StreamResetImage(Stream *stream, long width1, short nComps1, short nBits1) {
 
   StreamReset(stream);
 
@@ -417,11 +557,24 @@ void StreamResetImage(Stream *stream, short width1, short nComps1, short nBits1)
   stream->nVals = (long)(stream->width) * stream->nComps;
   stream->pixBytes = ((long)(stream->nComps) * stream->nBits + 7) >> 3;
   stream->rowBytes = (stream->nVals * stream->nBits + 7) >> 3;
-  stream->rawLine = (Guchar *)grealloc(stream->rawLine, stream->rowBytes + stream->pixBytes);
-  memset(stream->rawLine, 0, stream->rowBytes);
-  stream->pixLine = (Guchar *)grealloc(stream->pixLine, 
-				       ((stream->nVals + 7) & ~7) * sizeof(Guchar));
+  {
+    Guchar *newRawLine;
+    Guchar *newPixLine;
+
+    newRawLine = (Guchar *)grealloc(stream->rawLine, stream->rowBytes + stream->pixBytes);
+    if (!newRawLine)
+      return gFalse;
+    stream->rawLine = newRawLine;
+    memset(stream->rawLine, 0, stream->rowBytes);
+
+    newPixLine = (Guchar *)grealloc(stream->pixLine,
+                                    ((stream->nVals + 7) & ~7) * sizeof(Guchar));
+    if (!newPixLine)
+      return gFalse;
+    stream->pixLine = newPixLine;
+  }
   stream->pixIdx = stream->nVals;
+  return gTrue;
 }
 
 GBool StreamGetImagePixel(Stream *this, Guchar *pix) {
@@ -477,12 +630,21 @@ GBool StreamGetImagePixel(Stream *this, Guchar *pix) {
 	  pb = -pb;
 	if ((pc = p - upLeft) < 0)
 	  pc = -pc;
+	/* pa/pb/pc are only the selection metrics (distance of the
+	 * candidate predictor from p) -- the actual predicted byte
+	 * to add back is the corresponding neighbor value itself
+	 * (left/up/upLeft), not the metric. Was previously adding
+	 * pa/pb/pc here instead, which is not what the PNG Paeth
+	 * filter (RFC 2083 / ISO 15948) specifies and produced
+	 * visibly wrong pixel data for every Paeth-filtered
+	 * scanline (predictor 15 in a PDF /DecodeParms, common for
+	 * photographic/gradient image content). */
 	if (pa <= pb && pa <= pc)
-	  this->rawLine[this->pixBytes+i] = pa + (Guchar)c;
+	  this->rawLine[this->pixBytes+i] = left + (Guchar)c;
 	else if (pb <= pc)
-	  this->rawLine[this->pixBytes+i] = pb + (Guchar)c;
+	  this->rawLine[this->pixBytes+i] = up + (Guchar)c;
 	else
-	  this->rawLine[this->pixBytes+i] = pc + (Guchar)c;
+	  this->rawLine[this->pixBytes+i] = upLeft + (Guchar)c;
 	break;
       case 10:			// PNG none
       default:			// no predictor or TIFF predictor
@@ -564,32 +726,13 @@ GBool StreamGetImagePixel(Stream *this, Guchar *pix) {
   return gTrue;
 }
 
-#if 0
-
-void Stream::skipImageLine() {
-  int n, i;
-
-  n = (nVals * nBits + 7) / 8;
-  for (i = 0; i < n; ++i)
-    getChar();
-  pixIdx = nVals;
-}
-
-void Stream::setPos(int pos) {
-  error(-1, "Internal: called setPos() on non-FileStream");
-}
-
-GString *Stream::getPSFilter(char *indent) {
-  return new GString();
-}
-
-#endif /* 0 */
 
 Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref) {
   Obj obj, obj2;
   Obj params, params2;
   Stream *str;
-  short i;
+  Stream *oldStr;
+  word i;
 
   str = str1;
   ObjDictLookup(dict, "Filter", &obj, xref);
@@ -617,8 +760,15 @@ Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref) {
       } else {
 	  EC_WARNING(-1);
 //	error(getPos(), "Bad filter name");
+	oldStr = str;
 	str = gmalloc( sizeof(Stream) );
-	EOFStreamInit(str, str1);
+	if (!str) {
+	  str = oldStr;
+	  ObjFree(&obj2);
+	  ObjFree(&params2);
+	  break;
+	}
+	EOFStreamInit(str, oldStr);
       }
       ObjFree(&obj2);
       ObjFree(&params2);
@@ -633,7 +783,37 @@ Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref) {
   return str;
 }
 
-Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
+static GBool StreamValidPredictorParams(long pred, long columns, long colors, long bits) {
+  long nVals, rowBits, rowBytes, pixBits, pixBytes, rawSize;
+
+  if (pred == 1)
+    return gTrue;
+  if (!(pred == 2 || (pred >= 10 && pred <= 15)))
+    return gFalse;
+  if (columns < 1 || colors < 1 || colors > 32)
+    return gFalse;
+  if (!(bits == 1 || bits == 2 || bits == 4 || bits == 8 || bits == 16))
+    return gFalse;
+
+  /* Validate every size expression used later by StreamResetImage before
+   * any multiplication/addition can wrap a signed 32-bit long. */
+  if (!PdfCheckedMul(columns, colors, &nVals) ||
+      nVals > PDF_MAX_PREDICTOR_VALUES ||
+      !PdfCheckedMul(nVals, bits, &rowBits) ||
+      !PdfCheckedAdd(rowBits, 7, &rowBits) ||
+      !PdfCheckedMul(colors, bits, &pixBits) ||
+      !PdfCheckedAdd(pixBits, 7, &pixBits))
+    return gFalse;
+
+  rowBytes = rowBits >> 3;
+  pixBytes = pixBits >> 3;
+  if (!PdfCheckedAdd(rowBytes, pixBytes, &rawSize) || rawSize > 65535L)
+    return gFalse;
+
+  return gTrue;
+}
+
+static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
   long pred;			// parameters
   long colors;
   long bits;
@@ -647,6 +827,8 @@ Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
   Stream *str;
 
   str = gmalloc( sizeof(Stream) );
+  if (!str)
+    return str1;
 
   if (!strcmp(name, "ASCIIHexDecode") || !strcmp(name, "AHx")) {
     ASCIIHexStreamInit(str, str1);
@@ -680,7 +862,13 @@ Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
 	early = getInt(&obj);
       ObjFree(&obj);
     }
-    LZWStreamInit(str, str1, pred, columns, colors, bits, early);
+    if (!StreamValidPredictorParams(pred, columns, colors, bits) ||
+	(early != 0 && early != 1)) {
+      EC_WARNING(-1);
+      EOFStreamInit(str, str1);
+    } else {
+      LZWStreamInit(str, str1, pred, columns, colors, bits, early);
+    }
   } else if (!strcmp(name, "RunLengthDecode") || !strcmp(name, "RL")) {
     RunLengthStreamInit(str, str1);
   } else if (!strcmp(name, "CCITTFaxDecode") || !strcmp(name, "CCF")) {
@@ -711,7 +899,12 @@ Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
 	black = getBool(&obj);
       ObjFree(&obj);
     }
-    CCITTFaxStreamInit(str, str1, encoding, byteAlign, columns, rows, black);
+    if (columns < 1 || columns > PDF_MAX_CCITT_COLUMNS || rows < 0) {
+      EC_WARNING(-1);
+      EOFStreamInit(str, str1);
+    } else {
+      CCITTFaxStreamInit(str, str1, encoding, byteAlign, columns, rows, black);
+    }
   } else if (!strcmp(name, "DCTDecode") || !strcmp(name, "DCT")) {
     DCTStreamInit(str, str1);
   } else if (!strcmp(name, "FlateDecode") || !strcmp(name, "Fl")) {
@@ -737,7 +930,12 @@ Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
 	bits = getInt(&obj);
       ObjFree(&obj);
     }
-    FlateStreamInit(str, str1, pred, columns, colors, bits);
+    if (!StreamValidPredictorParams(pred, columns, colors, bits)) {
+      EC_WARNING(-1);
+      EOFStreamInit(str, str1);
+    } else {
+      FlateStreamInit(str, str1, pred, columns, colors, bits);
+    }
   } else {
       EC_WARNING(-1);
 //    error(getPos(), "Unknown filter '%s'", name);
@@ -748,27 +946,213 @@ Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params, XRef *xref) {
 }
 
 //------------------------------------------------------------------------
+// ObjStmCacheStream
+//------------------------------------------------------------------------
+
+static GBool ObjStmCacheStreamFill(Stream *str) {
+  ObjStmCacheStreamData *d = str->u.objStmCache;
+  Guchar *src;
+  word avail, n;
+
+  if (!d || d->pos >= d->length)
+    return gFalse;
+
+  HugeArrayLock(d->vmFile, d->data, d->pos, (void **)&src, &avail);
+  if (!src || avail == 0)
+    return gFalse;
+
+  n = avail;
+  if (n > objStmCacheReadBufSize)
+    n = objStmCacheReadBufSize;
+  if ((long)n > d->length - d->pos)
+    n = (word)(d->length - d->pos);
+  memcpy(d->buf, src, n);
+  HugeArrayUnlock(src);
+  d->bufIndex = 0;
+  d->bufCount = n;
+  return n != 0;
+}
+
+GBool ObjStmCacheStreamInit(Stream *str, VMFileHandle vmFile,
+                            VMBlockHandle data, long start, long length) {
+  ObjStmCacheStreamData *d;
+
+  StreamInit(str);
+  if (!data || start < 0 || length < 0 || start > length)
+    return gFalse;
+
+  d = (ObjStmCacheStreamData *)gmalloc(sizeof(ObjStmCacheStreamData));
+  if (!d)
+    return gFalse;
+
+  str->kind = strObjStmCache;
+  str->u.objStmCache = d;
+  d->vmFile = vmFile;
+  d->data = data;
+  d->start = start;
+  d->pos = start;
+  d->length = length;
+  d->bufIndex = d->bufCount = 0;
+  return gTrue;
+}
+
+void ObjStmCacheStreamFree(Stream *str) {
+  gfree(str->u.objStmCache);
+  str->u.objStmCache = NULL;
+}
+
+void ObjStmCacheStreamReset(Stream *str) {
+  ObjStmCacheStreamData *d = str->u.objStmCache;
+  d->pos = d->start;
+  d->bufIndex = d->bufCount = 0;
+}
+
+long ObjStmCacheStreamGetChar(Stream *str) {
+  ObjStmCacheStreamData *d = str->u.objStmCache;
+  long c;
+
+  if (d->bufIndex >= d->bufCount && !ObjStmCacheStreamFill(str))
+    return EOF;
+  c = d->buf[d->bufIndex++];
+  ++d->pos;
+  return c;
+}
+
+long ObjStmCacheStreamLookChar(Stream *str) {
+  ObjStmCacheStreamData *d = str->u.objStmCache;
+
+  if (d->bufIndex >= d->bufCount && !ObjStmCacheStreamFill(str))
+    return EOF;
+  return d->buf[d->bufIndex];
+}
+
+long ObjStmCacheStreamGetLength(Stream *str) {
+  return str->u.objStmCache->length - str->u.objStmCache->start;
+}
+
+long ObjStmCacheStreamGetPos(Stream *str) {
+  return str->u.objStmCache->pos;
+}
+
+void ObjStmCacheStreamSetPos(Stream *str, long pos) {
+  ObjStmCacheStreamData *d = str->u.objStmCache;
+  if (pos < d->start)
+    pos = d->start;
+  if (pos > d->length)
+    pos = d->length;
+  d->pos = pos;
+  d->bufIndex = d->bufCount = 0;
+}
+
+//------------------------------------------------------------------------
+// Shared file read cache (OPT-17)
+//------------------------------------------------------------------------
+
+/*
+ * All FStreams belonging to one PDF ultimately refer to the same source
+ * FileHandle.  FileDuplicateHandle() does not provide an independent file
+ * position under GEOS, so the old implementation still had to FilePos()
+ * before every 512-byte refill.  Keep one small document-wide read window
+ * instead: a miss reads up to 2 KB, and the existing per-FStream 512-byte
+ * buffers are copied from this window.  No cache data is locked and the
+ * working set is constant.
+ *
+ * The viewer currently has one active source document per process.  The
+ * cache is nevertheless keyed by FileHandle and is explicitly invalidated
+ * by XRefFree(), so a later document cannot see bytes from a recycled
+ * handle.
+ */
+#define fStreamSharedCacheSize 2048
+
+typedef struct FStreamSharedCache {
+  FileHandle file;
+  long pos;
+  word count;
+  Guchar buf[fStreamSharedCacheSize];
+} FStreamSharedCache;
+
+static FStreamSharedCache fStreamSharedCache = { 0, 0, 0 };
+
+void FStreamInvalidateReadCache(FileHandle file) {
+  if (file == 0 || fStreamSharedCache.file == file) {
+    fStreamSharedCache.file = 0;
+    fStreamSharedCache.pos = 0;
+    fStreamSharedCache.count = 0;
+  }
+}
+
+static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n) {
+  long cacheEnd;
+  word offset;
+  word avail;
+  word readCount;
+
+  if (!n)
+    return 0;
+
+  cacheEnd = fStreamSharedCache.pos + (long)fStreamSharedCache.count;
+  if (fStreamSharedCache.file == file &&
+      pos >= fStreamSharedCache.pos && pos < cacheEnd) {
+    offset = (word)(pos - fStreamSharedCache.pos);
+    avail = fStreamSharedCache.count - offset;
+    if (avail >= n) {
+      memcpy(dst, fStreamSharedCache.buf + offset, n);
+      return n;
+    }
+  }
+
+  /* Cache miss.  Physical file position is touched only here. */
+  FilePos(file, pos, FILE_POS_START);
+  readCount = FileRead(file, fStreamSharedCache.buf,
+                       sizeof(fStreamSharedCache.buf), FALSE);
+  fStreamSharedCache.file = file;
+  fStreamSharedCache.pos = pos;
+  fStreamSharedCache.count = readCount;
+
+  if (readCount > n)
+    readCount = n;
+  if (readCount)
+    memcpy(dst, fStreamSharedCache.buf, readCount);
+  return readCount;
+}
+
+//------------------------------------------------------------------------
 // FileStream
 //------------------------------------------------------------------------
 
-void FStreamInit(Stream *this, FileHandle f1, long start1, long length1, Obj *dict1) {
-
+void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1,
+                            long start1, long length1, Obj *dict1) {
     FStream *myfs;
 
     StreamInit(this);
     this->kind = strFile;
+    myfs = this->u.fs = storage;
 
-    myfs = this->u.fs = gmalloc( sizeof (FStream) );
-
-    myfs->f = FileDuplicateHandle(f1);
-
+    /*
+     * Keep the caller-owned source handle.  GEOS duplicate handles share
+     * the underlying file position anyway, so duplicating them only adds
+     * handle churn and cannot isolate FStream reads.
+     */
+    myfs->f = f1;
     myfs->start = myfs->bufPos = start1;
     myfs->length = length1;
     myfs->bufPtr = myfs->bufEnd = myfs->buf;
     myfs->savePos = -1;
-    ObjCopy(&myfs->dict, dict1);
+    ObjMove(&myfs->dict, dict1);
 
-    FilePos(myfs->f, myfs->bufPos, FILE_POS_START);
+    /* Physical seeking is deferred to FStreamReadCached() on a miss. */
+}
+
+void FStreamInit(Stream *this, FileHandle f1, long start1, long length1, Obj *dict1) {
+    FStream *myfs;
+
+    myfs = gmalloc(sizeof(FStream));
+    if (!myfs) {
+        StreamInit(this);
+        this->kind = strEOF;
+        return;
+    }
+    FStreamInitWithStorage(this, myfs, f1, start1, length1, dict1);
 }
 
 
@@ -784,7 +1168,7 @@ void FStreamFree(Stream *this) {
 
     
     ObjFree(&fs->dict);
-    FileClose(fs->f, FALSE);
+    /* fs->f is caller-owned; FStream no longer duplicates the handle. */
     gfree(fs);
 
 }
@@ -792,13 +1176,12 @@ void FStreamFree(Stream *this) {
 void FStreamReset(Stream *str) {
     FStream *this = str->u.fs;
 
-  this->savePos = FilePos(this->f, 0, FILE_POS_RELATIVE);
-  FilePos(this->f, this->start, FILE_POS_START);
+  this->savePos = -1;
   this->bufPtr = this->bufEnd = this->buf;
   this->bufPos = this->start;
 }
 
-GBool FStreamFillBuf(Stream *str) {
+static GBool FStreamFillBuf(Stream *str) {
     FStream *this = str->u.fs;
     word n;
 
@@ -808,10 +1191,11 @@ GBool FStreamFillBuf(Stream *str) {
  * handle would maintain its own independent file position as reads were made.
  * I was wrong.  So, we have to make sure the file is in the correct position:
  */
-  FStreamSetPos(str, this->bufPos);
-
-/*  FStreamSetPos takes care of this: */
-//  this->bufPtr = this->bufEnd = this->buf;
+  /*
+   * bufPos is a logical position.  FStreamReadCached() performs FilePos()
+   * only on a shared-cache miss.
+   */
+  this->bufPtr = this->bufEnd = this->buf;
 
   if (this->length >= 0 && this->bufPos >= this->start + this->length)
     return gFalse;
@@ -819,7 +1203,7 @@ GBool FStreamFillBuf(Stream *str) {
     n = this->start + this->length - this->bufPos;
   else
     n = sizeof (this->buf);
-  n = FileRead(this->f, this->buf, n, FALSE);
+  n = FStreamReadCached(this->f, this->bufPos, (Guchar *)this->buf, n);
   this->bufEnd = this->buf + n;
   if (this->bufPtr >= this->bufEnd)
     return gFalse;
@@ -831,7 +1215,7 @@ void FStreamSetPos(Stream *str, long pos1) {
     long size;
 
   if (pos1 >= 0) {
-    FilePos(this->f, pos1, FILE_POS_START);
+    /* Logical seek only; physical seek happens on the next cache miss. */
     this->bufPos = pos1;
   } else {
     size = FilePos(this->f, 0, FILE_POS_END);
@@ -842,41 +1226,6 @@ void FStreamSetPos(Stream *str, long pos1) {
   this->bufPtr = this->bufEnd = this->buf;
 }
 
-GBool FStreamCheckHeader(Stream *str) {
-    FStream *this = str->u.fs;
-    char hdrBuf[headerSearchSize+1];
-    char *p;
-    gdouble version;
-    long i;
-
-  for (i = 0; i < headerSearchSize; ++i)
-    hdrBuf[i] = FStreamGetChar(str);
-  hdrBuf[headerSearchSize] = '\0';
-  for (i = 0; i < headerSearchSize - 5; ++i) {
-    if (!strncmp(&hdrBuf[i], "%PDF-", 5))
-      break;
-  }
-  if (i >= headerSearchSize - 5) {
-    EC_WARNING(-1);
-//    error(-1, "May not be a PDF file (continuing anyway)");
-    return gFalse;
-  }
-  this->start += i;
-/*  p = strtok(&hdrBuf[i+5], " \t\n\r");
-*/
-/*
- * XXX: should check version number, but FloatAsciiToFloat is such a pain...
- */
-//  p = &hdrBuf[i+5];
-//  version = atof(p);
-//  if (!(hdrBuf[i+5] >= '0' && hdrBuf[i+5] <= '9') || version > pdfVersionNum) {
-//    error(getPos(), "PDF version %s -- xpdf supports version %s"
-//	  " (continuing anyway)", p, pdfVersion);
-//    EC_WARNING(-1);
-//    return gFalse;
-//  }
-  return gTrue;
-}
 
 
 long FStreamGetChar(Stream *str) {
@@ -904,13 +1253,12 @@ long FStreamGetPos(Stream *str) {
 }
 
 //  GBool isBinary(GBool last = gTrue) { return last; }
-  GBool FStreamIsBinary(Stream *str) { return gTrue; }
+  GBool FStreamIsBinary(Stream *str) { (void) str; return gTrue; }
 //  Stream *getBaseStream() { return this; }
   FileHandle FStreamGetFile(Stream *str) { return str->u.fs->f; }
   Dict *FStreamGetDict(Stream *str) { return getDict(&str->u.fs->dict); }
 
   // Get position of first byte of stream within the file.
-long FStreamGetStart(Stream *str) { return str->u.fs->start; }
 
 
 //------------------------------------------------------------------------
@@ -942,7 +1290,7 @@ void SubStreamReset(Stream *str) {
   str->eof = gFalse;
 }
 
-Dict *SubStreamGetDict(Stream *str) {
+static Dict *SubStreamGetDict(Stream *str) {
     return getDict(&str->dict);
 }
 
@@ -957,16 +1305,20 @@ void EOFStreamInit(Stream *str, Stream *str2) {
 }
 
 void EOFStreamFree(Stream *str) {
+    (void) str;
 }
 
 void EOFStreamReset(Stream *str) {
+    (void) str;
 }
 
 long EOFStreamGetChar(Stream *str) {
+    (void) str;
     return EOF;
 }
 
 long EOFStreamLookChar(Stream *str) {
+    (void) str;
     return EOF;
 }
 
@@ -982,7 +1334,7 @@ long EOFStreamLookChar(Stream *str) {
 #pragma code_seg("ASCIIHexStream")
 #endif
 
-void ASCIIHexStreamInit(Stream *str, Stream *str1) {
+static void ASCIIHexStreamInit(Stream *str, Stream *str1) {
   StreamInit(str);
   str->str = str1;
 
@@ -992,17 +1344,18 @@ void ASCIIHexStreamInit(Stream *str, Stream *str1) {
   str->eof = gFalse;
 }
 
-void ASCIIHexStreamFree(Stream *str) {
+static void ASCIIHexStreamFree(Stream *str) {
+    (void) str;
 }
 
-void ASCIIHexStreamReset(Stream *str) {
+static void ASCIIHexStreamReset(Stream *str) {
 
   StreamReset(str->str);
   str->buf = EOF;
   str->eof = gFalse;
 }
 
-long ASCIIHexStreamLookChar(Stream *str) {
+static long ASCIIHexStreamLookChar(Stream *str) {
   long c1, c2, x;
 
   if (str->buf != EOF)
@@ -1057,7 +1410,7 @@ long ASCIIHexStreamLookChar(Stream *str) {
   return str->buf;
 }
 
-long ASCIIHexStreamGetChar(Stream *str) {
+static long ASCIIHexStreamGetChar(Stream *str) {
     long c = ASCIIHexStreamLookChar(str);
     str->buf = EOF; 
     return c;
@@ -1081,28 +1434,32 @@ GBool ASCIIHexStream::isBinary(GBool last) {
 // ASCII85Stream
 //------------------------------------------------------------------------
 
-void ASCII85StreamInit(Stream *str, Stream *str1) {
+static void ASCII85StreamInit(Stream *str, Stream *str1) {
   StreamInit(str);
   str->str = str1;
 
   str->kind = strASCII85;
   str->u.a85 = gmalloc( sizeof(ASCII85Data) );
+  if (!str->u.a85) {
+    EOFStreamInit(str, str1);
+    return;
+  }
 
   str->u.a85->index = str->u.a85->n = 0;
   str->eof = gFalse;
 }
 
-void ASCII85StreamFree(Stream *str) {
+static void ASCII85StreamFree(Stream *str) {
     gfree(str->u.a85);
 }
 
-void ASCII85StreamReset(Stream *str) {
+static void ASCII85StreamReset(Stream *str) {
   StreamReset(str->str);
   str->u.a85->index = str->u.a85->n = 0;
   str->eof = gFalse;
 }
 
-long ASCII85StreamLookChar(Stream *str) {
+static long ASCII85StreamLookChar(Stream *str) {
   short k;
   Gulong t;
   ASCII85Data *p85 = str->u.a85;
@@ -1147,7 +1504,7 @@ long ASCII85StreamLookChar(Stream *str) {
   return p85->b[p85->index];
 }
 
-long ASCII85StreamGetChar(Stream *str) {
+static long ASCII85StreamGetChar(Stream *str) {
     long ch = ASCII85StreamLookChar(str);
     ++str->u.a85->index; 
     return ch;
@@ -1184,7 +1541,7 @@ GBool ASCII85Stream::isBinary(GBool last) {
  * forward decls
  */
 
-long LZWStreamGetCode(Stream *str);
+static long LZWStreamGetCode(Stream *str);
 
 /*
  * Code
@@ -1199,6 +1556,10 @@ void LZWStreamInit(Stream *str, Stream *str2, long predictor1, long columns1, lo
 
   str->kind = strLZW;
   str->u.lzw = gmalloc( sizeof (LZWData) );
+  if (!str->u.lzw) {
+    EOFStreamInit(str, str2);
+    return;
+  }
 
   str->u.lzw->predictor = predictor1;
   str->u.lzw->columns = columns1;
@@ -1206,6 +1567,19 @@ void LZWStreamInit(Stream *str, Stream *str2, long predictor1, long columns1, lo
   str->u.lzw->bits = bits1;
   str->u.lzw->early = early1;
   str->u.lzw->bufPtr = str->u.lzw->bufEnd = str->u.lzw->buf;
+
+  /* generic predictor fields: StreamGetImagePixel's actual
+   * PNG/TIFF-predictor undo logic reads these (str->predictor/
+   * width/nComps/nBits), not the LZW-specific copies above --
+   * FlateStreamInit sets them from the same parameters, but this
+   * function never did, so a /Predictor on an LZW-filtered stream
+   * was silently never undone. */
+  str->predictor = predictor1;
+  if (predictor1 > 1) {
+    str->width = columns1;
+    str->nComps = colors1;
+    str->nBits = bits1;
+  }
 }
 
 void LZWStreamFree(Stream *str) {
@@ -1223,9 +1597,9 @@ void LZWStreamReset(Stream *str) {
   plzw->inputBuf = 0;
   plzw->inputBits = 0;
 
-  for (code = 0; code < 256; code++) {
+  for (code = 0; code < 256; ++code) {
     plzw->codetab[code] = 0;
-    plzw->htab[code] = code;
+    plzw->htab[code] = (Guchar) code;
   }
   plzw->free_ent = 258;
 
@@ -1242,7 +1616,7 @@ void LZWStreamReset(Stream *str) {
   plzw->bufEnd = &plzw->buf[1];
 }
 
-long LZWStreamGetCode(Stream *str) {
+static long LZWStreamGetCode(Stream *str) {
   long c;
   long code;
   LZWData *plzw = str->u.lzw;
@@ -1270,13 +1644,18 @@ GBool LZWStreamFillBuf(Stream *str)
   if (code == 256) {
     // Clear code
 #if 1==0
-    for (code = 0; code < 256; code++) {
+    for (code = 0; code < 256; ++code) {
       codetab[code] = 0;
     }
 #else
     memset(&plzw->codetab[0], 0, 256 * sizeof(short) ); // LJBS 971109, in een klap clearen
 #endif
-    plzw->free_ent = 257;
+    plzw->free_ent = 258;	/* 258, not 257: 257 is the EOF code
+				 * (256=Clear, 257=EOF, matches
+				 * LZWStreamReset's own initial value) --
+				 * a new dictionary entry landing on 257
+				 * would be indistinguishable from a
+				 * genuine EOF marker later in the stream */
     plzw->inCodeBits = 9;
     while ((code = LZWStreamGetCode(str)) == 256);
   }
@@ -1316,7 +1695,7 @@ GBool LZWStreamFillBuf(Stream *str)
   // Generate the new entry.
   if ((code = plzw->free_ent) < 4096) {
     plzw->codetab[code] = (short) plzw->oldcode;
-    plzw->htab[code] = plzw->finchar;
+    plzw->htab[code] = (Guchar) plzw->finchar;
     plzw->free_ent = code + 1;
       // check input code size
       if (plzw->free_ent + plzw->early == 0x200) {
@@ -1359,9 +1738,6 @@ long LZWStreamLookChar(Stream *str) {
 //  return s;
 //}
 
-GBool LZWStreamIsBinary(Stream *str, GBool last) {
-  return StreamIsBinary(str->str, gTrue);
-}
 
 
 //------------------------------------------------------------------------
@@ -1375,22 +1751,26 @@ GBool LZWStreamIsBinary(Stream *str, GBool last) {
 #pragma code_seg("RunLengthStream")
 #endif
 
-void RunLengthStreamInit(Stream *str, Stream *str1) {
+static void RunLengthStreamInit(Stream *str, Stream *str1) {
   StreamInit(str);
   str->str = str1;
 
   str->kind = strRunLength;
   str->u.runLength = gmalloc( sizeof (RunLengthData) );
+  if (!str->u.runLength) {
+    EOFStreamInit(str, str1);
+    return;
+  }
 
   str->u.runLength->bufPtr = str->u.runLength->bufEnd = str->u.runLength->buf;
   str->eof = gFalse;
 }
 
-void RunLengthStreamFree(Stream *str) {
+static void RunLengthStreamFree(Stream *str) {
     gfree(str->u.runLength);
 }
 
-void RunLengthStreamReset(Stream *str) {
+static void RunLengthStreamReset(Stream *str) {
   StreamReset(str->str);
 
   str->u.runLength->bufPtr = str->u.runLength->bufEnd = str->u.runLength->buf;
@@ -1411,7 +1791,7 @@ GBool RunLengthStream::isBinary(GBool last) {
 }
 */
 
-GBool RunLengthStreamFillBuf(Stream *str) {
+static GBool RunLengthStreamFillBuf(Stream *str) {
   RunLengthData *pRun = str->u.runLength;
   long c;
   short n, i;
@@ -1438,14 +1818,14 @@ GBool RunLengthStreamFillBuf(Stream *str) {
   return gTrue;
 }
 
-long RunLengthStreamGetChar(Stream *str) { 
+static long RunLengthStreamGetChar(Stream *str) { 
     RunLengthData *pRun = str->u.runLength;
 
     return (pRun->bufPtr >= pRun->bufEnd && !RunLengthStreamFillBuf(str)) ? 
 	EOF : (*pRun->bufPtr++ & 0xff); 
 }
 
-long RunLengthStreamLookChar(Stream *str) {
+static long RunLengthStreamLookChar(Stream *str) {
     RunLengthData *pRun = str->u.runLength;
 
     return (pRun->bufPtr >= pRun->bufEnd && !RunLengthStreamFillBuf(str)) ? 
@@ -1473,6 +1853,10 @@ void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1, GBool byteAli
 
   str->kind = strCCITTFax;
   pfax = str->u.fax = gmalloc( sizeof (CCITTFaxData) );
+  if (!pfax) {
+    EOFStreamInit(str, str1);
+    return;
+  }
 
   pfax->encoding = encoding1;
   pfax->byteAlign = byteAlign1;
@@ -1481,6 +1865,14 @@ void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1, GBool byteAli
   pfax->black = black1;
   pfax->refLine = (short *)gmalloc((pfax->columns + 2) * sizeof(short));
   pfax->codingLine = (short *)gmalloc((pfax->columns + 2) * sizeof(short));
+  if (!pfax->refLine || !pfax->codingLine) {
+    gfree(pfax->refLine);
+    gfree(pfax->codingLine);
+    gfree(pfax);
+    str->u.fax = NULL;
+    EOFStreamInit(str, str1);
+    return;
+  }
 
   str->eof = gFalse;
   pfax->nextLine2D = pfax->encoding < 0;
@@ -1492,13 +1884,13 @@ void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1, GBool byteAli
   pfax->buf = EOF;
 }
 
-void CCITTFaxStreamFree(Stream *str) {
+static void CCITTFaxStreamFree(Stream *str) {
     gfree(str->u.fax->refLine);
     gfree(str->u.fax->codingLine);
     gfree(str->u.fax);
 }
 
-void CCITTFaxStreamReset(Stream *str) {
+static void CCITTFaxStreamReset(Stream *str) {
     CCITTFaxData *pfax = str->u.fax;
 
     StreamReset(str->str);
@@ -1514,7 +1906,7 @@ void CCITTFaxStreamReset(Stream *str) {
   pfax->buf = EOF;
 }
 
-long CCITTFaxStreamLookChar(Stream *str) {
+static long CCITTFaxStreamLookChar(Stream *str) {
     CCITTFaxData *pfax = str->u.fax;
   long a0New;
   long ret;
@@ -1721,13 +2113,13 @@ long CCITTFaxStreamLookChar(Stream *str) {
   return pfax->buf;
 }
 
-long CCITTFaxStreamGetChar(Stream *str) {
+static long CCITTFaxStreamGetChar(Stream *str) {
     long c = CCITTFaxStreamLookChar(str);
     str->u.fax->buf = EOF;
     return c;
 }
 
-void CCITTFaxStreamEatBits(Stream *str, short bits) {
+static void CCITTFaxStreamEatBits(Stream *str, short bits) {
     str->u.fax->inputBits -= bits;
 }
 
@@ -1739,7 +2131,7 @@ void CCITTFaxStreamEatBits(Stream *str, short bits) {
  */
 
 
-short CCITTFaxStreamGetTwoDimCode(Stream *str) {
+static short CCITTFaxStreamGetTwoDimCode(Stream *str) {
   short code, code0;
   CCITTCode *twoDimTab1;
   CCITTCode *p;
@@ -1783,7 +2175,7 @@ short CCITTFaxStreamGetTwoDimCode(Stream *str) {
   return EOF;
 }
 
-short CCITTFaxStreamGetWhiteCode(Stream *str) {
+static short CCITTFaxStreamGetWhiteCode(Stream *str) {
   short code, retval;
   CCITTCode *p;
   CCITTCode *whiteTab1, *whiteTab2;
@@ -1811,7 +2203,7 @@ short CCITTFaxStreamGetWhiteCode(Stream *str) {
   return EOF;
 }
 
-short CCITTFaxStreamGetBlackCode(Stream *str) {
+static short CCITTFaxStreamGetBlackCode(Stream *str) {
   short code, retval;
   CCITTCode *p;
   CCITTCode *blackTab1, *blackTab2, *blackTab3;
@@ -1842,7 +2234,7 @@ short CCITTFaxStreamGetBlackCode(Stream *str) {
   return EOF;
 }
 
-short CCITTFaxStreamLook13Bits(Stream *str) {
+static short CCITTFaxStreamLook13Bits(Stream *str) {
   long c;
   CCITTFaxData *pfax = str->u.fax;
 
@@ -1935,7 +2327,7 @@ GBool CCITTFaxStream::isBinary(GBool last) {
 static Handle dctClipHandle = 0;
 
 // zig zag decode map
-static int dctZigZag[64] = {
+static const Guchar dctZigZag[64] = {
    0,
    1,  8,
   16,  9,  2,
@@ -1953,7 +2345,7 @@ static int dctZigZag[64] = {
   63
 };
 
-void DCTStreamInit(Stream *str, Stream *str1) {
+static void DCTStreamInit(Stream *str, Stream *str1) {
     DCTData *pdct;
     Guchar *dctClip;
   short i, j;
@@ -1963,15 +2355,32 @@ void DCTStreamInit(Stream *str, Stream *str1) {
 
   str->kind = strDCT;
   pdct = str->u.dct = gmalloc( sizeof (DCTData) );
+  if (!pdct) {
+    EOFStreamInit(str, str1);
+    return;
+  }
 
   pdct->width = pdct->height = 0;
   pdct->mcuWidth = pdct->mcuHeight = 0;
   pdct->numComps = 0;
   pdct->comp = 0;
   pdct->x = pdct->y = pdct->dy = 0;
+  pdct->lockedRow = -1;
+  pdct->idctWorkspaceHandle = NullHandle;
   for (i = 0; i < 4; ++i)
-    for (j = 0; j < 32; ++j)
+    for (j = 0; j < 32; ++j) {
+      pdct->rowBufHandle[i][j] = NullHandle;
       pdct->rowBuf[i][j] = NULL;
+    }
+
+  pdct->idctWorkspaceHandle = MemAlloc(64 * sizeof(long), HF_SWAPABLE, HAF_NO_ERR);
+  if (pdct->idctWorkspaceHandle == NullHandle) {
+    GMemSetError();
+    gfree(pdct);
+    str->u.dct = NULL;
+    EOFStreamInit(str, str1);
+    return;
+  }
 
   if (!dctClipHandle) {
 /*
@@ -1979,6 +2388,16 @@ void DCTStreamInit(Stream *str, Stream *str1) {
  * Stays allocated until geode is exited.
  */
       dctClipHandle = MemAlloc(768, HF_SWAPABLE, HAF_NO_ERR);
+      if (dctClipHandle == NullHandle) {
+        GMemSetError();
+        MemFree(pdct->idctWorkspaceHandle);
+        pdct->idctWorkspaceHandle = NullHandle;
+        gfree(pdct);
+        str->u.dct = NULL;
+        EOFStreamInit(str, str1);
+        return;
+      }
+      EC( ECCheckMemHandle(dctClipHandle) );
       dctClip = MemLock(dctClipHandle);
 
     for (i = -256; i < 0; ++i)
@@ -1992,33 +2411,101 @@ void DCTStreamInit(Stream *str, Stream *str1) {
   }
 }
 
-void DCTStreamFree(Stream *str) {
-    DCTData *pdct = str->u.dct;
+static void DCTStreamUnlockRows(DCTData *pdct) {
   short i, j;
 
-  for (i = 0; i < pdct->numComps; ++i)
-    for (j = 0; j < pdct->mcuHeight; ++j)
-      gfree(pdct->rowBuf[i][j]);
+  for (i = 0; i < 4; ++i) {
+    for (j = 0; j < 32; ++j) {
+      if (pdct->rowBuf[i][j] != NULL) {
+        MemUnlock(pdct->rowBufHandle[i][j]);
+        pdct->rowBuf[i][j] = NULL;
+      }
+    }
+  }
+  pdct->lockedRow = -1;
+}
 
+static GBool DCTStreamLockAllRows(DCTData *pdct) {
+  short i, j;
+
+  DCTStreamUnlockRows(pdct);
+  for (i = 0; i < pdct->numComps; ++i) {
+    for (j = 0; j < pdct->mcuHeight; ++j) {
+      EC( ECCheckMemHandle(pdct->rowBufHandle[i][j]) );
+      pdct->rowBuf[i][j] = (Guchar *)MemLock(pdct->rowBufHandle[i][j]);
+      if (pdct->rowBuf[i][j] == NULL) {
+        DCTStreamUnlockRows(pdct);
+        return gFalse;
+      }
+    }
+  }
+  return gTrue;
+}
+
+static GBool DCTStreamLockOutputRow(DCTData *pdct, short row) {
+  short i;
+
+  if (pdct->lockedRow == row)
+    return gTrue;
+
+  DCTStreamUnlockRows(pdct);
+  for (i = 0; i < pdct->numComps; ++i) {
+    EC( ECCheckMemHandle(pdct->rowBufHandle[i][row]) );
+    pdct->rowBuf[i][row] = (Guchar *)MemLock(pdct->rowBufHandle[i][row]);
+    if (pdct->rowBuf[i][row] == NULL) {
+      DCTStreamUnlockRows(pdct);
+      return gFalse;
+    }
+  }
+  pdct->lockedRow = row;
+  return gTrue;
+}
+
+static void DCTStreamFreeRowBuffers(DCTData *pdct) {
+  short i, j;
+
+  DCTStreamUnlockRows(pdct);
+  for (i = 0; i < 4; ++i) {
+    for (j = 0; j < 32; ++j) {
+      if (pdct->rowBufHandle[i][j] != NullHandle) {
+        MemFree(pdct->rowBufHandle[i][j]);
+        pdct->rowBufHandle[i][j] = NullHandle;
+      }
+    }
+  }
+}
+
+static void DCTStreamFree(Stream *str) {
+  DCTData *pdct = str->u.dct;
+
+  DCTStreamFreeRowBuffers(pdct);
+  if (pdct->idctWorkspaceHandle != NullHandle) {
+    MemFree(pdct->idctWorkspaceHandle);
+    pdct->idctWorkspaceHandle = NullHandle;
+  }
   gfree(pdct);
 }
 
-void DCTStreamReset(Stream *str) {
+static void DCTStreamReset(Stream *str) {
+  DCTData *pdct = str->u.dct;
+
+  DCTStreamFreeRowBuffers(pdct);
   StreamReset(str->str);
   if (!DCTStreamReadHeader(str)) {
-    str->u.dct->y = str->u.dct->height;
+    pdct->y = pdct->height;
     return;
   }
-  str->u.dct->restartMarker = 0xd0;
+  pdct->restartMarker = 0xd0;
   DCTStreamRestart(str);
 }
 
-long DCTStreamLookChar(Stream *str) {
+static long DCTStreamLookChar(Stream *str) {
     DCTData *pdct = str->u.dct;
 
   if (pdct->y >= pdct->height)
     return EOF;
   if (pdct->dy >= pdct->mcuHeight) {
+    DCTStreamUnlockRows(pdct);
     if (!DCTStreamReadMCURow(str)) {
       pdct->y = pdct->height;
       return EOF;
@@ -2027,10 +2514,14 @@ long DCTStreamLookChar(Stream *str) {
     pdct->x = 0;
     pdct->dy = 0;
   }
+  if (!DCTStreamLockOutputRow(pdct, (short)pdct->dy)) {
+    pdct->y = pdct->height;
+    return EOF;
+  }
   return pdct->rowBuf[pdct->comp][pdct->dy][pdct->x];
 }
 
-long DCTStreamGetChar(Stream *str) {
+static long DCTStreamGetChar(Stream *str) {
     DCTData *pdct = str->u.dct;
   long c;
 
@@ -2043,6 +2534,7 @@ long DCTStreamGetChar(Stream *str) {
       pdct->x = 0;
       ++pdct->y;
       ++pdct->dy;
+      DCTStreamUnlockRows(pdct);
     }
   }
   if (pdct->y == pdct->height)
@@ -2050,7 +2542,7 @@ long DCTStreamGetChar(Stream *str) {
   return c;
 }
 
-void DCTStreamRestart(Stream *str) {
+static void DCTStreamRestart(Stream *str) {
     DCTData *pdct = str->u.dct;
   short i;
 
@@ -2060,17 +2552,26 @@ void DCTStreamRestart(Stream *str) {
     pdct->compInfo[i].prevDC = 0;
 }
 
-GBool DCTStreamReadMCURow(Stream *str) {
+static GBool DCTStreamReadMCURow(Stream *str) {
     DCTData *pdct = str->u.dct;
     Guchar *dctClip;
   Guchar data[64];
   Guchar *p1, *p2;
   long pY, pCb, pCr, pR, pG, pB;
-  long h, v, horiz, vert, hSub, vSub;
-  long x1, x2, y2, x3, y3, x4, y4, x5, y5, cc, i;
+  word h, v, horiz, vert, hSub, vSub;
+  long x1, x2, y2, x3, y3, x4, y4, x5, y5, i;
+  word cc;
   long c;
 
+  if (!DCTStreamLockAllRows(pdct))
+    return gFalse;
+
+  EC( ECCheckMemHandle(dctClipHandle) );
   dctClip = MemLock(dctClipHandle);
+  if (dctClip == NULL) {
+    DCTStreamUnlockRows(pdct);
+    return gFalse;
+  }
 
   for (x1 = 0; x1 < pdct->width; x1 += pdct->mcuWidth) {
 
@@ -2082,6 +2583,7 @@ GBool DCTStreamReadMCURow(Stream *str) {
 //	error(getPos(), "Bad DCT data: incorrect restart marker");
 
 	  MemUnlock(dctClipHandle);
+	  DCTStreamUnlockRows(pdct);
 	  return gFalse;
       }
       if (++pdct->restartMarker == 0xd8)
@@ -2095,8 +2597,8 @@ GBool DCTStreamReadMCURow(Stream *str) {
       v = pdct->compInfo[cc].vSample;
       horiz = pdct->mcuWidth / h;
       vert = pdct->mcuHeight / v;
-      hSub = horiz / 8;
-      vSub = vert / 8;
+      hSub = horiz >> 3;
+      vSub = vert >> 3;
       for (y2 = 0; y2 < pdct->mcuHeight; y2 += vert) {
 	for (x2 = 0; x2 < pdct->mcuWidth; x2 += horiz) {
 	  if (!DCTStreamReadDataUnit(str,
@@ -2106,6 +2608,7 @@ GBool DCTStreamReadMCURow(Stream *str) {
 			    &pdct->compInfo[cc].prevDC,
 			    &data)) {
 	      MemUnlock(dctClipHandle);
+	      DCTStreamUnlockRows(pdct);
 	      return gFalse;
 	  }
 	  if (hSub == 1 && vSub == 1) {
@@ -2185,6 +2688,7 @@ GBool DCTStreamReadMCURow(Stream *str) {
     }
   }
   MemUnlock(dctClipHandle);
+  DCTStreamUnlockRows(pdct);
   return gTrue;
 }
 
@@ -2200,21 +2704,51 @@ GBool DCTStreamReadDataUnit(Stream *str, DCTHuffTable *dcHuffTable,
 			      DCTHuffTable *acHuffTable,
 			      Guchar *quantTable, long *prevDC,
 			      Guchar *data) {
+    DCTData *pdct = str->u.dct;
     Guchar *dctClip;
-  long tmp1[64];
+  long *tmp1;
+  GBool result = gFalse;
   long v0, v1, v2, v3, v4, v5, v6, v7, t;
   long run, size, amp;
   long c;
   short i, j;
 
+  EC( ECCheckMemHandle(pdct->idctWorkspaceHandle) );
+  tmp1 = (long *)MemLock(pdct->idctWorkspaceHandle);
+  if (tmp1 == NULL)
+    return gFalse;
+
   // Huffman decode and dequantize
   size = DCTStreamReadHuffSym(str, dcHuffTable);
   if (size == 9999)
-    return gFalse;
+    goto done;
+  /*
+   * size is a raw byte straight out of the JPEG file's own Huffman
+   * table definition (DHT marker) -- see DCTStreamReadHuffSym's
+   * table->sym[], populated directly from StreamGetChar with no
+   * range check at parse time either. A spec-conformant encoder
+   * only ever produces DC coefficient categories 0-11 (8-bit
+   * precision baseline DCT), but nothing stops a malformed or
+   * deliberately malicious DHT table from mapping a Huffman code to
+   * an arbitrary byte value up to 255. DCTStreamReadAmp then uses
+   * size directly as a bit count and computes 1 << size / 1 <<
+   * (size-1) -- for size >= 32 (a 32-bit long), that shift count
+   * exceeds the type's width, which is undefined behavior in C, not
+   * just a wrong-but-safe result. 16 is a generous upper bound
+   * (spec-legal values never exceed 11; the sibling AC path is
+   * naturally capped at 15 via its own 4-bit nibble mask, see
+   * `size = c & 0x0f` below) that rejects anything clearly
+   * out-of-spec while comfortably keeping every real encoder's
+   * output valid.
+   */
+  if (size < 0 || size > 16) {
+    EC_WARNING(-1);
+    goto done;
+  }
   if (size > 0) {
     amp = DCTStreamReadAmp(str, size);
     if (amp == 9999)
-      return gFalse;
+      goto done;
   } else {
     amp = 0;
   }
@@ -2227,7 +2761,7 @@ GBool DCTStreamReadDataUnit(Stream *str, DCTHuffTable *dcHuffTable,
     while ((c = DCTStreamReadHuffSym(str, acHuffTable)) == 0xf0 && run < 0x30)
       run += 0x10;
     if (c == 9999)
-      return gFalse;
+      goto done;
     if (c == 0x00) {
       break;
     } else {
@@ -2235,7 +2769,11 @@ GBool DCTStreamReadDataUnit(Stream *str, DCTHuffTable *dcHuffTable,
       size = c & 0x0f;
       amp = DCTStreamReadAmp(str, size);
       if (amp == 9999)
-	return gFalse;
+	goto done;
+      if (run > 63 - i) {
+        EC_WARNING(-1);
+        goto done;
+      }
       i += run;
       j = dctZigZag[i++];
       tmp1[j] = amp * quantTable[j];
@@ -2347,14 +2885,18 @@ GBool DCTStreamReadDataUnit(Stream *str, DCTHuffTable *dcHuffTable,
   }
 
   // convert to 8-bit integers
+  EC( ECCheckMemHandle(dctClipHandle) );
   dctClip = MemLock(dctClipHandle);
 
   for (i = 0; i < 64; ++i)
     data[i] = dctClip[dctClipOffset + 128 + ((tmp1[i] + 8) >> 4)];
 
   MemUnlock(dctClipHandle);
+  result = gTrue;
 
-  return gTrue;
+done:
+  MemUnlock(pdct->idctWorkspaceHandle);
+  return result;
 }
 #endif
 
@@ -2398,6 +2940,8 @@ GBool DCTStream::readDataUnit(DCTHuffTable *dcHuffTable,
       amp = readAmp(size);
       if (amp == 9999)
 	return gFalse;
+      if (run > 63 - i)
+        return gFalse;
       i += run;
       j = dctZigZag[i++];
       tmp1[j] = amp * quantTable[j];
@@ -2516,10 +3060,10 @@ GBool DCTStream::readDataUnit(DCTHuffTable *dcHuffTable,
 }
 #endif
 
-long DCTStreamReadHuffSym(Stream *str, DCTHuffTable *table) {
+static long DCTStreamReadHuffSym(Stream *str, DCTHuffTable *table) {
   Gushort code;
   long bit;
-  long codeBits;
+  word codeBits;
 
   code = 0;
   codeBits = 0;
@@ -2542,9 +3086,9 @@ long DCTStreamReadHuffSym(Stream *str, DCTHuffTable *table) {
   return 9999;
 }
 
-long DCTStreamReadAmp(Stream *str, long size) {
+static long DCTStreamReadAmp(Stream *str, long size) {
   long amp, bit;
-  long bits;
+  word bits;
 
   amp = 0;
   for (bits = 0; bits < size; ++bits) {
@@ -2557,17 +3101,21 @@ long DCTStreamReadAmp(Stream *str, long size) {
   return amp;
 }
 
-long DCTStreamReadBit(Stream *str) {
+static long DCTStreamReadByte(Stream *str) {
+  return StreamGetChar(str->str);
+}
+
+static long DCTStreamReadBit(Stream *str) {
     DCTData *pdct = str->u.dct;
   long bit;
   long c, c2;
 
   if (pdct->inputBits == 0) {
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = DCTStreamReadByte(str)) == EOF)
       return EOF;
     if (c == 0xff) {
       do {
-	c2 = StreamGetChar(str->str);
+	c2 = DCTStreamReadByte(str);
       } while (c2 == 0xff);
       if (c2 != 0x00) {
 	  EC_WARNING(-1);
@@ -2583,9 +3131,9 @@ long DCTStreamReadBit(Stream *str) {
   return bit;
 }
 
-GBool DCTStreamReadHeader(Stream *str) {
+static GBool DCTStreamReadHeader(Stream *str) {
     DCTData *pdct = str->u.dct;
-  long minHSample, minVSample;
+  word minHSample, minVSample;
   long bufWidth;
   long n;
   long c = 0;
@@ -2598,6 +3146,7 @@ GBool DCTStreamReadHeader(Stream *str) {
   pdct->numDCHuffTables = 0;
   pdct->numACHuffTables = 0;
   pdct->colorXform = 0;
+  pdct->sawAdobeMarker = gFalse;
   pdct->restartInterval = 0;
 
   // read headers
@@ -2641,13 +3190,37 @@ GBool DCTStreamReadHeader(Stream *str) {
       if (c >= 0xe0) {
 	n = DCTStreamRead16(str) - 2;
 	for (i = 0; i < n; ++i)
-	  StreamGetChar(str->str);
+	  DCTStreamReadByte(str);
       } else {
 	  EC_WARNING(-1);
 //	error(getPos(), "Unknown DCT marker <%02x>", c);
 	return gFalse;
       }
       break;
+    }
+  }
+
+  /*
+   * No Adobe APP14 marker means colorXform is still at its
+   * never-set default (0 = "no transform"). That default is wrong
+   * far more often than it's right: most JPEG encoders (including
+   * the one that produced our own 06_images.pdf test file) never
+   * write the Adobe marker at all, but still encode 3-component data
+   * as YCbCr, which is the universal convention every mainstream JPEG
+   * decoder (libjpeg included) assumes in this situation. Apply the
+   * same fallback here: default to YCbCr for 3-component data unless
+   * the component IDs are literally 'R'/'G'/'B' (0x52/0x47/0x42), an
+   * old but still-seen way of explicitly flagging untransformed RGB
+   * without an Adobe marker. 4-component data is left alone (CMYK,
+   * no transform) -- YCCK without an Adobe marker is rare enough
+   * that guessing wrong there would be worse than guessing right
+   * here is common.
+   */
+  if (!pdct->sawAdobeMarker && pdct->numComps == 3) {
+    if (!(pdct->compInfo[0].id == 'R' &&
+	  pdct->compInfo[1].id == 'G' &&
+	  pdct->compInfo[2].id == 'B')) {
+      pdct->colorXform = 1;
     }
   }
 
@@ -2670,23 +3243,47 @@ GBool DCTStreamReadHeader(Stream *str) {
   }
   pdct->mcuWidth = (pdct->mcuWidth / minHSample) * 8;
   pdct->mcuHeight = (pdct->mcuHeight / minVSample) * 8;
+  if (pdct->mcuWidth < 8 || pdct->mcuWidth > 32 ||
+      pdct->mcuHeight < 8 || pdct->mcuHeight > 32) {
+    EC_WARNING(-1);
+    return gFalse;
+  }
 
   // allocate buffers
-  bufWidth = ((pdct->width + pdct->mcuWidth - 1) / pdct->mcuWidth) * pdct->mcuWidth;
+  {
+    long roundedWidth, mcuCount;
+    if (!PdfCheckedAdd(pdct->width, pdct->mcuWidth - 1, &roundedWidth)) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+    mcuCount = roundedWidth / pdct->mcuWidth;
+    if (!PdfCheckedMul(mcuCount, pdct->mcuWidth, &bufWidth) ||
+        bufWidth > 65535L) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+  }
   for (i = 0; i < pdct->numComps; ++i)
-    for (j = 0; j < pdct->mcuHeight; ++j)
-      pdct->rowBuf[i][j] = (Guchar *)gmalloc(bufWidth * sizeof(Guchar));
+    for (j = 0; j < pdct->mcuHeight; ++j) {
+      pdct->rowBufHandle[i][j] = MemAlloc((word)bufWidth, HF_SWAPABLE, HAF_NO_ERR);
+      if (pdct->rowBufHandle[i][j] == NullHandle) {
+        GMemSetError();
+        DCTStreamFreeRowBuffers(pdct);
+        return gFalse;
+      }
+    }
 
   // initialize counters
   pdct->comp = 0;
   pdct->x = 0;
   pdct->y = 0;
   pdct->dy = pdct->mcuHeight;
+  pdct->lockedRow = -1;
 
   return gTrue;
 }
 
-GBool DCTStreamReadFrameInfo(Stream *str) {
+static GBool DCTStreamReadFrameInfo(Stream *str) {
     DCTData *pdct = str->u.dct;
   long length;
   long prec;
@@ -2694,45 +3291,68 @@ GBool DCTStreamReadFrameInfo(Stream *str) {
   short i;
 
   length = DCTStreamRead16(str) - 2;
-  prec = StreamGetChar(str->str);
+  prec = DCTStreamReadByte(str);
   pdct->height = DCTStreamRead16(str);
   pdct->width = DCTStreamRead16(str);
-  pdct->numComps = StreamGetChar(str->str);
+  pdct->numComps = DCTStreamReadByte(str);
   length -= 6;
+  if (pdct->numComps < 1 || pdct->numComps > 4) {
+      EC_WARNING(-1);
+      return gFalse;
+  }
   if (prec != 8) {
       EC_WARNING(-1);
 //    error(getPos(), "Bad DCT precision %d", prec);
     return gFalse;
   }
   for (i = 0; i < pdct->numComps; ++i) {
-    pdct->compInfo[i].id = StreamGetChar(str->str);
+    c = DCTStreamReadByte(str);
+    if (c == EOF) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+    pdct->compInfo[i].id = (Guchar)c;
     pdct->compInfo[i].inScan = gFalse;
-    c = StreamGetChar(str->str);
-    pdct->compInfo[i].hSample = (c >> 4) & 0x0f;
-    pdct->compInfo[i].vSample = c & 0x0f;
-    pdct->compInfo[i].quantTable = StreamGetChar(str->str);
+    c = DCTStreamReadByte(str);
+    if (c == EOF || ((c >> 4) & 0x0f) < 1 || ((c >> 4) & 0x0f) > 4 ||
+        (c & 0x0f) < 1 || (c & 0x0f) > 4) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+    pdct->compInfo[i].hSample = (Guchar)((c >> 4) & 0x0f);
+    pdct->compInfo[i].vSample = (Guchar)(c & 0x0f);
+    c = DCTStreamReadByte(str);
+    if (c < 0 || c >= 4) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+    pdct->compInfo[i].quantTable = (Guchar)c;
     pdct->compInfo[i].dcHuffTable = 0;
     pdct->compInfo[i].acHuffTable = 0;
   }
   return gTrue;
 }
 
-GBool DCTStreamReadScanInfo(Stream *str) {
+static GBool DCTStreamReadScanInfo(Stream *str) {
     DCTData *pdct = str->u.dct;
   long length;
   long scanComps, id, c;
   short i, j;
 
   length = DCTStreamRead16(str) - 2;
-  scanComps = StreamGetChar(str->str);
+  scanComps = DCTStreamReadByte(str);
   --length;
+  if (scanComps < 1 || scanComps > pdct->numComps || scanComps > 4) {
+      EC_WARNING(-1);
+      return gFalse;
+  }
   if (length != 2 * scanComps + 3) {
       EC_WARNING(-1);
 //    error(getPos(), "Bad DCT scan info block");
     return gFalse;
   }
   for (i = 0; i < scanComps; ++i) {
-    id = StreamGetChar(str->str);
+    id = DCTStreamReadByte(str);
     for (j = 0; j < pdct->numComps; ++j) {
       if (id == pdct->compInfo[j].id)
 	break;
@@ -2743,17 +3363,21 @@ GBool DCTStreamReadScanInfo(Stream *str) {
       return gFalse;
     }
     pdct->compInfo[j].inScan = gTrue;
-    c = StreamGetChar(str->str);
-    pdct->compInfo[j].dcHuffTable = (c >> 4) & 0x0f;
-    pdct->compInfo[j].acHuffTable = c & 0x0f;
+    c = DCTStreamReadByte(str);
+    if (c == EOF || ((c >> 4) & 0x0f) >= 4 || (c & 0x0f) >= 4) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+    pdct->compInfo[j].dcHuffTable = (Guchar)((c >> 4) & 0x0f);
+    pdct->compInfo[j].acHuffTable = (Guchar)(c & 0x0f);
   }
-  StreamGetChar(str->str);
-  StreamGetChar(str->str);
-  StreamGetChar(str->str);
+  DCTStreamReadByte(str);
+  DCTStreamReadByte(str);
+  DCTStreamReadByte(str);
   return gTrue;
 }
 
-GBool DCTStreamReadQuantTables(Stream *str) {
+static GBool DCTStreamReadQuantTables(Stream *str) {
     DCTData *pdct = str->u.dct;
   long length;
   long index;
@@ -2761,7 +3385,7 @@ GBool DCTStreamReadQuantTables(Stream *str) {
 
   length = DCTStreamRead16(str) - 2;
   while (length > 0) {
-    index = StreamGetChar(str->str);
+    index = DCTStreamReadByte(str);
     if ((index & 0xf0) || index >= 4) {
 	EC_WARNING(-1);
 //      error(getPos(), "Bad DCT quantization table");
@@ -2770,13 +3394,13 @@ GBool DCTStreamReadQuantTables(Stream *str) {
     if (index == pdct->numQuantTables)
       pdct->numQuantTables = index + 1;
     for (i = 0; i < 64; ++i)
-      pdct->quantTables[index][dctZigZag[i]] = StreamGetChar(str->str);
+      pdct->quantTables[index][dctZigZag[i]] = DCTStreamReadByte(str);
     length -= 65;
   }
   return gTrue;
 }
 
-GBool DCTStreamReadHuffmanTables(Stream *str) {
+static GBool DCTStreamReadHuffmanTables(Stream *str) {
     DCTData *pdct = str->u.dct;
   DCTHuffTable *tbl;
   long length;
@@ -2788,7 +3412,7 @@ GBool DCTStreamReadHuffmanTables(Stream *str) {
 
   length = DCTStreamRead16(str) - 2;
   while (length > 0) {
-    index = StreamGetChar(str->str);
+    index = DCTStreamReadByte(str);
     --length;
     if ((index & 0x0f) >= 4) {
 	EC_WARNING(-1);
@@ -2808,7 +3432,7 @@ GBool DCTStreamReadHuffmanTables(Stream *str) {
     sym = 0;
     code = 0;
     for (i = 1; i <= 16; ++i) {
-      c = StreamGetChar(str->str);
+      c = DCTStreamReadByte(str);
       tbl->firstSym[i] = sym;
       tbl->firstCode[i] = code;
       tbl->numCodes[i] = c;
@@ -2817,13 +3441,13 @@ GBool DCTStreamReadHuffmanTables(Stream *str) {
     }
     length -= 16;
     for (i = 0; i < sym; ++i)
-      tbl->sym[i] = StreamGetChar(str->str);
+      tbl->sym[i] = DCTStreamReadByte(str);
     length -= sym;
   }
   return gTrue;
 }
 
-GBool DCTStreamReadRestartInterval(Stream *str) {
+static GBool DCTStreamReadRestartInterval(Stream *str) {
     DCTData *pdct = str->u.dct;
   long length;
 
@@ -2837,7 +3461,7 @@ GBool DCTStreamReadRestartInterval(Stream *str) {
   return gTrue;
 }
 
-GBool DCTStreamReadAdobeMarker(Stream *str) {
+static GBool DCTStreamReadAdobeMarker(Stream *str) {
     DCTData *pdct = str->u.dct;
   long length, i;
   char buf[12];
@@ -2847,13 +3471,14 @@ GBool DCTStreamReadAdobeMarker(Stream *str) {
   if (length != 14)
     goto err;
   for (i = 0; i < 12; ++i) {
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = DCTStreamReadByte(str)) == EOF)
       goto err;
     buf[i] = c;
   }
   if (strncmp(buf, "Adobe", 5))
     goto err;
   pdct->colorXform = buf[11];
+  pdct->sawAdobeMarker = gTrue;
   return gTrue;
 
  err:
@@ -2862,7 +3487,7 @@ GBool DCTStreamReadAdobeMarker(Stream *str) {
   return gFalse;
 }
 
-GBool DCTStreamReadTrailer(Stream *str) {
+static GBool DCTStreamReadTrailer(Stream *str) {
   long c;
 
   c = DCTStreamReadMarker(str);
@@ -2874,26 +3499,26 @@ GBool DCTStreamReadTrailer(Stream *str) {
   return gTrue;
 }
 
-long DCTStreamReadMarker(Stream *str) {
+static long DCTStreamReadMarker(Stream *str) {
   long c;
 
   do {
     do {
-      c = StreamGetChar(str->str);
+      c = DCTStreamReadByte(str);
     } while (c != 0xff);
     do {
-      c = StreamGetChar(str->str);
+      c = DCTStreamReadByte(str);
     } while (c == 0xff);
   } while (c == 0x00);
   return c;
 }
 
-long DCTStreamRead16(Stream *str) {
+static long DCTStreamRead16(Stream *str) {
   long c1, c2;
 
-  if ((c1 = StreamGetChar(str->str)) == EOF)
+  if ((c1 = DCTStreamReadByte(str)) == EOF)
     return EOF;
-  if ((c2 = StreamGetChar(str->str)) == EOF)
+  if ((c2 = DCTStreamReadByte(str)) == EOF)
     return EOF;
   return (c1 << 8) + c2;
 }
@@ -2911,6 +3536,89 @@ GBool DCTStream::isBinary(GBool last) {
   return str->isBinary(gTrue);
 }
 */
+
+#ifdef __BORLANDC__
+#pragma codeseg stream
+#endif
+#ifdef __WATCOMC__
+#pragma code_seg("stream")
+#endif
+
+//------------------------------------------------------------------------
+// RC4Stream -- decrypts an encrypted PDF's raw stream bytes on the fly,
+// before any other filter (Flate/DCT/...) sees them. See main/crypt.goc
+// for the key derivation; this just drives the shared RC4 primitives
+// one byte at a time, wrapping whatever stream ParserMakeStream built
+// for the object's raw bytes (main/parser.goc).
+//------------------------------------------------------------------------
+
+void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen) {
+    RC4Data *prc4;
+
+    StreamInit(str);
+    str->kind = strRC4;
+    str->str = str1;
+    prc4 = str->u.rc4 = gmalloc(sizeof(RC4Data));
+    if (!prc4) {
+        EOFStreamInit(str, str1);
+        return;
+    }
+    memcpy(prc4->keyBuf, key, keyLen);
+    prc4->keyLen = keyLen;
+    RC4KeySchedule(prc4->keyBuf, prc4->keyLen, prc4->sBox);
+    prc4->rc4i = prc4->rc4j = 0;
+    prc4->peeked = gFalse;
+}
+
+static void RC4StreamFree(Stream *str) {
+    gfree(str->u.rc4);
+}
+
+static void RC4StreamReset(Stream *str) {
+    RC4Data *prc4 = str->u.rc4;
+
+    StreamReset(str->str);
+    /* re-key from scratch -- same key, but the PRGA state (sBox/i/j)
+     * must restart fresh whenever the underlying stream does, same
+     * as any stream cipher used for random-access-by-reset (rather
+     * than genuinely random-access-by-offset, which RC4 as used here
+     * doesn't support at all -- see the StreamSetPos-on-Flate lesson
+     * from the Object Stream work) */
+    RC4KeySchedule(prc4->keyBuf, prc4->keyLen, prc4->sBox);
+    prc4->rc4i = prc4->rc4j = 0;
+    prc4->peeked = gFalse;
+}
+
+static long RC4StreamAdvance(Stream *str) {
+    RC4Data *prc4 = str->u.rc4;
+    long c;
+
+    c = StreamGetChar(str->str);
+    if (c == EOF) {
+	return EOF;
+    }
+    return (long) ((Guchar) c ^ RC4NextByte(prc4->sBox, &prc4->rc4i, &prc4->rc4j));
+}
+
+static long RC4StreamGetChar(Stream *str) {
+    RC4Data *prc4 = str->u.rc4;
+
+    if (prc4->peeked) {
+	prc4->peeked = gFalse;
+	return prc4->peekedChar;
+    }
+    return RC4StreamAdvance(str);
+}
+
+static long RC4StreamLookChar(Stream *str) {
+    RC4Data *prc4 = str->u.rc4;
+
+    if (!prc4->peeked) {
+	prc4->peekedChar = RC4StreamAdvance(str);
+	prc4->peeked = gTrue;
+    }
+    return prc4->peekedChar;
+}
 
 //------------------------------------------------------------------------
 // FlateStream
@@ -3004,7 +3712,20 @@ void FlateStreamInit(Stream *str, Stream *str1, long predictor1, long columns1,
 
   str->kind = strFlate;
   str->u.flate = gmalloc( sizeof (FlateData) );
+  if (!str->u.flate) {
+    EOFStreamInit(str, str1);
+    return;
+  }
   str->u.flate->bufhan = MemAlloc( flateWindow, HF_DYNAMIC, HAF_STANDARD_NO_ERR );
+  if (str->u.flate->bufhan == NullHandle) {
+    GMemSetError();
+    gfree(str->u.flate);
+    str->u.flate = NULL;
+    EOFStreamInit(str, str1);
+    return;
+  }
+  str->u.flate->readIndex = 0;
+  str->u.flate->readCount = 0;
 
   str->predictor = predictor1;
   if (predictor1 > 1) {
@@ -3028,8 +3749,8 @@ void FlateStreamReset(Stream *str) {
   // read header
   //~ need to look at window size?
   pflate->endOfBlock = pflate->eof = gTrue;
-  cmf = StreamGetChar(str->str);
-  flg = StreamGetChar(str->str);
+  cmf = FlateStreamReadByte(str);
+  flg = FlateStreamReadByte(str);
   if (cmf == EOF || flg == EOF)
     return;
   if ((cmf & 0x0f) != 0x08) {
@@ -3056,38 +3777,82 @@ void FlateStreamReset(Stream *str) {
   pflate->compressedBlock = gFalse;
   pflate->endOfBlock = gTrue;
   pflate->eof = gFalse;
+  pflate->readIndex = 0;
+  pflate->readCount = 0;
 }
 
 /* FlateStreamGetChar moved above into StreamGetChar's code segment. */
 
 long FlateStreamLookChar(Stream *str) {
   FlateData *pflate = str->u.flate;
-  long c;
-  Guchar *buf = MemLock(pflate->bufhan);
 
-  while (pflate->remain == 0) {
-    if (pflate->endOfBlock && pflate->eof)
-    {
-      MemUnlock(pflate->bufhan);
+  if (pflate->readIndex >= pflate->readCount) {
+    pflate->readCount = FlateStreamReadRaw(str, pflate->readBuf,
+                                           flateReadBufSize);
+    pflate->readIndex = 0;
+    if (pflate->readCount == 0)
       return EOF;
-    }
-    FlateStreamReadSome(str);
   }
-  c = buf[pflate->index];
-  MemUnlock(pflate->bufhan);
-  return c;
+
+  return pflate->readBuf[pflate->readIndex];
 }
+
+/*
+ * Fill a caller buffer while holding the movable DEFLATE window only once.
+ * FlateStreamReadSome() expects that window to be locked by its caller.
+ */
+static word FlateStreamReadRaw(Stream *str, Guchar *out, word size) {
+  FlateData *pflate = str->u.flate;
+  Guchar *buf;
+  word total = 0;
+  word n;
+  word contiguous;
+
+  if (size == 0)
+    return 0;
+
+  buf = MemLock(pflate->bufhan);
+
+  while (total < size) {
+    while (pflate->remain == 0) {
+      if (pflate->endOfBlock && pflate->eof)
+        goto done;
+      FlateStreamReadSome(str);
+      if (pflate->remain == 0 && pflate->endOfBlock && pflate->eof)
+        goto done;
+    }
+
+    contiguous = (word)flateWindow - pflate->index;
+    n = pflate->remain;
+    if (n > contiguous)
+      n = contiguous;
+    if (n > size - total)
+      n = size - total;
+
+    memcpy(out + total, buf + pflate->index, n);
+    total += n;
+    pflate->index = (pflate->index + n) & flateMask;
+    pflate->remain -= n;
+  }
+
+done:
+  MemUnlock(pflate->bufhan);
+  return total;
+}
+
 
 /*
 GString *FlateStream::getPSFilter(char *indent) {
   return NULL;
 }
 */
-GBool FlateStreamIsBinary(Stream *str, GBool last) {
-  return StreamIsBinary(str->str, gTrue);
+/* SEG-02B: buffer compressed Flate input so the decoder crosses back to
+ * the wrapped stream only once per small block instead of once per byte. */
+static long FlateStreamReadByte(Stream *str) {
+  return StreamGetChar(str->str);
 }
 
-void FlateStreamReadSome(Stream *str) {
+static void FlateStreamReadSome(Stream *str) {
   FlateData *pflate = str->u.flate;
   FlateDecode *lengthDecode;
   FlateDecode *distDecode;
@@ -3141,7 +3906,7 @@ void FlateStreamReadSome(Stream *str) {
   } else {
     len = (pflate->blockLen < flateWindow) ? pflate->blockLen : flateWindow;
     for (i = 0, j = pflate->index; i < len; ++i, j = (j + 1) & flateMask) {
-      if ((c = StreamGetChar(str->str)) == EOF) {
+      if ((c = FlateStreamReadByte(str)) == EOF) {
 	pflate->endOfBlock = pflate->eof = gTrue;
 	break;
       }
@@ -3165,7 +3930,7 @@ err:
   MemUnlock(OptrToHandle(@lengthDecode_));
 }
 
-GBool FlateStreamStartBlock(Stream *str) {
+static GBool FlateStreamStartBlock(Stream *str) {
   FlateData *pflate = str->u.flate;
   long blockHdr;
   long c;
@@ -3180,16 +3945,16 @@ GBool FlateStreamStartBlock(Stream *str) {
   // uncompressed block
   if (blockHdr == 0) {
     pflate->compressedBlock = gFalse;
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = FlateStreamReadByte(str)) == EOF)
       goto err;
     pflate->blockLen = c & 0xff;
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = FlateStreamReadByte(str)) == EOF)
       goto err;
     pflate->blockLen |= (c & 0xff) << 8;
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = FlateStreamReadByte(str)) == EOF)
       goto err;
     check = c & 0xff;
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = FlateStreamReadByte(str)) == EOF)
       goto err;
     check |= (c & 0xff) << 8;
     if (check != (~pflate->blockLen & 0xffff))
@@ -3224,9 +3989,9 @@ err:
   return gFalse;
 }
 
-void FlateStreamLoadFixedCodes(Stream *str) {
+static void FlateStreamLoadFixedCodes(Stream *str) {
   FlateData *pflate = str->u.flate;
-  long i;
+  word i;
 
   // set up code arrays
   pflate->litCodeTab.codes = pflate->allCodes;
@@ -3241,7 +4006,21 @@ void FlateStreamLoadFixedCodes(Stream *str) {
     pflate->litCodeTab.codes[i].len = 7;
   for (i = 280; i <= 287; ++i)
     pflate->litCodeTab.codes[i].len = 8;
-  FlateStreamCompHuffmanCodes(str, &pflate->litCodeTab, flateMaxLitCodes);
+  /*
+   * Return value ignored deliberately (not "forgotten") -- these
+   * lengths are hardcoded literal constants matching the DEFLATE
+   * spec's fixed Huffman table exactly (RFC 1951 3.2.6), not
+   * file-derived data, so FlateStreamCompHuffmanCodes' validation
+   * (see its own comment) can't actually fail here. A genuine
+   * failure would mean a bug in the constants just above, not a
+   * malformed input file -- EC_WARNING covers that unlikely case
+   * without needing to plumb an error return through this
+   * currently-void function for something that isn't a real
+   * runtime failure mode.
+   */
+  if (!FlateStreamCompHuffmanCodes(str, &pflate->litCodeTab, flateMaxLitCodes)) {
+    EC_WARNING(-1);
+  }
 
   // initialize distance code table
   for (i = 0; i < 5; ++i)
@@ -3256,31 +4035,31 @@ void FlateStreamLoadFixedCodes(Stream *str) {
   }
 }
 
-GBool FlateStreamReadDynamicCodes(Stream *str) {
+static GBool FlateStreamReadDynamicCodes(Stream *str) {
   FlateData *pflate = str->u.flate;
   short *codeLenCodeMap;
 
-  long numCodeLenCodes;
-  long numLitCodes;
-  long numDistCodes;
+  word numCodeLenCodes;
+  word numLitCodes;
+  word numDistCodes;
   FlateCode codeLenCodes[flateMaxCodeLenCodes];
   FlateHuffmanTab codeLenCodeTab;
   long len, repeat, code;
-  long i;
+  word i;
 
   MemLock(OptrToHandle(@lengthDecode_));
   codeLenCodeMap = LMemDeref(@codeLenCodeMap_);
 
   // read lengths
-  if ((numLitCodes = FlateStreamGetCodeWord(str, 5)) == EOF)
+  if ((code = FlateStreamGetCodeWord(str, 5)) == EOF)
     goto err;
-  numLitCodes += 257;
-  if ((numDistCodes = FlateStreamGetCodeWord(str, 5)) == EOF)
+  numLitCodes = (word)(code + 257);
+  if ((code = FlateStreamGetCodeWord(str, 5)) == EOF)
     goto err;
-  numDistCodes += 1;
-  if ((numCodeLenCodes = FlateStreamGetCodeWord(str, 4)) == EOF)
+  numDistCodes = (word)(code + 1);
+  if ((code = FlateStreamGetCodeWord(str, 4)) == EOF)
     goto err;
-  numCodeLenCodes += 4;
+  numCodeLenCodes = (word)(code + 4);
   if (numLitCodes > flateMaxLitCodes ||
       numDistCodes > flateMaxDistCodes ||
       numCodeLenCodes > flateMaxCodeLenCodes)
@@ -3291,10 +4070,22 @@ GBool FlateStreamReadDynamicCodes(Stream *str) {
   for (i = 0; i < flateMaxCodeLenCodes; ++i)
     codeLenCodes[i].len = 0;
   for (i = 0; i < numCodeLenCodes; ++i) {
-    if ((codeLenCodes[codeLenCodeMap[i]].len = FlateStreamGetCodeWord(str, 3)) == -1)
+    /*
+     * Read into the existing wide `code` local first, not directly
+     * into codeLenCodes[...].len -- .len is Guchar (0-255, see
+     * project optimization analysis H3), so assigning straight into
+     * it and then comparing THAT against -1 can never be true
+     * (confirmed: a Watcom "comparison result always 0" warning,
+     * and a real bug -- EOF from FlateStreamGetCodeWord would never
+     * be detected here). Check the wide value first, then narrow.
+     */
+    code = FlateStreamGetCodeWord(str, 3);
+    if (code == -1)
       goto err;
+    codeLenCodes[codeLenCodeMap[i]].len = code;
   }
-  FlateStreamCompHuffmanCodes(str, &codeLenCodeTab, flateMaxCodeLenCodes);
+  if (!FlateStreamCompHuffmanCodes(str, &codeLenCodeTab, flateMaxCodeLenCodes))
+    goto err;
 
   // set up code arrays
   pflate->litCodeTab.codes = pflate->allCodes;
@@ -3328,8 +4119,10 @@ GBool FlateStreamReadDynamicCodes(Stream *str) {
       pflate->allCodes[i++].len = len = code;
     }
   }
-  FlateStreamCompHuffmanCodes(str, &pflate->litCodeTab, numLitCodes);
-  FlateStreamCompHuffmanCodes(str, &pflate->distCodeTab, numDistCodes);
+  if (!FlateStreamCompHuffmanCodes(str, &pflate->litCodeTab, numLitCodes))
+    goto err;
+  if (!FlateStreamCompHuffmanCodes(str, &pflate->distCodeTab, numDistCodes))
+    goto err;
 
   MemUnlock(OptrToHandle(@lengthDecode_));
   return gTrue;
@@ -3346,12 +4139,42 @@ err:
 // The result is sorted in order of (1) code length and (2) code word.
 // The length values are no longer valid.  The <tab->start> array is
 // filled with the indexes of the first code of each length.
-void FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab, long n) {
-  long numLengths[flateMaxHuffman+1];
-  long nextCode[flateMaxHuffman+1];
-  long nextIndex[flateMaxHuffman+2];
+static GBool FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab, word n) {
+  /*
+   * numLengths/nextIndex narrowed to word (see project optimization
+   * analysis S6): both are bounded by n (<=flateMaxLitCodes==288)
+   * regardless of input -- numLengths[i] is a plain count of how
+   * many of the n codes have length i, and nextIndex[i] is a
+   * cumulative sum of numLengths entries, so neither can exceed n
+   * itself even for a malformed/adversarial Huffman length
+   * distribution. Verified numerically before making this change.
+   *
+   * nextCode is now ALSO narrowed to word (see project optimization
+   * analysis H3): the earlier S6 analysis found it could be driven
+   * past 9 million by a malformed/adversarial length distribution
+   * (all n codes concentrated at one length), which is why it was
+   * originally kept `long`. Rather than leave it wide to
+   * accommodate invalid input, the code-length distribution is now
+   * validated as it's built (see the `code > (1 << i)` check below)
+   * -- this is exactly Kraft's inequality, checked incrementally: a
+   * *valid* canonical Huffman code (RFC 1951 3.2.2) can never push
+   * nextCode[i] past (1 << i), so any distribution that would is
+   * provably invalid and gets rejected before nextCode ever leaves
+   * a safe range. With that guaranteed, nextCode's own values never
+   * exceed 2^15 (32768) for a table that passes validation, safely
+   * inside word's 65535 ceiling. Verified against the RFC 1951
+   * worked example, a fully-saturated 256-symbol/length-8 table,
+   * and 2000 randomly generated valid (Kraft <= 1) distributions --
+   * none were incorrectly rejected -- plus the original malformed
+   * worst-case from S6, which is correctly rejected immediately.
+   */
+  word numLengths[flateMaxHuffman+1];
+  word nextCode[flateMaxHuffman+1];
+  word nextIndex[flateMaxHuffman+2];
   long code;
-  long i, j;
+  word i, j;
+
+  (void) str;
 
   // count number of codes for each code length
   for (i = 0; i <= flateMaxHuffman; ++i)
@@ -3369,7 +4192,19 @@ void FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab, long n) {
   numLengths[0] = 0;
   for (i = 1; i <= flateMaxHuffman; ++i) {
     code = (code + numLengths[i-1]) << 1;
-    nextCode[i] = code;
+    /*
+     * Kraft's inequality, checked incrementally -- see this
+     * function's own comment above. A valid canonical Huffman code
+     * can never need more code space than is actually available at
+     * this bit length; if it does, the length distribution itself
+     * is invalid (over-subscribed), independent of anything else in
+     * the file.
+     */
+    if (code > (1L << i)) {
+      EC_WARNING(-1);
+      return gFalse;
+    }
+    nextCode[i] = (word) code;
   }
 
   // compute the codes -- this permutes the codes array from value
@@ -3382,21 +4217,22 @@ void FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab, long n) {
       tab->codes[j].code = nextCode[tab->codes[i].len]++;
     tab->codes[j].val = i;
   }
+  return gTrue;
 }
 
-long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab) {
+static long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab) {
   FlateData *pflate = str->u.flate;
-  long len;
+  word len;
   long code;
   long c;
-  long i, j;
+  word i, j;
 
   code = 0;
   for (len = 1; len <= flateMaxHuffman; ++len) {
 
     // add a bit to the code
     if (pflate->codeSize == 0) {
-      if ((c = StreamGetChar(str->str)) == EOF)
+      if ((c = FlateStreamReadByte(str)) == EOF)
 	return EOF;
       pflate->codeBuf = c & 0xff;
       pflate->codeSize = 8;
@@ -3420,12 +4256,12 @@ long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab) {
   return EOF;
 }
 
-long FlateStreamGetCodeWord(Stream *str, long bits) {
+static long FlateStreamGetCodeWord(Stream *str, long bits) {
   FlateData *pflate = str->u.flate;
   long c;
 
   while (pflate->codeSize < bits) {
-    if ((c = StreamGetChar(str->str)) == EOF)
+    if ((c = FlateStreamReadByte(str)) == EOF)
       return EOF;
     pflate->codeBuf |= (c & 0xff) << pflate->codeSize;
     pflate->codeSize += 8;

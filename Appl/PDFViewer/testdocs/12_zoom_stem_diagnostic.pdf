@@ -1,0 +1,164 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [10 0 R 20 0 R 30 0 R] /Count 3 >>
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 12 0 R /F2 13 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 1711 >>
+stream
+BT /F1 14 Tf 50 740 Td (PDF Viewer Test 12: zoom stem-symmetry diagnostic) Tj ET
+BT /F1 9 Tf 50 715 Td (PAGE 1/3 -- CONTROL: no /Widths array, fontWidthFactor forced to 1.0 (no stretch).) Tj ET
+BT /F1 8 Tf 50 685 Td (View this document at 100% zoom first, then switch to 125% zoom) Tj ET
+BT /F1 8 Tf 50 674 Td (and compare the SAME page. Look specifically at the vertical stems) Tj ET
+BT /F1 8 Tf 50 663 Td (of H, N, M, I, l, T, W for left/right thickness asymmetry.) Tj ET
+BT /F1 8 Tf 50 652 Td () Tj ET
+BT /F1 8 Tf 50 641 Td (Hypothesis under test: main/gfx.goc's setTextTransform() computes) Tj ET
+BT /F1 8 Tf 50 630 Td (font->fontWidthFactor ONCE per font, from the ratio of the PDF's) Tj ET
+BT /F1 8 Tf 50 619 Td (declared width for 'm' vs. the GEOS substitute font's actual) Tj ET
+BT /F1 8 Tf 50 608 Td (rendered 'm' width, then bakes it in as an INTEGER percentage via) Tj ET
+BT /F1 8 Tf 50 597 Td (GrSetFontWidth(gstring, IntegerOf(font->fontWidthFactor * 100)).) Tj ET
+BT /F1 8 Tf 50 586 Td (Because pages are cached (Phase 3), zooming later replays the same) Tj ET
+BT /F1 8 Tf 50 575 Td (GString without recomputing this factor -- so the prediction is:) Tj ET
+BT /F1 8 Tf 50 564 Td (pages with fontWidthFactor far from 1.0 should show WORSE stem) Tj ET
+BT /F1 8 Tf 50 553 Td (asymmetry at 125% than the control page, which should look clean) Tj ET
+BT /F1 8 Tf 50 542 Td (at both zoom levels.) Tj ET
+BT /F2 48 Tf 50 511 Td (HNMI lTW) Tj ET
+BT /F2 36 Tf 50 444 Td (HNMI lTW) Tj ET
+BT /F2 24 Tf 50 394 Td (HNMI lTW) Tj ET
+BT /F2 18 Tf 50 361 Td (HNMI lTW) Tj ET
+BT /F2 14 Tf 50 336 Td (HNMI lTW) Tj ET
+BT /F2 11 Tf 50 317 Td (HNMI lTW) Tj ET
+BT /F2 20 Tf 50 292 Td (IIIIIIII  llllllll  MMMM  HHHH) Tj ET
+
+endstream
+endobj
+12 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+13 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 22 0 R /F2 23 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 1712 >>
+stream
+BT /F1 14 Tf 50 740 Td (PDF Viewer Test 12: zoom stem-symmetry diagnostic) Tj ET
+BT /F1 9 Tf 50 715 Td (PAGE 2/3 -- 'm' declared at 500/1000 em (real Helvetica ~889) -> ~56% width factor.) Tj ET
+BT /F1 8 Tf 50 685 Td (View this document at 100% zoom first, then switch to 125% zoom) Tj ET
+BT /F1 8 Tf 50 674 Td (and compare the SAME page. Look specifically at the vertical stems) Tj ET
+BT /F1 8 Tf 50 663 Td (of H, N, M, I, l, T, W for left/right thickness asymmetry.) Tj ET
+BT /F1 8 Tf 50 652 Td () Tj ET
+BT /F1 8 Tf 50 641 Td (Hypothesis under test: main/gfx.goc's setTextTransform() computes) Tj ET
+BT /F1 8 Tf 50 630 Td (font->fontWidthFactor ONCE per font, from the ratio of the PDF's) Tj ET
+BT /F1 8 Tf 50 619 Td (declared width for 'm' vs. the GEOS substitute font's actual) Tj ET
+BT /F1 8 Tf 50 608 Td (rendered 'm' width, then bakes it in as an INTEGER percentage via) Tj ET
+BT /F1 8 Tf 50 597 Td (GrSetFontWidth(gstring, IntegerOf(font->fontWidthFactor * 100)).) Tj ET
+BT /F1 8 Tf 50 586 Td (Because pages are cached (Phase 3), zooming later replays the same) Tj ET
+BT /F1 8 Tf 50 575 Td (GString without recomputing this factor -- so the prediction is:) Tj ET
+BT /F1 8 Tf 50 564 Td (pages with fontWidthFactor far from 1.0 should show WORSE stem) Tj ET
+BT /F1 8 Tf 50 553 Td (asymmetry at 125% than the control page, which should look clean) Tj ET
+BT /F1 8 Tf 50 542 Td (at both zoom levels.) Tj ET
+BT /F2 48 Tf 50 511 Td (HNMI lTW) Tj ET
+BT /F2 36 Tf 50 444 Td (HNMI lTW) Tj ET
+BT /F2 24 Tf 50 394 Td (HNMI lTW) Tj ET
+BT /F2 18 Tf 50 361 Td (HNMI lTW) Tj ET
+BT /F2 14 Tf 50 336 Td (HNMI lTW) Tj ET
+BT /F2 11 Tf 50 317 Td (HNMI lTW) Tj ET
+BT /F2 20 Tf 50 292 Td (IIIIIIII  llllllll  MMMM  HHHH) Tj ET
+
+endstream
+endobj
+22 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+23 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 32 /LastChar 126 /Widths [556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 500 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556] >>
+endobj
+30 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 32 0 R /F2 33 0 R >> >> /Contents 31 0 R >>
+endobj
+31 0 obj
+<< /Length 1719 >>
+stream
+BT /F1 14 Tf 50 740 Td (PDF Viewer Test 12: zoom stem-symmetry diagnostic) Tj ET
+BT /F1 9 Tf 50 715 Td (PAGE 3/3 -- 'm' declared at 300/1000 em -> ~34% width factor (near the compression floor).) Tj ET
+BT /F1 8 Tf 50 685 Td (View this document at 100% zoom first, then switch to 125% zoom) Tj ET
+BT /F1 8 Tf 50 674 Td (and compare the SAME page. Look specifically at the vertical stems) Tj ET
+BT /F1 8 Tf 50 663 Td (of H, N, M, I, l, T, W for left/right thickness asymmetry.) Tj ET
+BT /F1 8 Tf 50 652 Td () Tj ET
+BT /F1 8 Tf 50 641 Td (Hypothesis under test: main/gfx.goc's setTextTransform() computes) Tj ET
+BT /F1 8 Tf 50 630 Td (font->fontWidthFactor ONCE per font, from the ratio of the PDF's) Tj ET
+BT /F1 8 Tf 50 619 Td (declared width for 'm' vs. the GEOS substitute font's actual) Tj ET
+BT /F1 8 Tf 50 608 Td (rendered 'm' width, then bakes it in as an INTEGER percentage via) Tj ET
+BT /F1 8 Tf 50 597 Td (GrSetFontWidth(gstring, IntegerOf(font->fontWidthFactor * 100)).) Tj ET
+BT /F1 8 Tf 50 586 Td (Because pages are cached (Phase 3), zooming later replays the same) Tj ET
+BT /F1 8 Tf 50 575 Td (GString without recomputing this factor -- so the prediction is:) Tj ET
+BT /F1 8 Tf 50 564 Td (pages with fontWidthFactor far from 1.0 should show WORSE stem) Tj ET
+BT /F1 8 Tf 50 553 Td (asymmetry at 125% than the control page, which should look clean) Tj ET
+BT /F1 8 Tf 50 542 Td (at both zoom levels.) Tj ET
+BT /F2 48 Tf 50 511 Td (HNMI lTW) Tj ET
+BT /F2 36 Tf 50 444 Td (HNMI lTW) Tj ET
+BT /F2 24 Tf 50 394 Td (HNMI lTW) Tj ET
+BT /F2 18 Tf 50 361 Td (HNMI lTW) Tj ET
+BT /F2 14 Tf 50 336 Td (HNMI lTW) Tj ET
+BT /F2 11 Tf 50 317 Td (HNMI lTW) Tj ET
+BT /F2 20 Tf 50 292 Td (IIIIIIII  llllllll  MMMM  HHHH) Tj ET
+
+endstream
+endobj
+32 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+33 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 32 /LastChar 126 /Widths [556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 300 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556 556] >>
+endobj
+xref
+0 35
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000136 00000 n 
+0000000276 00000 n 
+0000002040 00000 n 
+0000002111 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000002182 00000 n 
+0000002322 00000 n 
+0000004087 00000 n 
+0000004158 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000004647 00000 n 
+0000004787 00000 n 
+0000006559 00000 n 
+0000006630 00000 n 
+0000000000 00000 f 
+trailer
+<< /Size 35 /Root 1 0 R >>
+startxref
+7119
+%%EOF

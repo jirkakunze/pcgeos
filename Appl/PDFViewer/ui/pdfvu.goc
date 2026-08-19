@@ -32,15 +32,13 @@ DESCRIPTION:
  ***************************************************************************
  */
 
-@include "pdfvu.goh"
-@include "obj.goh"
-@include "catalog.goh"
-@include "xref.goh"
-@include "page.goh"
-@include "gfx.goh"
+
+@include <stdapp.goh>
+#include "pdfEngine.h"
 #include "graphics.h"
 @include "spool.goh"
 #include "initfile.h"
+#include <Ansi/string.h>
 
 @include <Objects/gViewCC.goh>
 @include <Objects/gPageCC.goh>
@@ -51,9 +49,19 @@ DESCRIPTION:
 */
 
 void PDFUpdatePageControl (word totalPages, word curPage);
-void PDFSetupGState(optr oself, GStateHandle gstate, Catalog *catalog,
-    word pagenum, Boolean printing);
-VMBlockHandle PDFGetPageGString (optr thisDoc, word pagenum);
+
+/*
+ * The callback registered with the engine via PdfSetProgressCallback
+ * in MSG_GEN_DOCUMENT_PHYSICAL_OPEN; defined near MSG_VIS_DRAW.
+ */
+void PDFDocProgressCallback(dword kind, dword current, dword total, void *userData);
+
+/*
+ * PDFSetupGState and PDFGetPageGString used to be declared here and
+ * defined further down in this file. Both moved into the PDF engine
+ * (main/pdfEngine.goc, as PdfDrawPage's internals and PdfDecodePage
+ * respectively) -- see pdfEngine.h.
+ */
 
 /*
  ***************************************************************************
@@ -78,7 +86,19 @@ VMBlockHandle PDFGetPageGString (optr thisDoc, word pagenum);
  ***************************************************************************
  */
 
-GBool stopLoadingImage;		/* set by cancel button to stop image loading */
+/*
+ * Set for the duration of a PdfDecodePage call so
+ * PDFImageInteractionClass's cancel button
+ * (MSG_GEN_GUP_INTERACTION_COMMAND) knows which document's decode to
+ * cancel. PDFImageProgressDialog/PDFImageInteractionClass are
+ * singleton UI objects with no direct link back to whichever
+ * PDFDocumentClass instance is currently decoding, so this tracks it
+ * explicitly -- same single-active-decode assumption the old global
+ * stopLoadingImage flag already made (only one decode happens at a
+ * time), just routed through the engine's per-document cancel flag
+ * instead of a raw bool.
+ */
+PdfDocHandle currentlyDecodingDoc = PDF_NULL_DOC;
 
 Boolean onTV, g_showTools;
 
@@ -121,31 +141,37 @@ Boolean onTV, g_showTools;
 /* data from the 'pdf doc' object in xpdf */
 
 
-@instance  XRef 	PDFDoc_xref = {0, 0, 0, 0, 0, 0, 0, {0, {0}}};	/* needed to find "objects" in pdf file */
+/*
+ * All PDF-internal state (XRef, Catalog, decoded-page cache, scratch
+ * VM file) now lives behind this one opaque handle in the PDF engine
+ * (see pdfEngine.h). PDFDoc_xref/PDFDoc_catalog/PDFDoc_gstringFile/
+ * PDFDoc_pageData/PDFDoc_ok used to be separate instance vars here;
+ * they're gone, PdfIsValid(PDFDoc_engine) replaces PDFDoc_ok.
+ */
+@instance  PdfDocHandle	PDFDoc_engine = PDF_NULL_DOC;
 
-@instance  Catalog	PDFDoc_catalog = {0, 0, 0, 0, {0, {0}}, {0, {0}}, 0}; /* catalog of page descriptions */
-
-@instance  char		PDFDoc_gstringFileName[PATH_LENGTH_ZT];
-					/* VM scratch file name */
-
-@instance  VMFileHandle	PDFDoc_gstringFile = 0; /* handle to VM scratch file */
-
-@instance  MemHandle	PDFDoc_pageData = 0; /* array of gstring handles */
+/*
+ * The file the engine was opened from. Ownership of this FileHandle
+ * stays with the UI (see PdfOpen's contract in pdfEngine.h) -- we
+ * used to reach into PDFDoc_xref.fHan for this (MSG_PDF_DOCUMENT_
+ * SAVE_FILE_NOW), which isn't possible any more now that XRef is an
+ * engine-internal detail.
+ */
+@instance  FileHandle	PDFDoc_sourceFile = 0;
 
 @instance  word		PDFDoc_pageNum = 1;  /* current page num on display */
 
-@instance  GBool 	PDFDoc_ok;	/* true if pdf doc is okay */
-
 @instance  Point    PDFDoc_bounds = {0, 0};  /* view bounds of current page */
-
-@instance  int      PDFDoc_pageCount = 0;   /* current number of pages in the gstring file */
 
 /* User can 'save' this document to SP_DOCUMENT if this value is TRUE. */
 @instance  Boolean	PDFDoc_saveable = FALSE;
 
 @endc
 
-#define PDFDOC_PAGE_COUNT_LIMIT 30
+/* PDFDOC_PAGE_COUNT_LIMIT used to be defined here (30); the page-cache
+ * eviction it controlled now lives entirely in the engine as
+ * PDF_MAX_CACHED_PAGES (main/pdfEngine.goc) -- the UI doesn't manage
+ * the cache any more. */
 
 
 @class  PDFDocumentControlClass, GenDocumentControlClass ;
@@ -828,6 +854,10 @@ Boolean onTV, g_showTools;
                         "open the file.  The file may be corrupt or may not "
                         "be a PDF file.";
 
+@chunk char PDFOpenEncryptedError[] = "This PDF file is encrypted/password-protected. "
+                        "PDF Viewer does not currently support opening encrypted "
+                        "PDF files. The file itself is not corrupt.";
+
 @chunk TCHAR SaveFileExistsStr[] = "The file already exists - please choose another name.";
 
 @chunk TCHAR SaveFileErrorStr[] = "Unkown error in saving file - try again possibly with a different file name.";
@@ -1100,16 +1130,11 @@ Boolean onTV, g_showTools;
 @method PDFDocumentClass, MSG_GEN_DOCUMENT_PHYSICAL_OPEN
 {
     Boolean status;
-    Obj catDict;
-    char *p;
-    long numPages = 0;
+    PdfError err;
 
   /* setup */
-    pself->PDFDoc_ok = gFalse;
-    pself->PDFDoc_gstringFile = 0;
-
-    XRefInitNull(&pself->PDFDoc_xref);
-    CatalogInitNull(&pself->PDFDoc_catalog);
+    pself->PDFDoc_engine = PDF_NULL_DOC;
+    pself->PDFDoc_sourceFile = 0;
 
 
 /* use superclass to open file; return if error */
@@ -1121,66 +1146,23 @@ Boolean onTV, g_showTools;
 
     if (!*fileOrError) return (TRUE);
 
-/* read pdf params from file */
-/* Read in xref data */
+    pself->PDFDoc_sourceFile = *fileOrError;
 
-    XRefInit(&pself->PDFDoc_xref, *fileOrError);
+/* hand the already-open file to the PDF engine -- it parses the xref
+ * table, the page catalog, and opens its own scratch VM file for
+ * decoded pages. See pdfEngine.h for what PdfOpen does and doesn't do
+ * (in particular: it never closes `file` itself, on success or
+ * failure -- that stays our job below). */
 
-    if (!XRefIsOk(&pself->PDFDoc_xref)) {
+    err = PdfOpen(*fileOrError, &pself->PDFDoc_engine);
+    if (err != PDF_OK) {
 	EC_WARNING(-1);
-//	error(-1, "Couldn't read xref table");
-	goto errorClose;
-  }
-
-  /*
-   * Open the VM file that will hold the page-describing gstrings.
-   * It's a temp file, so put it in the wastebasket.
-   */
-    p = pself->PDFDoc_gstringFileName;
-    FileConstructFullPath(&p, sizeof(pself->PDFDoc_gstringFileName), 
-			  SP_WASTE_BASKET,
-			  "", TRUE);
-
-    pself->PDFDoc_gstringFile = 
-	VMOpen(pself->PDFDoc_gstringFileName, 
-	       VMAF_FORCE_READ_WRITE | VMAF_USE_BLOCK_LEVEL_SYNCHRONIZATION,
-	       VMO_TEMP_FILE, 
-	       0);
-
-    if (!pself->PDFDoc_gstringFile) {
-	EC_WARNING(-1);
+//	error(-1, "Couldn't open PDF document");
 	goto errorClose;
     }
-/*
- * Set single-thread access of VM file
- */
-//    VMSetAttributes(pself->PDFDoc_gstringFile,
-//		    VMA_SINGLE_THREAD_ACCESS, 0);
-
-  // read catalog
-
-    XRefGetCatalog(&pself->PDFDoc_xref, &catDict);
-    CatalogInit(&pself->PDFDoc_catalog, 
-		&catDict, 
-		pself->PDFDoc_gstringFile,
-		&pself->PDFDoc_xref);
-
-    ObjFree(&catDict);
-    if (!CatalogIsOk(&pself->PDFDoc_catalog)) {
-	EC_WARNING(-1);
-//    error(-1, "Couldn't read page catalog");
-	goto errorClose;
-  }
 
   // done
-    pself->PDFDoc_ok = gTrue;
 
-    numPages = CatalogGetNumPages(&pself->PDFDoc_catalog);
-    pself->PDFDoc_pageCount = 0;
-
-    pself->PDFDoc_pageData = MemAlloc(numPages * sizeof(VMBlockHandle),
-				      HF_SWAPABLE,
-				      HAF_ZERO_INIT | HAF_NO_ERR);
   /*
    * Set current page, tell controller # of pages -- XXX: how is this
 	* done when switching between multiple docs?  jfh - tell the control
@@ -1188,7 +1170,12 @@ Boolean onTV, g_showTools;
    */
 	 pself->PDFDoc_pageNum = 1;
 
-    PDFUpdatePageControl(numPages, 1);
+    /* Phase 4: route this document's page/image progress through
+     * PDFDocProgressCallback instead of the four separate functions
+     * gfx.goc used to call by name. */
+    PdfSetProgressCallback(pself->PDFDoc_engine, PDFDocProgressCallback, NULL);
+
+    PDFUpdatePageControl(PdfGetPageCount(pself->PDFDoc_engine), 1);
 
     /* opened okay -- return carry clear. */
 
@@ -1199,17 +1186,10 @@ errorClose:
 
     pself = ObjDerefGen(oself);
 /*
- * Free any allocated memory
+ * Free anything the engine allocated
  */
-    CatalogFree(&pself->PDFDoc_catalog);
-    XRefFree(&pself->PDFDoc_xref);
-/*
- * Close & delete the scratch vm file, if opened
- */
-    if (pself->PDFDoc_gstringFile) {
-	VMClose(pself->PDFDoc_gstringFile, FALSE);
-	FileDelete(pself->PDFDoc_gstringFileName);
-    }
+    PdfClose(pself->PDFDoc_engine);
+    pself->PDFDoc_engine = PDF_NULL_DOC;
 
 /* 
  * Close the doc file by hand -- the system opened it fine, but we don't think
@@ -1218,15 +1198,26 @@ errorClose:
 
     FileClose(*fileOrError, FALSE);
     *fileOrError = 0;
+    pself->PDFDoc_sourceFile = 0;
 
 /*
- * Display an error message.
+ * Display an error message. Encrypted files get their own, specific
+ * message -- PdfOpen already distinguishes PDF_ERR_ENCRYPTED from a
+ * genuinely corrupt file (PDF_ERR_BAD_XREF etc.), no reason to make
+ * the user read "may be corrupt" for a file that isn't.
  */
 
-    UserStandardDialogOptr(NULL, NULL, NullOptr, NullOptr,
-      @PDFOpenError,
-      (CDT_ERROR << CDBF_DIALOG_TYPE_OFFSET) |
-      (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+    if (err == PDF_ERR_ENCRYPTED) {
+	UserStandardDialogOptr(NULL, NULL, NullOptr, NullOptr,
+	  @PDFOpenEncryptedError,
+	  (CDT_ERROR << CDBF_DIALOG_TYPE_OFFSET) |
+	  (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+    } else {
+	UserStandardDialogOptr(NULL, NULL, NullOptr, NullOptr,
+	  @PDFOpenError,
+	  (CDT_ERROR << CDBF_DIALOG_TYPE_OFFSET) |
+	  (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+    }
 
     return TRUE;
 
@@ -1299,46 +1290,9 @@ errorClose:
  ***********************************************************************/
 @method PDFDocumentClass, MSG_GEN_DOCUMENT_CLOSE
 {
-#if 0
-    Handle gstring;
-    word i;
-    long numPages;
-    VMBlockHandle *pageData;
-#endif
-
-    pself->PDFDoc_ok = gFalse;
-
-    CatalogFree(&pself->PDFDoc_catalog);
-    XRefFree(&pself->PDFDoc_xref);
-
-/*
- * Delete page gstrings
- * XXX: is this necessary?  Or can I just delete the VM file?
- */
-    if (pself->PDFDoc_gstringFile) {
-#if 0
-	numPages = CatalogGetNumPages(&pself->PDFDoc_catalog);
-	pageData = MemLock(pself->PDFDoc_pageData);
-	for (i=0; i<numPages; i++) {
-	    if (pageData[i]) {
-		gstring = GrLoadGString(pself->PDFDoc_gstringFile, 
-					GST_VMEM,
-					pageData[i]);
-		GrDestroyGString(gstring, NULL, GSKT_KILL_DATA);
-	    }
-	}
-#endif
-/*
- * Free the page-data index array mem block
- */
-	if (pself->PDFDoc_pageData)
-	    MemFree(pself->PDFDoc_pageData);
-/*
- * Close & delete temporary VM file
- */
-	VMClose(pself->PDFDoc_gstringFile, FALSE);
-	FileDelete(pself->PDFDoc_gstringFileName);
-    }
+    PdfClose(pself->PDFDoc_engine);
+    pself->PDFDoc_engine = PDF_NULL_DOC;
+    pself->PDFDoc_sourceFile = 0;
 
     /* callsuper */
 
@@ -1366,9 +1320,8 @@ errorClose:
 @method PDFDocumentClass, MSG_VIS_DRAW
 {
     word pagenum = pself->PDFDoc_pageNum;
-    Handle gstring;
-    word elem;
-    VMBlockHandle pageData;
+    Point pageSize;
+    PdfError err;
 
     GrSaveState(gstate);
 
@@ -1377,380 +1330,113 @@ errorClose:
 
 //    @callsuper();
 
-/* Get handle of gstring describing this page */
+/* Decode (or fetch from cache) this page */
 
-	 pageData = PDFGetPageGString (oself, pagenum);
+    currentlyDecodingDoc = pself->PDFDoc_engine;
+    err = PdfDecodePage(pself->PDFDoc_engine, pagenum);
+    currentlyDecodingDoc = PDF_NULL_DOC;
 
 /*
  * Draw the page
  */
-    if (pageData) {
+    if (err == PDF_OK) {
 
-/* Get gstring gstate */
+/* Render it, and pick up the page size while we're at it -- this
+ * used to be set inside PDFSetupGState (which wrote PDFDoc_bounds and
+ * sent MSG_GEN_VIEW_SET_DOC_BOUNDS itself); that's UI-object messaging
+ * and now happens here instead, using what PdfDrawPage reports. */
 
-	gstring = GrLoadGString(pself->PDFDoc_gstringFile,
-				GST_VMEM,
-				pageData);
+	err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, FALSE, &pageSize);
+	if (err == PDF_OK) {
+	    pself->PDFDoc_bounds = pageSize;
+	    @call pself->GCI_genView::MSG_GEN_VIEW_SET_DOC_BOUNDS(
+		pageSize.P_y, pageSize.P_x, 0, 0);
+	}
 
-/* Prepare the gstate for proper display */
-
-    PDFSetupGState(oself, gstate, &pself->PDFDoc_catalog, pagenum, FALSE);
-
-/* Draw it to screen gstate */
-
-	GrDrawGString(gstate, gstring, 0, 0, 0, &elem);
-
-/* Free the gstring gstate */
-
-	GrDestroyGString(gstring, NULL, GSKT_LEAVE_DATA);
     }
 
     GrRestoreState(gstate);
 
 }	/* End of MSG_VIS_DRAW.	*/
 
-
-/***********************************************************************
- *		PDFSetupGState
- ***********************************************************************
- *
- * SYNOPSIS:	Setup the passed gstate for either drawing or printing.
- *              Drawing will transform the gstate and set the clip
- *              rectangle to show only the portion of the page within
- *              the clip bounds, and to rotate the page to the optional
- *              page viewing angle.  Printing will translate the gstate
- *              to print the full page dimensions.
- *
- * CALLED BY:	MSG_VIS_DRAW, MSG_START_PRINTING
- *
- * PARAMS:      gstate = the gstate to modify
- *              catalog = pointer to the catalog object
- *		        word pagenum	= the desired page
- *              printing = TRUE if printing, FALSE if drawing
- *
- * RETURN:	    nothing
- *
- * SIDE EFFECTS:
- *              When drawing, the document bounds are set.
- *	
- * STRATEGY:
- *		This is the mail call to the PDF page-translation routines.
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	dhunter     1/21/2000   Initial Revision
- *
- ***********************************************************************/
-void PDFSetupGState(optr oself, GStateHandle gstate, Catalog *catalog,
-    word pagenum, Boolean printing)
-{
-#ifdef USE_FULL_PAGE_ATTRS
-    PDFDocumentInstance *pself = ObjDerefGen(oself);
-    Page *page;
-    long rotate;
-    word docWidth, docHeight, pageWidth, pageHeight;
-    sword transX, transY, clipX, clipY;
-#endif
-
-#ifdef USE_FULL_PAGE_ATTRS
 /*
- * Get ptr to page we're displaying
+ * PDFSetupGState and PDFGetPageGString used to be defined here.
+ * Both moved into the PDF engine (main/pdfEngine.goc) as part of
+ * PdfDrawPage and PdfDecodePage respectively -- see pdfEngine.h.
+ * The busy-cursor and page-decode progress dialog bracket around the
+ * whole PdfDecodePage call is still ours to do (there's none of that
+ * here in MSG_VIS_DRAW since it doesn't matter for a cache hit); the
+ * per-image progress dialog that gfx.goc puts up mid-decode now goes
+ * through PDFDocProgressCallback below, registered once in
+ * MSG_GEN_DOCUMENT_PHYSICAL_OPEN.
  */
-	page = CatalogLockPage(catalog, pagenum);
-
-/*
- * Use the page's MediaBox or CropBox attribute to set the document bounds.
- */
-    if (!printing)
-    {
-        if (PageIsCropped(page))
-        {
-            clipX = GdoubleToWord(PageGetCropX1(page));
-            clipY = GdoubleToWord(PageGetCropY1(page));
-            docWidth = pageWidth = GdoubleToWord(PageGetCropX2(page)) - clipX;
-            docHeight = pageHeight = GdoubleToWord(PageGetCropY2(page)) - clipY;
-        }
-        else
-        {
-            clipX = GdoubleToWord(PageGetX1(page));
-            clipY = GdoubleToWord(PageGetY1(page));
-        	docWidth = pageWidth = GdoubleToWord(PageGetWidth(page));
-        	docHeight = pageHeight = GdoubleToWord(PageGetHeight(page));
-        }
-        /* Ensure that the bounds reflect the page display rotation angle. */
-        rotate = PageGetRotate(page);
-        if (rotate == 90L || rotate == 270L)
-        {
-            /* Rotate the bounding box by 90 degrees. */
-            word temp;
-            temp = docWidth;
-            docWidth = docHeight;
-            docHeight = temp;
-        }
-        else if (rotate != 0L && rotate != 180L)
-            rotate = 0L;
-        pself->PDFDoc_bounds.P_x = docWidth;
-        pself->PDFDoc_bounds.P_y = docHeight;
-        @call pself->GCI_genView::MSG_GEN_VIEW_SET_DOC_BOUNDS(docHeight, docWidth, 0, 0);
-    }
-#endif
-
-/*
- * Flip gstate; pdf draws with origin in lower left.
- */
-	GrApplyScale(gstate,
-			  (1L)<<16,
-			  (-1L)<<16);	/* flip y axis */
-
-#ifdef USE_FULL_PAGE_ATTRS
-    if (!printing)
-    {
-        /*  Only do the funky rotation/translation/clipping stuff
-            for drawing to the view. */
-
-        /*
-         * Rotate gstate to display page at specified rotation.
-         */
-		  GrApplyRotation(gstate, MakeWWFixed(rotate));
-
-        switch ((int)rotate)
-        {
-            case 0:     transX = 0; transY = -docHeight; break;
-            case 90:    transX = transY = 0; break;
-            case 180:   transX = -docWidth; transY = 0; break;
-            case 270:   transX = -docHeight; transY = -docWidth; break;
-        }
-
-        /*
-         * Translate the gstate to bring the page onscreen.
-         */
-    	GrApplyTranslation(gstate,
-    			   MakeWWFixed(transX - clipX),
-    			   MakeWWFixed(transY - clipY));	/* translate back into view */
-
-        /*
-         * Set the clip rectangle to hide graphics outside of the CropBox.
-         */
-        GrSetClipRect(gstate, PCT_REPLACE, clipX, clipY, clipX + pageWidth,
-          clipY + pageHeight);
-    }
-    else
-    {
-        /*
-         * Translate the gstate to move the origin to the upper-left.
-         */
-        GrApplyTranslation(gstate, 0, -(GdoubleToWWFixed(PageGetHeight(page))));
-    }
-    
-	CatalogUnlockPage(page);
-
-#else
-	GrApplyTranslation(gstate,
-			   0, 
-			   (-72L*11)<<16);	/* translate back into view */
-#endif
-}
 
 
 /***********************************************************************
- *		PDFGetPageGString
+ *		PDFDocProgressCallback
  ***********************************************************************
  *
- * SYNOPSIS:	Write the requested page's description to the array of
- *		cached gstrings (and return the handle), or simply return 
- *		the gstring handle if it's already cached.
- *
- * CALLED BY:	MSG_VIS_DRAW, MSG_START_PRINTING
- *
- * PARAMS:	optr thisDoc	= optr to PDFDocument object
- *		word pagenum	= the desired page
- *
- * RETURN:	VMBlockHandle	= gstring handle for page description, or
- *				= 0 if error
- * SIDE EFFECTS:
- *	
- * STRATEGY:
- *		This is the mail call to the PDF page-translation routines.
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/23/99   	Initial Revision
- *
- ***********************************************************************/
-VMBlockHandle
-PDFGetPageGString (optr thisDoc, word pagenum)
-{
-    Page *page;
-    Gfx gfx;
-    Dict *resDict;
-    Handle gstring;
-    Obj pageObj, resDictObj;
-    VMBlockHandle pageData;
-    VMBlockHandle *pageDataArray;
-    PDFDocumentInstance *self;
-    GBool status = gTrue;
-
-/*
- * Create gstring for this page
- */
-    self = ObjDerefGen(thisDoc);
-
-    if (!self->PDFDoc_ok) {
-	return 0;
-    }
-
-    pageDataArray = MemLock(self->PDFDoc_pageData);
-    pageData = pageDataArray[pagenum-1];
-    MemUnlock(self->PDFDoc_pageData);
-
-    if (!pageData) {
-	/*
-	 * This may take a few moments -- mark the cursor "busy"
-	 */
-	@send PDFApp::MSG_GEN_APPLICATION_MARK_BUSY();
-
-#ifdef ENFORCE_PAGE_GSTRING_LIMIT
-    /*
-     * If the page limit has been reached, remove the lowest numbered 
-     * page from the array.
-     */
-    if (self->PDFDoc_pageCount == PDFDOC_PAGE_COUNT_LIMIT)
-    {
-        int pageaway, pagecount = CatalogGetNumPages(&self->PDFDoc_catalog);
-        pageDataArray = MemLock(self->PDFDoc_pageData);
-        
-        for (pageaway = 1; pageaway <= pagecount; pageaway++)
-            if ((pageData = pageDataArray[pageaway-1]) != NullHandle)
-                break;
-
-        if (pageData != NullHandle)
-        {
-            /* Delete the offending page! */
-            VMFreeVMChain(self->PDFDoc_gstringFile, 
-                VMCHAIN_MAKE_FROM_VM_BLOCK(pageData));
-            pageDataArray[pageaway-1] = pageData = NullHandle;
-            self->PDFDoc_pageCount --;
-        }
-
-        MemUnlock(self->PDFDoc_pageData);
-    }
-#endif
-
-/*
- * Get ptr to page we're displaying
- */
-
-	page = CatalogLockPage(&self->PDFDoc_catalog, pagenum);
-	PageGetContents(page, &pageObj, &self->PDFDoc_xref);
-
-/* create gstring */
-
-	gstring = GrCreateGString(self->PDFDoc_gstringFile,
-				  GST_VMEM,
-				  &pageData);
-
-/*
- * Set text mode to "baseline"
- */
-	GrSetTextMode(gstring, TM_DRAW_BASE, 0);
-
-/* Couldn't hurt.. */
-	GrSetTextColorMap(gstring, CMT_DITHER);
-	GrSetLineColorMap(gstring, CMT_DITHER);
-	GrSetAreaColorMap(gstring, CMT_DITHER);
-
-/* draw to gstring using xpdf's "gfx" object */
-
-	if (!isNull(&pageObj)) {
-	    PageCopyResourceDict(page, &resDictObj, &self->PDFDoc_xref);
-	    resDict = getDict(&resDictObj);
-
-	    GfxInit(&gfx, gstring, resDict, &self->PDFDoc_xref, 
-		    self->PDFDoc_gstringFile);
-/*
- * put up progress dialog for actual decode step
- */
-		 @send ppValue::MSG_GEN_VALUE_SET_VALUE(0, FALSE);
-	    @send PDFPageProgressDialog::MSG_GEN_INTERACTION_INITIATE();
-
-		 status = GfxDisplay(&gfx, &pageObj);
-
-/* Lower progress dialog */
-
-	    @send PDFPageProgressDialog::
-		MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
-
-/* free pdf objects */
-
-	    GfxFree(&gfx);
-	    ObjFree(&resDictObj);
-	}
-
-/* write end to gstring */
-
-	GrEndGString(gstring);
-
-/* free gstring's gstate */
-/* If the operation was canceled or other error, destroy the gstring data */
-
-	if (status) {
-	    GrDestroyGString(gstring, NULL, GSKT_LEAVE_DATA);
-        self->PDFDoc_pageCount ++;
-	} else {
-	    GrDestroyGString(gstring, NULL, GSKT_KILL_DATA);
-	    pageData = 0;
-	}
-
-/* Free the page object, unlock the page array element */
-
-	ObjFree(&pageObj);
-	CatalogUnlockPage(page);
-
-/* Store the gstring handle */
-
-	pageDataArray = MemLock(self->PDFDoc_pageData);
-	pageDataArray[pagenum-1] = pageData;
-	MemUnlock(self->PDFDoc_pageData);
-	/*
-	 * unmark the app/cursor as busy
-	 */
-	@send PDFApp::MSG_GEN_APPLICATION_MARK_NOT_BUSY();
-
-    }
-
-/* return the block handle of the gstring for this page */
-
-    return pageData;
-
-}	/* End of PDFGetPageGString.	*/
-
-
-/***********************************************************************
- *		PDFUpdateProgress
- ***********************************************************************
- *
- * SYNOPSIS:	Update the page-decode progress dialog
- * CALLED BY:	GfxGo
+ * SYNOPSIS:	PdfProgressCallback registered with the engine (Phase 4)
+ *		for the current document; replaces the four separate
+ *		functions gfx.goc used to call directly
+ *		(PDFUpdateProgress, PDFPutUpImageProgress,
+ *		PDFUpdateImageProgress, PDFTakeDownImageProgress).
+ * CALLED BY:	the PDF engine, from inside PdfDecodePage
+ * PARAMETERS:	see PdfProgressCallback in pdfEngine.h
  * RETURN:	nothing
  * SIDE EFFECTS:
- *	
- * STRATEGY:
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/28/99   	Initial Revision
+ *
+ * STRATEGY:	Dispatch on `kind`. ppValue/ipValue/PDFImageProgressDialog
+ *		are the same singleton UI objects the four original
+ *		functions sent to; only the entry point changed.
+ *
+ *		MSG_GEN_VALUE_SET_VALUE's second parameter is a
+ *		VisUpdateMode, not a plain Boolean -- the original code
+ *		passed FALSE, which is numerically VUM_MANUAL ("don't
+ *		update the visual until told to"). That's fine for a
+ *		fast decode where the value gets read again before
+ *		anyone notices, but for a slow decode (real images,
+ *		~1s+) it means the progress bar visibly never moves and
+ *		the dialog doesn't dismiss cleanly either, since the
+ *		visual pipeline for this dialog never got a proper
+ *		update in between. VUM_DELAYED_VIA_APP_QUEUE (same flag
+ *		already used elsewhere in this file, e.g.
+ *		MSG_GEN_SET_USABLE for the toolbar) defers the redraw
+ *		until the app queue is empty instead of suppressing it
+ *		outright.
+ *
+ *		IC_DISMISS below uses @call, not @send, matching the
+ *		SDK's own example for dismissing a GenInteraction
+ *		programmatically: @send is queued and never gets
+ *		processed from this deeply synchronous decode context,
+ *		while @call runs immediately and matches
+ *		MSG_GEN_GUP_INTERACTION_COMMAND's documented Boolean
+ *		return value.
  *
  ***********************************************************************/
 void
-PDFUpdateProgress (dword cur, dword total)
+PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 {
+    switch (kind) {
+    case PDF_PROGRESS_PAGE:
+	@send ppValue::MSG_GEN_VALUE_SET_VALUE(MakeWWFixed(current)/total, VUM_DELAYED_VIA_APP_QUEUE);
+	break;
 
-    @send ppValue::MSG_GEN_VALUE_SET_VALUE(MakeWWFixed(cur)/total, FALSE);
+    case PDF_PROGRESS_IMAGE_BEGIN:
+	@send ipValue::MSG_GEN_VALUE_SET_VALUE(0, VUM_DELAYED_VIA_APP_QUEUE);
+	@send PDFImageProgressDialog::MSG_GEN_INTERACTION_INITIATE();
+	break;
 
-}	/* End of PDFUpdateProgress.	*/
+    case PDF_PROGRESS_IMAGE_UPDATE:
+	@send ipValue::MSG_GEN_VALUE_SET_VALUE(MakeWWFixed(current)/total, VUM_DELAYED_VIA_APP_QUEUE);
+	break;
+
+    case PDF_PROGRESS_IMAGE_END:
+	@call PDFImageProgressDialog::
+	    MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
+	break;
+    }
+}	/* End of PDFDocProgressCallback.	*/
 
 
 /***********************************************************************
@@ -1835,7 +1521,7 @@ PDFUpdateProgress (dword cur, dword total)
 @method PDFDocumentClass, MSG_META_PAGED_OBJECT_NEXT_PAGE
 {
     optr view;
-    word numPages = CatalogGetNumPages(&pself->PDFDoc_catalog);
+    word numPages = PdfGetPageCount(pself->PDFDoc_engine);
 
 /* If on last page, don't advance */
 
@@ -1907,7 +1593,7 @@ PDFUpdateProgress (dword cur, dword total)
 /* update the page controller */
 
     pself = ObjDerefGen(oself);
-	 PDFUpdatePageControl(CatalogGetNumPages(&pself->PDFDoc_catalog),
+	 PDFUpdatePageControl(PdfGetPageCount(pself->PDFDoc_engine),
 			 pself->PDFDoc_pageNum);
 
 }	/* End of MSG_META_PAGED_OBJECT_PREVIOUS_PAGE.	*/
@@ -1931,7 +1617,7 @@ PDFUpdateProgress (dword cur, dword total)
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_UPDATE_PAGE_CONTROL
 {
 
-	 PDFUpdatePageControl(CatalogGetNumPages(&pself->PDFDoc_catalog),
+	 PDFUpdatePageControl(PdfGetPageCount(pself->PDFDoc_engine),
 			 pself->PDFDoc_pageNum);
 
 
@@ -1957,7 +1643,7 @@ PDFUpdateProgress (dword cur, dword total)
 @method PDFDocumentClass, MSG_META_PAGED_OBJECT_GOTO_PAGE
 {
     optr view;
-    word numPages = CatalogGetNumPages(&pself->PDFDoc_catalog);
+    word numPages = PdfGetPageCount(pself->PDFDoc_engine);
 
 /* verify page is in range */
 
@@ -2061,8 +1747,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
  ***********************************************************************/
 @method PDFDocumentClass, MSG_PRINT_START_PRINTING
 {
-	 Handle gstring;
-	 VMBlockHandle pageData;
+	 PdfError	err = PDF_ERR_INVALID_PAGE;
     word pagenum;
     PCPageRange		pageRange;
     PageSizeReport	sPageSize;
@@ -2110,21 +1795,18 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	}
 
 
-    /* Get the page's gstring handle */
+    /* Decode (or fetch from cache) this page, then render it straight
+     * into the printing gstate. printing == TRUE picks the same
+     * GrCopyGString path PDFSetupGState used here before. */
 
-	pageData = PDFGetPageGString (oself, pagenum);
+	currentlyDecodingDoc = pself->PDFDoc_engine;
+	err = PdfDecodePage(pself->PDFDoc_engine, pagenum);
+	currentlyDecodingDoc = PDF_NULL_DOC;
 
-	if (pageData) {
-		 gstring = GrLoadGString(pself->PDFDoc_gstringFile,
-					 GST_VMEM,
-					 pageData);
+	if (err == PDF_OK) {
 
-	 /* copy it to the printing gstate */
+		 err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, TRUE, NULL);
 
-		 GrSaveState(gstate);
-		  PDFSetupGState(oself, gstate, &pself->PDFDoc_catalog, pagenum, TRUE);
-		 GrCopyGString(gstring, gstate, 0);
-		 GrRestoreState(gstate);
 
 	 /* emit page-finished command */
 
@@ -2135,7 +1817,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
      * Send 'finished' message, which depends on whether we were canceled
      * (or other error occurred).
      */
-    if (TRUE == bContinue && pageData) {
+    if (TRUE == bContinue && err == PDF_OK) {
 	@send printCtrlOD::MSG_PRINT_CONTROL_PRINTING_COMPLETED();
     } else {
 	@send printCtrlOD::MSG_PRINT_CONTROL_PRINTING_CANCELLED();
@@ -2188,88 +1870,18 @@ PDFUpdatePageControl (word totalPages, word curPage)
 {
 	 @call PDFPrintControl::
 	MSG_PRINT_CONTROL_SET_TOTAL_PAGE_RANGE(1,
-			CatalogGetNumPages(&pself->PDFDoc_catalog));
+			PdfGetPageCount(pself->PDFDoc_engine));
 
 }	/* End of MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES.	*/
 
 
-/***********************************************************************
- *		PDFPutUpImageProgress
- ***********************************************************************
- *
- * SYNOPSIS:	Put up the dialog box showing image-decode progress
- * CALLED BY:	gfx.goc
- * RETURN:	nothing
- * SIDE EFFECTS:
- *	
- * STRATEGY:
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	5/18/99   	Initial Revision
- *
- ***********************************************************************/
-void
-PDFPutUpImageProgress (void)
-{
-    stopLoadingImage = gFalse;
-
-    @send ipValue::MSG_GEN_VALUE_SET_VALUE(0, FALSE);
-    @send PDFImageProgressDialog::MSG_GEN_INTERACTION_INITIATE();
-
-}	/* End of PDFPutUpImageProgress.	*/
-
-
-/***********************************************************************
- *		PDFUpdateImageProgress
- ***********************************************************************
- *
- * SYNOPSIS:	Update image-decode progress
- * CALLED BY:	
- * RETURN:	
- * SIDE EFFECTS:
- *	
- * STRATEGY:
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	5/18/99   	Initial Revision
- *
- ***********************************************************************/
-void
-PDFUpdateImageProgress (dword cur, dword total)
-{
-    @send ipValue::MSG_GEN_VALUE_SET_VALUE(MakeWWFixed(cur)/total, FALSE);
-
-}	/* End of PDFUpdateImageProgress.	*/
-
-
-/***********************************************************************
- *		PDFTakeDownImageProgress
- ***********************************************************************
- *
- * SYNOPSIS:	Dismiss the image-decode progress dialog
- * CALLED BY:	
- * RETURN:	
- * SIDE EFFECTS:
- *	
- * STRATEGY:
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	5/18/99   	Initial Revision
- *
- ***********************************************************************/
-void
-PDFTakeDownImageProgress (void)
-{
-    @send PDFImageProgressDialog::
-	MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
-
-}	/* End of PDFTakeDownImageProgress.	*/
+/*
+ * PDFPutUpImageProgress, PDFUpdateImageProgress, and
+ * PDFTakeDownImageProgress used to be defined here. All three moved
+ * into PDFDocProgressCallback (see above, near MSG_VIS_DRAW) as the
+ * PDF_PROGRESS_IMAGE_BEGIN/_UPDATE/_END cases -- gfx.goc reaches them
+ * through the engine's callback now, not by name.
+ */
 
 
 /***********************************************************************
@@ -2293,9 +1905,9 @@ PDFTakeDownImageProgress (void)
 {
     if (command == IC_STOP) {
 	/*
-	 * user-canceled; set flag that stops image decode
+	 * user-canceled; tell the engine to stop the current decode
 	 */
-	stopLoadingImage = gTrue;
+	PdfCancelDecode(currentlyDecodingDoc);
     }
     return (@callsuper());
 }	/* End of MSG_GEN_GUP_INTERACTION_COMMAND.	*/
@@ -2439,7 +2051,7 @@ PDFTakeDownImageProgress (void)
 		@call application::MSG_GEN_APPLICATION_MARK_APP_COMPLETELY_BUSY();
 
 		/* Complete the copy */
-		retval = FileCopy((const char *)pself->PDFDoc_xref.fHan, destFile,
+		retval = FileCopy((const char *)pself->PDFDoc_sourceFile, destFile,
 	      					0, 0);
 
 		/* All done - unmark application busy */
@@ -2613,15 +2225,17 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	 VMBlockHandle     dataVMBlock;
     ClipboardItemHeader *headerMem;    /* ClipboardItemHeader for the VM file */
 	 MemHandle         headerMemHandle; /* handle of ClipboardItemHeader block */
-    VMBlockHandle	  pageData;
-	 Handle gstring;
+	 PdfError          err;
 	 GStateHandle        gstate;
+	 Point             pageSize;
 
-	/* Get the page GString VMBlockHandle */
-	 pageData = PDFGetPageGString (oself, pself->PDFDoc_pageNum);
+	/* Decode (or fetch from cache) the current page */
+	 currentlyDecodingDoc = pself->PDFDoc_engine;
+	 err = PdfDecodePage(pself->PDFDoc_engine, pself->PDFDoc_pageNum);
+	 currentlyDecodingDoc = PDF_NULL_DOC;
 
-	if (pageData == NullChunk)
-		return;						/* No ccpy for you! Get out! */
+	if (err != PDF_OK)
+		return;						/* No copy for you! Get out! */
 
     /* Now get the transfer VM file. */
     transferVMFile = ClipboardGetClipboardFile();
@@ -2633,16 +2247,15 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	/* since the copied page comes out flipped top/bottom with the above,
 	 * let's try swiping the printing routine and slap that into the
 	 *clipboard - jfh */
-	gstring = GrLoadGString(pself->PDFDoc_gstringFile,
-					 GST_VMEM,
-					 pageData);
-
 	gstate = GrCreateGString(transferVMFile, GST_VMEM, &dataVMBlock);
 
-	PDFSetupGState(oself, gstate, &pself->PDFDoc_catalog, pself->PDFDoc_pageNum, TRUE);
-	GrCopyGString(gstring, gstate, 0);
+	err = PdfDrawPage(pself->PDFDoc_engine, pself->PDFDoc_pageNum, gstate, TRUE, &pageSize);
 
 
+	if (err != PDF_OK) {
+	    GrDestroyGString(gstate, NULL, GSKT_KILL_DATA);
+	    return;
+	}
 
 
 	 /* Now, allocate and fill in the transfer item header block. */
@@ -2666,10 +2279,13 @@ EC( ECCheckEventHandle( notifyEvent ); )
     headerMem->CIH_formats[0].CIFI_vmChain =
         (VMChain)(((dword)(dataVMBlock))<<16L) ;
 
+	 /* Real page size from the engine, instead of the old hardcoded
+	  * DOCUMENT_WIDTH/DOCUMENT_HEIGHT (8.5x11) -- same fix as the view
+	  * bounds in MSG_VIS_DRAW. */
 	 headerMem->CIH_formats[0].CIFI_extra1 =
-      (sword)(DOCUMENT_WIDTH);
+      (sword)(pageSize.P_x);
 	 headerMem->CIH_formats[0].CIFI_extra2 =
-      (sword)(DOCUMENT_HEIGHT);
+      (sword)(pageSize.P_y);
     VMUnlock(headerMemHandle);
 
     /* Now register the transfer item with the Clipboard. This will actually

@@ -10,21 +10,24 @@
 #pragma implementation
 #endif
 
-@include "pdfvu.goh"
 
 #include <Ansi/stdlib.h>
-//#include <stddef.h>
-//#include <stdio.h>
-//#include <string.h>
-//#include <ctype.h>
-//#include "gfile.h"
-//#include "config.h"
-@include "obj.goh"
-@include "array.goh"
-@include "diction.goh"
-@include "stream.goh"
+#include <Ansi/string.h>
+#include <char.h>
+#include <ctype.h>
+#include <ec.h>
+#include "obj.h"
+#include "array.h"
+#include "dict.h"
+#include "stream.h"
+#include "lexer.h"
+#include "parser.h"
+#include "xref.h"
 @include "gfxFont2.goh"
-@include "gfxFont.goh"
+#include "gfxFont.h"
+#include "gstr.h"
+#include "gmem.h"
+#include <heap.h>
 //#include "FontInfo.h"
 
 #if JAPANESE_SUPPORT
@@ -34,149 +37,17 @@
 /*
  * forward decls
  */
-void CopyNamedEncoding(GfxFont *this, Obj *pObj);
-void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref);
-void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref);
-void GfxFontAddChar(byte *charMap, char **charName, char *name);
+void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray);
+static void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref);
+static short GfxFontLookupStandardWidth(GfxFont *this, char *name);
+static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref, GBool hasWidthsArray);
+static void GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray);
+static void GfxFontReadToUnicode(GfxFont *this, Dict *fontDict, XRef *xref, word *appliedCount);
 int GfxFontEncodingBinarySearch(char *name, int start, int end,
 				 char **pCharNames);
 
 
 
-#if 0
-
-//------------------------------------------------------------------------
-
-static int CDECL cmpWidthExcep(const void *w1, const void *w2);
-
-//------------------------------------------------------------------------
-
-static Gushort *defCharWidths[12] = {
-  courierWidths,
-  courierObliqueWidths,
-  courierBoldWidths,
-  courierBoldObliqueWidths,
-  helveticaWidths,
-  helveticaObliqueWidths,
-  helveticaBoldWidths,
-  helveticaBoldObliqueWidths,
-  timesRomanWidths,
-  timesItalicWidths,
-  timesBoldWidths,
-  timesBoldItalicWidths
-};
-
-//------------------------------------------------------------------------
-// GfxFontEncoding
-//------------------------------------------------------------------------
-
-inline int GfxFontEncoding::hash(char *name) {
-  int h;
-
-  h = name[0];
-  if (name[1])
-    h = h * 61 + name[1];
-  return h % gfxFontEncHashSize;
-}
-
-GfxFontEncoding::GfxFontEncoding() {
-  int i;
-
-  encoding = (char **)gmalloc(256 * sizeof(char *));
-  freeEnc = gTrue;
-  for (i = 0; i < 256; ++i)
-    encoding[i] = NULL;
-  for (i = 0; i < gfxFontEncHashSize; ++i)
-    hashTab[i] = -1;
-}
-
-GfxFontEncoding::GfxFontEncoding(char **encoding1, int encSize) {
-  int i;
-
-  encoding = encoding1;
-  freeEnc = gFalse;
-  for (i = 0; i < gfxFontEncHashSize; ++i)
-    hashTab[i] = -1;
-  for (i = 0; i < encSize; ++i) {
-    if (encoding[i])
-      addChar1(i, encoding[i]);
-  }
-}
-
-void GfxFontEncoding::addChar(int code, char *name) {
-  int h, i;
-
-  // replace character associated with code
-  if (encoding[code]) {
-    h = hash(encoding[code]);
-    for (i = 0; i < gfxFontEncHashSize; ++i) {
-      if (hashTab[h] == code) {
-	hashTab[h] = -2;
-	break;
-      }
-      if (++h == gfxFontEncHashSize)
-	h = 0;
-    }
-    gfree(encoding[code]);
-  }
-
-  // associate name with code
-  encoding[code] = name;
-
-  // insert name in hash table
-  addChar1(code, name);
-}
-
-void GfxFontEncoding::addChar1(int code, char *name) {
-  int h, i, code2;
-
-  // insert name in hash table
-  h = hash(name); 
-  for (i = 0; i < gfxFontEncHashSize; ++i) {
-    code2 = hashTab[h];
-    if (code2 < 0) {
-      hashTab[h] = code;
-      break;
-    } else if (encoding[code2] && !strcmp(encoding[code2], name)) {
-      // keep the highest code for each char -- this is needed because
-      // X won't display chars with codes < 32
-      if (code > code2)
-	hashTab[h] = code;
-      break;
-    }
-    if (++h == gfxFontEncHashSize)
-      h = 0;
-  }
-}
-
-GfxFontEncoding::~GfxFontEncoding() {
-  int i;
-
-  if (freeEnc) {
-    for (i = 0; i < 256; ++i) {
-      if (encoding[i])
-	gfree(encoding[i]);
-    }
-    gfree(encoding);
-  }
-}
-
-int GfxFontEncoding::getCharCode(char *name) {
-  int h, i, code;
-
-  h = hash(name);
-  for (i = 0; i < gfxFontEncHashSize; ++i) {
-    code = hashTab[h];
-    if (code == -1 ||
-	(code > 0 && encoding[code] && !strcmp(encoding[code], name)))
-      return code;
-    if (++h >= gfxFontEncHashSize)
-      h = 0;
-  }
-  return -1;
-}
-
-#endif /* 0 */
 
 //------------------------------------------------------------------------
 // GfxFont
@@ -222,16 +93,26 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
   char *p1, *p2;
   char *pPdfToGeosMap;
   char **pNameMap;
-  long i;
+  word i;
   int code;
+  word toUniAppliedCount;
+  GBool hasWidthsArray;
+
+  // make cleanup safe even if a string allocation below fails
+  this->tag.s = this->name.s = this->embFontName.s = this->extFontFile.s = NULL;
+  this->tag.length = this->name.length = this->embFontName.length = this->extFontFile.length = 0;
 
   // get font tag and ID
   GStrInitString(&this->tag, tag1);
+  if (GMemHadError())
+    return;
   this->id.num = id1.num;
   this->id.gen = id1.gen;
 
   // get base font name
   GStrInit(&this->name);
+  if (GMemHadError())
+    return;
   DictLookup(fontDict, "BaseFont", &obj1, xref);
   if (isName(&obj1))
       GStrAppendString(&this->name, getName(&obj1));
@@ -239,16 +120,6 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
 
   // is it a built-in font?
 //  builtinFont = NULL;
-#if 0
-  if (GStrGetLength(&this->name)) {
-    for (i = 0; i < numBuiltinFonts; ++i) {
-      if (!strcmp(builtinFonts[i].name, GStrGetCString(&this->name))) {
-	builtinFont = &builtinFonts[i];
-	break;
-      }
-    }
-  }
-#endif
 
   // get font type
   this->type = fontUnknownType;
@@ -265,40 +136,16 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
   this->is16 = gFalse;
 
   // get info from font descriptor
-  // for flags: assume Times-Roman (or TimesNewRoman), but
-  // explicitly check for others -- FontDescriptors for Arial,
-  // Helvetica, TimesNewRoman, CourierNew, and Symbol are optional.
+  // for flags: assume Times-Roman (or TimesNewRoman) by default, then
+  // consult the WellKnownFonts table for anything more specific --
+  // unified with the /FontDescriptor-symbolic-correction path below,
+  // which used to be the *only* place this table got consulted (see
+  // the project roadmap's fontmapping-unification entry). No longer
+  // conditioned on font Subtype (TrueType vs Type1): a real-world PDF
+  // can legitimately have either type carry any of these names, and
+  // gating on Subtype only ever narrowed the match, never broadened it.
   this->flags = fontSerif;   // assume Times-Roman by default
-  if ((this->type == fontTrueType && !GStrCmpStringN(&this->name, "Arial", 5))
-    || (this->type == fontType1 && !GStrCmpStringN(&this->name, "Helvetica", 9)))
-      this->flags = 0;
-  else if ((this->type == fontTrueType && !GStrCmpStringN(&this->name, "CourierNew", 10))
-    || (this->type == fontType1 && !GStrCmpStringN(&this->name, "Courier", 7)))
-      this->flags = fontFixedWidth;
-  else if ((this->type == fontTrueType || this->type == fontType1) 
-    && !GStrCmpStringN(&this->name, "Symbol", 6))
-      this->flags = fontSymbolic;
-
-/* duplicate the standard (or symbol) character map */
-
-  if (this->flags & fontSymbolic)
-  {
-    for (code = 0; code < 256; code ++)
-        this->charMap[code] = code;
-  }
-  else
-  {
-    MemLock(OptrToHandle(@pdfToGeosMap));
-    pPdfToGeosMap = LMemDeref(@pdfToGeosMap);
-    memcpy(this->charMap, pPdfToGeosMap, sizeof (this->charMap));
-    MemUnlock(OptrToHandle(@pdfToGeosMap));
-  }
-
-  MemLock(OptrToHandle(@standardEncodingNames));
-  pNameMap = LMemDeref((this->flags & fontSymbolic ? 
-    @symbolEncodingNames : @standardEncodingNames));
-  memcpy(this->charNames, pNameMap, sizeof(this->charNames));
-  MemUnlock(OptrToHandle(@standardEncodingNames));
+  GfxFontCheckWellKnown(this, GStrGetCString(&this->name));
 
   this->embFontID.num = -1;
   this->embFontID.gen = -1;
@@ -306,6 +153,8 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
   this->fontWidthFactor = 0;
   GStrInit(&this->embFontName);
   GStrInit(&this->extFontFile);
+  if (GMemHadError())
+    return;
 
   DictLookup(fontDict, "FontDescriptor", &obj1, xref);
   if (isDict(&obj1)) {
@@ -382,6 +231,142 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
   }
   ObjFree(&obj1);
 
+  /*
+   * Check for an explicit /Widths array EARLY, before any of the
+   * inline standard-font fallback width lookups below (see project
+   * optimization analysis H1 follow-up: the original code, before
+   * H1, only ever did this fairly expensive per-code name search --
+   * up to 256 * standardEncodingSize(335) ~= 85760 comparisons --
+   * when there was NO /Widths array, since GfxFontMakeWidths' own
+   * "if (isArray) {...array...} else {...expensive search...}"
+   * structure skipped it entirely otherwise. H1 moved that search
+   * earlier (so it runs as each name is discovered instead of in
+   * one deferred pass) but initially lost this skip -- the search
+   * ran unconditionally even for embedded/subset fonts that
+   * (commonly) carry their own /Widths array and would have their
+   * fallback values overwritten moments later anyway. This restores
+   * the original skip: hasWidthsArray gates every inline fallback
+   * lookup below and in GfxFontMakeEncoding/CopyNamedEncoding/
+   * GfxFontAddChar, matching the original's conditional exactly.
+   */
+  DictLookup(fontDict, "Widths", &obj1, xref);
+  hasWidthsArray = isArray(&obj1);
+  ObjFree(&obj1);
+
+  /*
+   * Zero this->widths[] here, before any code path that computes
+   * standard-font fallback widths inline as it discovers glyph
+   * names (see project optimization analysis H1) -- this used to
+   * happen in GfxFontMakeWidths, right before its own name-based
+   * lookup pass, which has been removed (widths are now set here
+   * and in GfxFontMakeEncoding/CopyNamedEncoding/GfxFontAddChar
+   * instead, as each name becomes known, rather than deferred to a
+   * separate pass over a persistent charNames[256] array).
+   * GfxFontMakeWidths itself now only OVERRIDES these with an
+   * explicit /Widths array's values where the font provides one.
+   */
+  memset(this->widths, 0, 256 * sizeof(short));
+
+/* duplicate the standard (or symbol) character map -- moved here
+ * (was originally right after the name-based flags guess, before
+ * FontDescriptor's real /Flags got read above) so this sees
+ * this->flags' FINAL value, including the actual /Flags entry
+ * and both correction passes above, not just the initial name
+ * heuristic. Runs unconditionally here (matching the original
+ * code's placement outside any FontDescriptor-presence check) --
+ * for a font with no FontDescriptor at all, flags never changes
+ * after the initial name guess, so this is a no-op difference
+ * for that path. A PDF whose FontDescriptor legitimately marks a
+ * font Symbolic (common for subsetted embedded fonts using
+ * arbitrary internal glyph-index character codes, unrelated to
+ * any standard text encoding) used to always fall through to
+ * the non-symbolic @pdfToGeosMap table built from the name
+ * guess alone, mapping every character code through a table
+ * meant for standard-encoded text -- low codes in that range
+ * are unmapped control characters, so every character in the
+ * document would come back as defaultChar: a page that parses
+ * and paints nothing, not an error. */
+
+  if (this->flags & fontSymbolic)
+  {
+    for (code = 0; code < 256; code ++)
+        this->charMap[code] = code;
+  }
+  else
+  {
+    MemLock(OptrToHandle(@pdfToGeosMap));
+    pPdfToGeosMap = LMemDeref(@pdfToGeosMap);
+    memcpy(this->charMap, pPdfToGeosMap, sizeof (this->charMap));
+    MemUnlock(OptrToHandle(@pdfToGeosMap));
+  }
+
+  /*
+   * Skip this whole block (including the lock/unlock) when the font
+   * has an explicit /Widths array -- see hasWidthsArray's own
+   * comment above. Nothing computed here would survive
+   * GfxFontMakeWidths' override anyway in that case.
+   */
+  if (!hasWidthsArray) {
+    MemLock(OptrToHandle(@standardEncodingNames));
+    pNameMap = LMemDeref((this->flags & fontSymbolic ? 
+      @symbolEncodingNames : @standardEncodingNames));
+    /*
+     * Compute each code's standard-font fallback width right here,
+     * instead of memcpy-ing the whole name table into a persistent
+     * charNames[256] for a later pass to search through (see project
+     * optimization analysis H1). this->widths[] was already zeroed
+     * just above (moved here from GfxFontMakeWidths, which used to do
+     * this zeroing itself right before its own now-removed
+     * name-based lookup pass).
+     */
+    for (code = 0; code < 256; ++code) {
+      if (pNameMap[code] != NULL) {
+        this->widths[code] = GfxFontLookupStandardWidth(this, pNameMap[code]);
+      }
+    }
+    MemUnlock(OptrToHandle(@standardEncodingNames));
+  }
+
+  /*
+   * /ToUnicode, if present, is the most reliable source of truth we
+   * have for what a character code actually means -- more reliable
+   * than the symbolic/standard-encoding guess charMap was just built
+   * from above, which falls apart for the common real-world case of
+   * a subsetted embedded font using arbitrary internal glyph-index
+   * codes with no standard encoding at all (see project roadmap;
+   * this is what test file "Test.pdf" turned out to need). Applied
+   * as a per-character override: only touches charMap[code] where
+   * /ToUnicode actually supplies a mapping AND that Unicode
+   * codepoint actually resolves to one of our substitute fonts' own
+   * characters (GfxUnicodeToGeosChar) -- codes /ToUnicode doesn't
+   * cover, or that resolve to a codepoint our GEOS charset simply
+   * doesn't have, keep whatever the existing logic above already
+   * produced, rather than being blanked out.
+   *
+   * GfxFontParseBfChar/BfRange write charMap directly as they parse
+   * -- no intermediate word toUni[256] buffer here anymore (see
+   * project optimization analysis S4): that array was pure
+   * pass-through, converted to GEOS chars in this exact loop right
+   * after parsing finished, so folding the conversion into the
+   * parse functions removes 512 bytes of stack with no behavior
+   * change, just this one counter left to manage here.
+   */
+  toUniAppliedCount = 0;
+  GfxFontReadToUnicode(this, fontDict, xref, &toUniAppliedCount);
+  /*
+   * main/gfx.goc's font-family selection separately checks
+   * fontSymbolic (this same flags field) to pick a real Symbol/
+   * dingbat GEOS font instead of a normal text one -- if /ToUnicode
+   * just successfully resolved real characters, this is strong
+   * evidence the /Flags Symbolic bit describes the encoding
+   * (arbitrary subset codes), not the font's actual visual nature,
+   * so clear it to get a readable substitute instead of a symbol
+   * font rendering otherwise-correct character positions.
+   */
+  if (toUniAppliedCount > 0) {
+    this->flags &= ~fontSymbolic;
+  }
+
   /* The font code uses the fontBold and fontItalic flags to set the bold
    * and italic text styles, respectively.  However, the built-in fonts
    * may not have descriptors to set those flags, other fonts may not set
@@ -396,22 +381,6 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
     || strstr(GStrGetCString(&this->name), "Oblique"))
       this->flags |= fontItalic;
 
-#if 0
-/* We don't seem to use this... */
-  // get font matrix
-  this->fontMat[0] = this->fontMat[3] = 1;
-  this->fontMat[1] = this->fontMat[2] = this->fontMat[4] = this->fontMat[5] = 0;
-  DictLookup(fontDict, "FontMatrix", &obj1, xref);
-  if (isArray(&obj1)) {
-      for (i = 0; i < 6 && i < ObjArrayGetLength(&obj1); ++i) {
-	  ObjArrayGet(&obj1, i, &obj2, xref);
-	  if (isNum(&obj2))
-	      this->fontMat[i] = getNum(&obj2);
-	  ObjFree(&obj2);
-      }
-  }
-  ObjFree(&obj1);
-#endif
 
 #if 0
   // get encoding and character widths
@@ -429,7 +398,7 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
  * Homegrown char encoding merging
 */
     if (this->type != fontType0) {
-	GfxFontMakeEncoding(this, fontDict, xref);
+	GfxFontMakeEncoding(this, fontDict, xref, hasWidthsArray);
 /*
  * Make widths too
  */
@@ -456,15 +425,122 @@ void GfxFontFree(GfxFont *this) {
  * distribution), but I haven't done it yet.
  */
 
-void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref) {
+/***********************************************************************
+ *		GfxFontLookupStandardWidth
+ ***********************************************************************
+ * SYNOPSIS:	    Look up a glyph's width in the built-in metrics
+ *		    table for the nearest standard font family (based
+ *		    on this->flags), by NAME -- the standard width
+ *		    tables are ordered by the standard/symbol
+ *		    character set, not by GEOS char code, so this is a
+ *		    name-keyed search, not a direct index.
+ * PARAMETERS:	    GfxFont *this, char *name (glyph name, e.g. "A",
+ *		    "space" -- NOT required to outlive this call)
+ * RETURNS:	    the width, or 0 if no match found
+ * SIDE EFFECTS:    none
+ ***********************************************************************
+ * STRATEGY:	    Extracted out of GfxFontMakeWidths (see project
+ *		    optimization analysis H1): previously, EVERY
+ *		    per-character glyph name discovered anywhere
+ *		    (base encoding, /Differences, explicit
+ *		    MacRomanEncoding/WinAnsiEncoding) got copied into
+ *		    a persistent GfxFont->charNames[256] array so
+ *		    GfxFontMakeWidths could do this exact search
+ *		    later, in one pass, after encoding was fully
+ *		    resolved. Factoring the search out into its own
+ *		    function lets every name-discovery site call it
+ *		    immediately (see GfxFontAddChar and the encoding-
+ *		    table-copy sites in GfxFontInit/CopyNamedEncoding)
+ *		    instead, so no name ever needs to persist past the
+ *		    Obj it came from -- the root cause of the R3
+ *		    dangling-pointer bug and the small leak R3's fix
+ *		    left in place. See charNames' own removal from the
+ *		    GfxFont struct (pdfGeode.goh) for the other half of
+ *		    this change.
+ ***********************************************************************/
+static short
+GfxFontLookupStandardWidth(GfxFont *this, char *name)
+{
+    optr owidths = @helveticaWidths;
+    unsigned short *widths;
+    int j, tableLen;
+    char **pNames;
+    long style = this->flags & (fontBold | fontItalic);
+    short result;
+
+    if (this->flags & fontSerif)
+    {
+      /* Times-Roman derivatives */
+      if (style == (fontBold | fontItalic))
+	  /* Times-BoldItalic */
+	  owidths = @timesBoldItalicWidths;
+      else if (style == fontBold)
+	  /* Times-Bold */
+	  owidths = @timesBoldWidths;
+      else if (style == fontItalic)
+	  /* Times-Italic */
+	  owidths = @timesItalicWidths;
+      else
+	  /* Times-Roman */
+	  owidths = @timesRomanWidths;
+    }
+    else if (this->flags & fontFixedWidth)
+      /* all Courier derivatives have the same widths */
+      owidths = @courierWidths;
+    else if (this->flags & fontSymbolic)
+      /* Symbol */
+      owidths = @symbolWidths;
+    else
+    {
+      if (style == (fontBold | fontItalic))
+	  /* Helvetica-BoldOblique */
+	  owidths = @helveticaBoldObliqueWidths;
+      else if (style == fontBold)
+	  /* Helvetica-Bold */
+	  owidths = @helveticaBoldWidths;
+      else if (style == fontItalic)
+	  /* Helvetica-Oblique */
+	  owidths = @helveticaObliqueWidths;
+      else
+	  /* Helvetica */
+	  owidths = @helveticaWidths;
+    }
+
+    result = 0;
+    MemLock(OptrToHandle(owidths));
+    widths = LMemDeref(owidths);
+    MemLock(OptrToHandle(@standardEncodingNames));
+    pNames = LMemDeref((this->flags & fontSymbolic) ?
+      @symbolEncodingNames : @standardEncodingNames);
+    tableLen = (this->flags & fontSymbolic) ?
+      symbolEncodingSize : standardEncodingSize;
+    for (j = 0; j < tableLen; ++j)
+	if (pNames[j] != NULL &&
+	  ((name == pNames[j]) || !strcmp(name, pNames[j])))
+	{
+	    result = widths[j];
+	    break;
+	}
+    MemUnlock(OptrToHandle(@standardEncodingNames));
+    MemUnlock(OptrToHandle(owidths));
+    return result;
+}
+
+static void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref) {
   Obj obj1, obj2;
   short firstChar, lastChar;
   short code;
 
-  // initialize all widths to zero
-    memset(this->widths, 0, 256 * sizeof(short));
-//    for (code = 0; code < 256; ++code)
-//	this->widths[code] = 0;
+  /*
+   * Zeroing this->widths[] moved to GfxFontInit, ahead of the base
+   * encoding setup (see project optimization analysis H1) -- widths
+   * for the standard-font fallback case are now computed inline as
+   * each glyph name is discovered during encoding (GfxFontAddChar,
+   * CopyNamedEncoding, and GfxFontInit's own base-table setup), not
+   * deferred to this separate pass, so this function only needs to
+   * OVERRIDE with explicit /Widths array values where present --
+   * zeroing here would wipe out what encoding already computed.
+   */
 
     DictLookup(fontDict, "FirstChar", &obj1, xref);
     firstChar = isInt(&obj1) ? getInt(&obj1) : 0;
@@ -482,87 +558,21 @@ void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref) {
 	    ObjFree(&obj2);
       }
     }
-    else
-    {
-        // Initialize with the default widths for the nearest font family.
-        // Note that for non-symbolic fonts, the width tables are ordered by 
-        // the standard character set, and for symbolic fonts, the table is
-        // ordered by the symbol character set. So, we must first map each glyph
-        // in our character set to the standard character set.  Not a trivial task.
-        optr owidths = @helveticaWidths;
-        unsigned short *widths;
-        char *name;
-        int j, tableLen;
-        char **pNames;
-        long style = this->flags & (fontBold | fontItalic);
-
-        if (this->flags & fontSerif)
-        {
-          /* Times-Roman derivatives */
-          if (style == (fontBold | fontItalic))
-              /* Times-BoldItalic */
-              owidths = @timesBoldItalicWidths;
-          else if (style == fontBold)
-              /* Times-Bold */
-              owidths = @timesBoldWidths;
-          else if (style == fontItalic)
-              /* Times-Italic */
-              owidths = @timesItalicWidths;
-          else
-              /* Times-Roman */
-              owidths = @timesRomanWidths;
-        }
-        else if (this->flags & fontFixedWidth)
-          /* all Courier derivatives have the same widths */
-          owidths = @courierWidths;
-        else if (this->flags & fontSymbolic)
-          /* Symbol */
-          owidths = @symbolWidths;
-        else
-        {
-          if (style == (fontBold | fontItalic))
-              /* Helvetica-BoldOblique */
-              owidths = @helveticaBoldObliqueWidths;
-          else if (style == fontBold)
-              /* Helvetica-Bold */
-              owidths = @helveticaBoldWidths;
-          else if (style == fontItalic)
-              /* Helvetica-Oblique */
-              owidths = @helveticaObliqueWidths;
-          else
-              /* Helvetica */
-              owidths = @helveticaWidths;
-        }
-        MemLock(OptrToHandle(owidths));
-        widths = LMemDeref(owidths);
-        MemLock(OptrToHandle(@standardEncodingNames));
-        pNames = LMemDeref((this->flags & fontSymbolic) ?
-          @symbolEncodingNames : @standardEncodingNames);
-        tableLen = (this->flags & fontSymbolic) ? 
-          symbolEncodingSize : standardEncodingSize;
-        for (code = 0; code < 256; code++)
-            if ((name = this->charNames[code]) != NULL)
-                for (j = 0; j < tableLen; j++)
-                    if (pNames[j] != NULL && 
-                      ((name == pNames[j]) || !strcmp(name, pNames[j])))
-                    {
-                        this->widths[code] = widths[j];
-                        break;
-                    }
-        MemUnlock(OptrToHandle(@standardEncodingNames));
-        MemUnlock(OptrToHandle(owidths));
-    }
+    /*
+     * No "else" branch needed anymore: when there's no explicit
+     * /Widths array, this->widths[] already holds the standard-font
+     * fallback values computed during encoding (see this function's
+     * own comment above) -- there's nothing left to do here for
+     * that case.
+     */
 
     ObjFree(&obj1);
 }
 
-void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref) {
+static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref, GBool hasWidthsArray) {
 //  GfxFontEncoding *baseEnc;
   Obj obj1, obj2, obj3;
   word code, i;
-  Parser parser;
-  Lexer *lexer;
-
   // get encoding from font dict
   DictLookup(fontDict, "Encoding", &obj1, xref);
 
@@ -570,7 +580,7 @@ void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref) {
   if (isDict(&obj1)) {
     ObjDictLookup(&obj1, "BaseEncoding", &obj2, xref);
     if (isName(&obj2))
-        CopyNamedEncoding(this, &obj2);
+        CopyNamedEncoding(this, &obj2, hasWidthsArray);
     ObjFree(&obj2);
 
     ObjDictLookup(&obj1, "Differences", &obj2, xref);
@@ -582,7 +592,7 @@ void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref) {
 	  code = getInt(&obj3);
 	} else if (isName(&obj3)) {
 	  if (code < 256)
-	    GfxFontAddChar(&this->charMap[code], &this->charNames[code], getName(&obj3));
+	    GfxFontAddChar(this, code, getName(&obj3), hasWidthsArray);
 	  ++code;
 	} else {
 	    EC_WARNING(-1);
@@ -602,85 +612,12 @@ void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref) {
       /*
        * copy the specified encoding map wholesale.
        */
-      CopyNamedEncoding(this, &obj1);
+      CopyNamedEncoding(this, &obj1, hasWidthsArray);
   }
 
   // free the font dict encoding
   ObjFree(&obj1);
 
-#if 0
-/*
- * I'm commenting this out because I still have pdf files that give custom
- * names, 'symbol'-font designation, and drawing instructions for normal
- * text.  That is, if I simply draw the text as-is it's fine.  Arrghh!
-*/
-/*
- * If a fontfile stream exists, zero out the encoding for characters it
- * specifies how to draw.  (I.e., we don't know how to draw custom-specified
- * characters.)  Only do this for "symbol" -type fonts; I hope this means
- * that custom fonts with normal encodings are still drawn okay.
- */
-    if (!(this->flags & fontSymbolic)) return;
-    if (this->embFontID.num == -1) return;
-/*
- * Create a stream for the fontfile
- */
-    XRefFetch(xref, this->embFontID.num, this->embFontID.gen, &obj1);
-    if (!isStream(&obj1)) {
-	ObjFree(&obj1);
-	return;
-    }
-/*
- * Parse it, searching for the /Encoding marker
- */
-    lexer = gmalloc( sizeof (Lexer) );
-    LexerInitFromStream(lexer, getStream(&obj1), xref);
-    ParserInit(&parser, lexer);
-
-    ParserGetObj(&parser, &obj2);
-    while (!isNameSame(&obj2, "Encoding") &&
-	   !isCmdSame(&obj2, "currentdict") &&
-	   !isEOF(&obj2)) {
-	ObjFree(&obj2);
-	ParserGetObj(&parser, &obj2);
-    }
-/*
- * Look for patterns of the type "dup 32 /space put", etc.
- */
-    if (isNameSame(&obj2, "Encoding")) {
-	ObjFree(&obj2);
-	ParserGetObj(&parser, &obj2);
-
-	while(!isCmdSame(&obj2, "currentdict") &&
-	      !isEOF(&obj2)) {
-	    if (isCmdSame(&obj2, "dup")) {
-		ObjFree(&obj2);
-		ParserGetObj(&parser, &obj2);
-
-		if (isInt(&obj2)) {
-		    code = getInt(&obj2);
-		    ObjFree(&obj2);
-		    ParserGetObj(&parser, &obj2);
-/*
- * This will insert '0' for the code, if the name is unrecognized.
- * Custom chars usually have names like H#### or c##.
- */
-		    if (isName(&obj2)) {
-			GfxFontAddChar(this->charMap, code, getName(&obj2));
-		    }
-		}
-	    }
-	    ObjFree(&obj2);
-	    ParserGetObj(&parser, &obj2);
-	}
-    }
-    ObjFree(&obj2);
-/*
- * Free the parser.  LexerInitFromStream takes over the reference to the stream,
- * so no need to free obj1.  (Not a great design, I know.)
- */
-    ParserFree(&parser);
-#endif
 }
 
 
@@ -703,9 +640,11 @@ void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref) {
  *  dhunter     1/26/2000   Changed to copy different encodings
  *
  ***********************************************************************/
-void CopyNamedEncoding(GfxFont *this, Obj *pObj)
+void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray)
 {
     optr charMap, nameMap;
+    char **pNameMap;
+    word code;
 
     if (isNameSame(pObj, "MacRomanEncoding"))
     {
@@ -724,9 +663,32 @@ void CopyNamedEncoding(GfxFont *this, Obj *pObj)
     memcpy(this->charMap, LMemDeref(charMap), sizeof (this->charMap));
     MemUnlock(OptrToHandle(charMap));
 
-    MemLock(OptrToHandle(nameMap));
-    memcpy(this->charNames, LMemDeref(nameMap), sizeof(this->charNames));
-    MemUnlock(OptrToHandle(nameMap));
+    /*
+     * Same inline-width-lookup approach as GfxFontInit's own base
+     * encoding setup (see project optimization analysis H1) --
+     * compute each code's standard-font fallback width right here
+     * instead of memcpy-ing the whole name table into a persistent
+     * charNames[256] for GfxFontMakeWidths to search through later.
+     * An explicit MacRoman/WinAnsi /Encoding entry (this function's
+     * whole reason for being called) OVERRIDES whatever the base
+     * setup already computed, matching the original memcpy's own
+     * unconditional overwrite of charNames[] here.
+     *
+     * Skipped entirely when the font has its own /Widths array
+     * (hasWidthsArray, see its comment in GfxFontInit) -- these
+     * fallback values would just get overwritten a moment later by
+     * GfxFontMakeWidths, so there's no point computing them.
+     */
+    if (!hasWidthsArray) {
+      MemLock(OptrToHandle(nameMap));
+      pNameMap = LMemDeref(nameMap);
+      for (code = 0; code < 256; ++code) {
+        if (pNameMap[code] != NULL) {
+          this->widths[code] = GfxFontLookupStandardWidth(this, pNameMap[code]);
+        }
+      }
+      MemUnlock(OptrToHandle(nameMap));
+    }
 }	/* End of CopyNamedEncoding.	*/
 
 
@@ -734,28 +696,59 @@ void CopyNamedEncoding(GfxFont *this, Obj *pObj)
  * char at postion 'code' in array charMap should be set to
  * correspond to character named by string 'name'
  */
-void GfxFontAddChar(byte *charMap, char **charName, char *name) {
+/***********************************************************************
+ *		GfxFontAddChar
+ ***********************************************************************
+ * SYNOPSIS:	    Resolve one glyph name (from a /Differences array
+ *		    entry) to a GEOS char code AND its standard-font
+ *		    fallback width, both written directly into `this`.
+ * PARAMETERS:	    GfxFont *this, word code (which entry of
+ *		    this->charMap/this->widths this glyph name
+ *		    belongs to), char *name (NOT required to outlive
+ *		    this call -- see below), GBool hasWidthsArray
+ *		    (skip the width lookup -- but not the charMap
+ *		    assignment -- when the font has its own explicit
+ *		    /Widths array that will override it anyway)
+ * RETURNS:	    nothing
+ * SIDE EFFECTS:    this->charMap[code], this->widths[code]
+ ***********************************************************************
+ * STRATEGY:	    `name` used to get copied into a persistent
+ *		    charNames[256] array here (see project roadmap
+ *		    R3), purely so a later, separate pass
+ *		    (GfxFontMakeWidths) could look up its standard
+ *		    width. Since that lookup (GfxFontLookupStandardWidth)
+ *		    is now called directly, right here, `name` never
+ *		    needs to outlive this call at all -- see project
+ *		    optimization analysis H1, and charNames' removal
+ *		    from the GfxFont struct (pdfGeode.goh).
+ ***********************************************************************/
+static void
+GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
+{
     char **pCharNames;
     char *pCharGEOSEquiv;
     int searchResult;
-
-    *charName = name;
 
 /*
  * if a (normal) single-char name, simply use that character
  */
     if (name[1] == '\0') {
 	if (name[0] >= ' ' && name[0] < C_DELETE) {
-	    *charMap = (byte) name[0];
+	    this->charMap[code] = (byte) name[0];
+	    if (!hasWidthsArray) {
+	      this->widths[code] = GfxFontLookupStandardWidth(this, name);
+	    }
 	    return;
 	}
     }
 /*
- * if name == ".notdef", we zero out that encoding
+ * if name == ".notdef", we zero out that encoding -- no width lookup,
+ * matching the original behavior of leaving *charName NULL there (so
+ * the old deferred lookup pass skipped it, leaving the width at its
+ * zeroed default)
  */
     if (!strcmp(name, ".notdef")) {
-	*charMap = 0;
-    *charName = NULL;
+	this->charMap[code] = 0;
 	return;
     }
 
@@ -764,7 +757,10 @@ void GfxFontAddChar(byte *charMap, char **charName, char *name) {
  * we don't know how to decode.
 */
     if (name[0] == 'H' && name[1] >= '0' && name[1] <= '9') {
-	*charMap = 0;
+	this->charMap[code] = 0;
+	if (!hasWidthsArray) {
+	  this->widths[code] = GfxFontLookupStandardWidth(this, name);
+	}
 	return;
     }
 /*
@@ -782,7 +778,10 @@ void GfxFontAddChar(byte *charMap, char **charName, char *name) {
         }
         else
             value = 0;
-        *charMap = value;
+        this->charMap[code] = value;
+        if (!hasWidthsArray) {
+          this->widths[code] = GfxFontLookupStandardWidth(this, name);
+        }
         return;
     }
     
@@ -805,10 +804,13 @@ void GfxFontAddChar(byte *charMap, char **charName, char *name) {
 						(LMemGetChunkSize(@charNames) >> 2) - 1,
 						pCharNames);
     if (searchResult != -1)
-        *charMap = pCharGEOSEquiv[searchResult];
+        this->charMap[code] = pCharGEOSEquiv[searchResult];
     else
-        *charMap = 0;
+        this->charMap[code] = 0;
     MemUnlock(OptrToHandle(@charGEOSEquiv));
+    if (!hasWidthsArray) {
+      this->widths[code] = GfxFontLookupStandardWidth(this, name);
+    }
 }
 
 /*
@@ -819,7 +821,7 @@ int GfxFontEncodingBinarySearch(char *name, int start, int end,
     int ind;
     sword comp;
 
-    ind = (start + end) / 2;
+    ind = (start + end) >> 1;
     if (!(comp = strcmp(pCharNames[ind], name))) {
 	return ind;
     }
@@ -849,44 +851,298 @@ char GfxFontMapChar(GfxFont *this, unsigned char c, char defaultChar)
 /*
  * Map a string to the GEOS charset
  */
-void GfxFontMapString(GfxFont *this, unsigned char *str, word len, char defaultChar) {
-    word i;
-    char trans;
-
-    for (i=0; i<len; i++){
-	if ((trans = this->charMap[str[i]]) != 0) {
-	    str[i] = trans;
-	} else {
-	    str[i] = defaultChar;
-	}
-    }
-}
-
 char GfxFontFindChar(GfxFont *this, unsigned char ch)
 {
     int i;
-    for (i = 1; i < 256; i++)
+    for (i = 1; i < 256; ++i)
         if (ch == this->charMap[i])
             return i;
     return 0;
 }
 
-gdouble GfxFontGetWidthChar(GfxFont *this, char c)
+/***********************************************************************
+ *		GfxUnicodeToGeosChar
+ ***********************************************************************
+ * SYNOPSIS:	    Reverse lookup over geosCharMap[] (gfxFont2.goh):
+ *		    given a Unicode codepoint, find the GEOS character
+ *		    code that produces it, or 0 if none of our
+ *		    substitute fonts' characters map to that codepoint.
+ *		    geosCharMap[] itself goes GEOS char -> Unicode (it's
+ *		    shared, as-is, with the project's own TTF driver,
+ *		    which uses it in that direction) -- this is the
+ *		    other way around, a simple linear scan since the
+ *		    table only has on the order of 200 entries and this
+ *		    runs once per distinct character code in a font's
+ *		    /ToUnicode map, not per character shown.
+ * PARAMETERS:	    word unicodeVal -- the Unicode codepoint to resolve
+ * RETURNS:	    the GEOS character code (already includes
+ *		    MIN_GEOS_CHAR), or 0 if not found
+ ***********************************************************************/
+word GfxUnicodeToGeosChar(word unicodeVal)
 {
-    return IntToGdouble(this->widths[(unsigned char)c]) / 1000;
+    word i;
+
+    if (unicodeVal == 0) {
+	return 0;
+    }
+    for (i = 0; i < NUM_CHARMAPENTRIES; ++i) {
+	if (geosCharMap[i] == unicodeVal) {
+	    return (word) (i + MIN_GEOS_CHAR);
+	}
+    }
+    return 0;
 }
 
-gdouble GfxFontGetWidth(GfxFont *this, GooString *s)
+/***********************************************************************
+ *		GfxFontStringToUnicode
+ ***********************************************************************
+ * SYNOPSIS:	    Interpret a hex-string Obj's raw bytes as a
+ *		    big-endian Unicode codepoint. PDF /ToUnicode CMaps
+ *		    write destination values as hex strings like <0044>
+ *		    (2 bytes -> one BMP codepoint, by far the common
+ *		    case for the Latin-alphabet-and-symbols documents
+ *		    this project targets) -- surrogate pairs (4-byte
+ *		    hex strings encoding an astral codepoint) aren't
+ *		    handled specially, since geosCharMap[] itself has
+ *		    no entries above the BMP's low ranges anyway; only
+ *		    the first 2 bytes are used for anything longer.
+ * PARAMETERS:	    Obj *strObj -- must already be isString(strObj)
+ * RETURNS:	    word -- the codepoint, or 0 for an empty string
+ ***********************************************************************/
+static word
+GfxFontStringToUnicode(Obj *strObj)
 {
-    gdouble w;
-    int i;
-    int length = (int)GStrGetLength(s);
-    unsigned char *p = GStrGetCString(s);
+    char *bytes;
+    word len;
 
-    w = 0;
-    for (i = 0; i < length; ++i, ++p)
-        w += IntToGdouble(this->widths[*p]) / 1000;
-    return w;
+    bytes = GStrGetCString(getString(strObj));
+    len = GStrGetLength(getString(strObj));
+
+    if (len == 0) {
+	return 0;
+    } else if (len == 1) {
+	return (word) (Guchar) bytes[0];
+    } else {
+	return (word) (((Guchar) bytes[0] << 8) | (Guchar) bytes[1]);
+    }
+}
+
+/***********************************************************************
+ *		GfxFontParseBfChar
+ ***********************************************************************
+ * SYNOPSIS:	    Parse one beginbfchar...endbfchar block: pairs of
+ *		    <srcCode> <dstUnicode> hex strings, e.g.
+ *			2 beginbfchar
+ *			<01> <0044>
+ *			<02> <0061>
+ *			endbfchar
+ *		    Only the low byte of srcCode is used (simple fonts,
+ *		    single-byte codes 0..255 -- this project doesn't
+ *		    handle Type0/CID fonts' 2-byte codes, see roadmap).
+ *		    Writes directly into this->charMap wherever the
+ *		    parsed Unicode value resolves via
+ *		    GfxUnicodeToGeosChar -- no intermediate per-code
+ *		    Unicode buffer (see project optimization analysis
+ *		    S4: the previous word toUni[256] was pure
+ *		    pass-through, converted to GEOS chars in a second
+ *		    pass right after parsing finished, so folding the
+ *		    conversion in here removes 512 bytes of stack
+ *		    without changing behavior).
+ * PARAMETERS:	    Parser *parser -- positioned just after the
+ *		    "beginbfchar" command was consumed
+ *		    GfxFont *this -- charMap written directly
+ *		    word *appliedCount -- incremented once per code
+ *		    successfully resolved and written
+ * SIDE EFFECTS:    consumes tokens through the matching "endbfchar"
+ ***********************************************************************/
+static void
+GfxFontParseBfChar(Parser *parser, GfxFont *this, word *appliedCount)
+{
+    Obj codeObj, uniObj;
+    Guchar code;
+    word unicodeVal, geosChar;
+
+    ParserGetObj(parser, &codeObj);
+    while (!isEOF(&codeObj) && !isCmdSame(&codeObj, "endbfchar")) {
+	if (!isString(&codeObj)) {
+	    ObjFree(&codeObj);
+	    break;
+	}
+	code = (Guchar) GfxFontStringToUnicode(&codeObj);
+	ObjFree(&codeObj);
+
+	ParserGetObj(parser, &uniObj);
+	if (isString(&uniObj)) {
+	    unicodeVal = GfxFontStringToUnicode(&uniObj);
+	    geosChar = GfxUnicodeToGeosChar(unicodeVal);
+	    if (geosChar != 0) {
+		this->charMap[code] = (byte) geosChar;
+		++(*appliedCount);
+	    }
+	}
+	ObjFree(&uniObj);
+
+	ParserGetObj(parser, &codeObj);
+    }
+    ObjFree(&codeObj);
+}
+
+/***********************************************************************
+ *		GfxFontParseBfRange
+ ***********************************************************************
+ * SYNOPSIS:	    Parse one beginbfrange...endbfrange block. Two
+ *		    forms, both handled:
+ *			1 beginbfrange
+ *			<03> <05> <0073>          % contiguous: 03->73,
+ *			endbfrange                % 04->74, 05->75
+ *		    or
+ *			1 beginbfrange
+ *			<03> <05> [<0073> <0074> <1234>]   % explicit,
+ *			endbfrange                          % one per code
+ *		    Writes directly into this->charMap wherever a
+ *		    parsed Unicode value resolves via
+ *		    GfxUnicodeToGeosChar -- see GfxFontParseBfChar's
+ *		    comment and project optimization analysis S4 for
+ *		    why (no intermediate per-code Unicode buffer).
+ * PARAMETERS:	    Parser *parser -- positioned just after
+ *		    "beginbfrange" was consumed
+ *		    GfxFont *this -- charMap written directly
+ *		    word *appliedCount -- incremented once per code
+ *		    successfully resolved and written
+ * SIDE EFFECTS:    consumes tokens through the matching "endbfrange"
+ ***********************************************************************/
+static void
+GfxFontParseBfRange(Parser *parser, GfxFont *this, word *appliedCount)
+{
+    Obj loObj, hiObj, dstObj, elemObj;
+    Guchar lo, hi, c;
+    word base, unicodeVal, geosChar;
+    word arrayIdx;
+
+    ParserGetObj(parser, &loObj);
+    while (!isEOF(&loObj) && !isCmdSame(&loObj, "endbfrange")) {
+	if (!isString(&loObj)) {
+	    ObjFree(&loObj);
+	    break;
+	}
+	lo = (Guchar) GfxFontStringToUnicode(&loObj);
+	ObjFree(&loObj);
+
+	ParserGetObj(parser, &hiObj);
+	if (!isString(&hiObj)) {
+	    ObjFree(&hiObj);
+	    break;
+	}
+	hi = (Guchar) GfxFontStringToUnicode(&hiObj);
+	ObjFree(&hiObj);
+
+	ParserGetObj(parser, &dstObj);
+	if (isString(&dstObj)) {
+	    /* contiguous form: base unicode value, +1 per code */
+	    base = GfxFontStringToUnicode(&dstObj);
+	    for (c = lo; c <= hi; ++c) {
+		unicodeVal = (word) (base + (c - lo));
+		geosChar = GfxUnicodeToGeosChar(unicodeVal);
+		if (geosChar != 0) {
+		    this->charMap[c] = (byte) geosChar;
+		    ++(*appliedCount);
+		}
+		if (c == 255) break;	/* avoid wrapping Guchar past 255 */
+	    }
+	} else if (isArray(&dstObj)) {
+	    /* explicit form: one destination value per code, in order */
+	    c = lo;
+	    for (arrayIdx = 0; arrayIdx <= (word)(hi - lo); ++arrayIdx) {
+		ObjArrayGet(&dstObj, arrayIdx, &elemObj, LexerGetXRef(parser->lexer));
+		if (isString(&elemObj)) {
+		    unicodeVal = GfxFontStringToUnicode(&elemObj);
+		    geosChar = GfxUnicodeToGeosChar(unicodeVal);
+		    if (geosChar != 0) {
+			this->charMap[c] = (byte) geosChar;
+			++(*appliedCount);
+		    }
+		}
+		ObjFree(&elemObj);
+		if (c == 255) break;
+		++c;
+	    }
+	}
+	ObjFree(&dstObj);
+
+	ParserGetObj(parser, &loObj);
+    }
+    ObjFree(&loObj);
+}
+
+/***********************************************************************
+ *		GfxFontReadToUnicode
+ ***********************************************************************
+ * SYNOPSIS:	    If fontDict has a /ToUnicode CMap stream, parse its
+ *		    bfchar/bfrange sections and write resolved codes
+ *		    directly into this->charMap (src byte code -> GEOS
+ *		    char, via GfxUnicodeToGeosChar). No-op if
+ *		    /ToUnicode is absent or malformed -- this is meant
+ *		    to only ever improve on whatever charMap[] the
+ *		    existing symbolic/standard-encoding logic already
+ *		    produced, never make things worse, so only codes
+ *		    that actually resolve get written, leaving
+ *		    everything else untouched.
+ * PARAMETERS:	    GfxFont *this, Dict *fontDict, XRef *xref
+ *		    word *appliedCount -- incremented once per code
+ *		    successfully resolved and written (caller
+ *		    initializes to 0 before calling)
+ ***********************************************************************/
+static void
+GfxFontReadToUnicode(GfxFont *this, Dict *fontDict, XRef *xref, word *appliedCount)
+{
+    Obj refObj, streamObj, tokObj;
+    Lexer *lexer;
+    Parser parser;
+
+    DictLookupNF(fontDict, "ToUnicode", &refObj);
+    if (!isRef(&refObj)) {
+	ObjFree(&refObj);
+	return;
+    }
+    XRefFetch(xref, getRefNum(&refObj), getRefGen(&refObj), &streamObj);
+    ObjFree(&refObj);
+    if (!isStream(&streamObj)) {
+	ObjFree(&streamObj);
+	return;
+    }
+
+    lexer = gmalloc( sizeof (Lexer) );
+    if (!lexer) {
+        ObjFree(&streamObj);
+        return;
+    }
+    LexerInitFromStream(lexer, getStream(&streamObj), xref);
+    if (GMemHadError()) {
+        LexerFree(lexer);
+        gfree(lexer);
+        return;
+    }
+    ParserInit(&parser, lexer);
+
+    ParserGetObj(&parser, &tokObj);
+    while (!isEOF(&tokObj)) {
+	if (isCmdSame(&tokObj, "beginbfchar")) {
+	    ObjFree(&tokObj);
+	    GfxFontParseBfChar(&parser, this, appliedCount);
+	} else if (isCmdSame(&tokObj, "beginbfrange")) {
+	    ObjFree(&tokObj);
+	    GfxFontParseBfRange(&parser, this, appliedCount);
+	} else {
+	    ObjFree(&tokObj);
+	}
+	ParserGetObj(&parser, &tokObj);
+    }
+    ObjFree(&tokObj);
+
+    /* LexerInitFromStream took over streamObj's stream, matches the
+     * project's existing convention elsewhere in this file -- no
+     * separate ObjFree(&streamObj) needed/wanted here. */
+    ParserFree(&parser);
 }
 
 //------------------------------------------------------------------------
@@ -894,20 +1150,29 @@ gdouble GfxFontGetWidth(GfxFont *this, GooString *s)
 //------------------------------------------------------------------------
 
 void GfxFontDictInit(GfxFontDict *this, Dict *fontDict, XRef *xref) {
-  long i;
+  word i;
   Obj obj1, obj2;
 
+  this->lastFont = NULL;
   initNull(&obj1);
   initNull(&obj2);
 
+  /* TYPE-04: DictGetLength is word and Dict's backing DictEntry array
+   * has a stricter allocation bound than this pointer array, so the
+   * font count is already safe for the allocation below. */
   this->numFonts = DictGetLength(fontDict);
   this->fonts = (GfxFont **)gmalloc(this->numFonts * sizeof(GfxFont *));
+  if (!this->fonts) {
+    this->numFonts = 0;
+    return;
+  }
   for (i = 0; i < this->numFonts; ++i) {
     DictGetValNF(fontDict, i, &obj1);
     ObjFetch(&obj2, &obj1, xref);
     if (isRef(&obj1) && ObjIsDictSame(&obj2, "Font")) {
       this->fonts[i] = gmalloc( sizeof(GfxFont) );
-      GfxFontInit(this->fonts[i], DictGetKey(fontDict, i), getRef(&obj1),
+      if (this->fonts[i])
+        GfxFontInit(this->fonts[i], DictGetKey(fontDict, i), getRef(&obj1),
 			     getDict(&obj2), xref);
     } else {
 	EC_WARNING(-1);
@@ -920,7 +1185,7 @@ void GfxFontDictInit(GfxFontDict *this, Dict *fontDict, XRef *xref) {
 }
 
 void GfxFontDictFree(GfxFontDict *this) {
-  long i;
+  word i;
 
   for (i = 0; i < this->numFonts; ++i) {
       if (this->fonts[i]) {
@@ -932,11 +1197,23 @@ void GfxFontDictFree(GfxFontDict *this) {
 }
 
 GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag) {
-  long i;
+  word i;
+
+  /*
+   * Cache check first (see the struct's own comment, project
+   * optimization analysis P10) -- reuses the exact same comparison
+   * GfxFontMatches would do anyway, just against the one font most
+   * likely to match before scanning everything else.
+   */
+  if (this->lastFont && GfxFontMatches(this->lastFont, tag)) {
+    return this->lastFont;
+  }
 
   for (i = 0; i < this->numFonts; ++i) {
-    if (GfxFontMatches(this->fonts[i], tag))
+    if (GfxFontMatches(this->fonts[i], tag)) {
+      this->lastFont = this->fonts[i];
       return this->fonts[i];
+    }
   }
   return NULL;
 }
