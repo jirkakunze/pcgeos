@@ -23,6 +23,7 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
+ *      Port of Derek Noonburg's "Array" class from xpdf 0.8.
  *
  ***********************************************************************/
 
@@ -34,33 +35,30 @@
 #endif
 
 
-/* Constructor */
-extern void
-  ArrayInit(Array *arr);
+/* Initialize an empty array. */
+extern void ArrayInit(Array *arr);
 
-/* Destructor */
-extern void
-  ArrayFree(Array *arr);
+/* Release all elements and storage owned by an array. */
+extern void ArrayFree(Array *arr);
 
-#define ArrayIncRef(arr) \
-  (((arr)->ref == (word)0xffff) ? \
-   (GMemSetError(), (word)0) : (word)++((arr)->ref))
+/* Increment the reference count, failing if it would overflow. */
+#define ArrayIncRef(arr)  (((arr)->ref == (word)0xffff) ? \
+                          (GMemSetError(), (word)0) : (word)++((arr)->ref))
+
+/* Decrement the reference count. */
 #define ArrayDecRef(arr) ((word)--((arr)->ref))
 
-/* Get number of elements */
-extern word
-  ArrayGetLength(Array *arr);
+/* Get the number of elements in the array. */
+extern word ArrayGetLength(Array *arr);
 
-/* Add an element */
-extern void
-  ArrayAdd(Array *arr, Obj *elem);
+/* Append an element to the end of the array. */
+extern void ArrayAdd(Array *arr, Obj *elem);
 
-/* Accessors */
-extern void
-  ArrayGet(Array *arr, word i, Obj *obj, XRef *xref);
+/* Fetch and dereference an array element by index. */
+extern void ArrayGet(Array *arr, word i, Obj *obj, XRef *xref);
 
-extern void
-  ArrayGetNF(Array *arr, word i, Obj *obj);
+/* Fetch an array element without resolving indirect references. */
+extern void ArrayGetNF(Array *arr, word i, Obj *obj);
 
 
 #endif  /* _ARRAY_H */
