@@ -35,55 +35,43 @@
 #endif
 
 
-//------------------------------------------------------------------------
-// XRef
-//------------------------------------------------------------------------
+/***********************************************************************
+ * XRef
+ ***********************************************************************/
 
 
-extern 
-void XRefInitNull(XRef *xref);
+/* Zero-initialize an XRef structure. */
+extern void XRefInitNull(XRef *xref);
 
+/* Constructor */
+extern Boolean XRefInit(XRef *xref, FileHandle fileHan);
 
-  // Constructor.  Read xref table from stream.
-extern 
-Boolean XRefInit(XRef *xref, FileHandle fileHan);
+/* Destructor */
+extern void XRefFree(XRef *xref);
 
-  // Destructor.
-extern
-void XRefFree(XRef *xref);
+/* Is xref table valid? */
+extern GBool XRefIsOk(XRef *xref);
 
-  // Is xref table valid?
-extern
-  GBool XRefIsOk(XRef *xref);
+/* Are printing allowed?  If not, print an error message. */
+extern GBool XRefOkToPrint(XRef *xref);
 
-  // Is the file encrypted?
-extern
-  GBool XRefIsEncrypted(XRef *xref);
+/* Are copying allowed?  If not, print an error message. */
+extern GBool XRefOkToCopy(XRef *xref);
 
+/* Get catalog object. */
+extern void XRefGetCatalog(XRef *xref, Obj *obj);
 
-  // Are printing and copying allowed?  If not, print an error message.
-extern
- GBool XRefOkToPrint(XRef *xref);
+/* Fetch an indirect reference. */
+extern void XRefFetch(XRef *xref, long num, long gen, Obj *obj);
 
-extern
- GBool XRefOkToCopy(XRef *xref);
+/* Return the document''s Info dictionary (if any). */
+extern void XRefGetDocInfo(XRef *xref, Obj *obj);
 
+/* Read an xref subsection table and its trailer Prev pointer. */
+extern GBool XRefReadXRef (XRef *xref, Stream *fs, long *pos, GBool isFirstSection);
 
-  // Get catalog object.
-extern
-  void XRefGetCatalog(XRef *xref, Obj *obj);
-
-  // Fetch an indirect reference.
-extern
-void XRefFetch(XRef *xref, long num, long gen, Obj *obj);
-
-  // Return the document''s Info dictionary (if any).
-extern
-void XRefGetDocInfo(XRef *xref, Obj *obj);
-
-GBool XRefReadXRef (XRef *xref, Stream *fs, long *pos, GBool isFirstSection);
-
-GBool XRefCheckEncrypted(XRef *xref);
+/* Return whether the trailer dictionary has an Encrypt entry. */
+extern GBool XRefCheckEncrypted(XRef *xref);
 
 
 #endif  /* _XREF_H */

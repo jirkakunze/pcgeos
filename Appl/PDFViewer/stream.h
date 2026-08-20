@@ -121,10 +121,6 @@ long FStreamGetPos(Stream *str);
 FileHandle FStreamGetFile(Stream *str);
 Dict *FStreamGetDict(Stream *str);
 
-  // Get position of first byte of stream within the file.
-
-
-
 
 //------------------------------------------------------------------------
 // SubStream
@@ -133,7 +129,6 @@ Dict *FStreamGetDict(Stream *str);
 void SubStreamInit(Stream *str, Stream *str1, Obj *dict1);
 void SubStreamFree(Stream *str);
 void SubStreamReset(Stream *str);
-
 
 
 //------------------------------------------------------------------------
@@ -216,7 +211,6 @@ void EOFStreamReset(Stream *str);
 long EOFStreamGetChar(Stream *str);
 
 long EOFStreamLookChar(Stream *str);
-
 
 
 #endif  /* _STREAM_H */

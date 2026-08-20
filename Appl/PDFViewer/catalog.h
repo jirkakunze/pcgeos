@@ -24,7 +24,7 @@
  *
  * DESCRIPTION:
  *      Port of Derek Noonburg's "Catalog" class from xpdf 0.8.
- *      Simple variable-length string type.
+ *
  ***********************************************************************/
 
 #ifndef _CATALOG_H
@@ -35,38 +35,30 @@
 #endif
 
 
-  // Constructor.
-extern void
-  CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref);
+/* Parse the document catalog dictionary and locate the page tree root. */
+extern void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref);
 
-extern void
-  CatalogInitNull(Catalog *cat);
+/* Zero-initialize a Catalog into an invalid, empty state. */
+extern void CatalogInitNull(Catalog *cat);
 
+/* Release all objects owned by a Catalog. */
+extern void CatalogFree(Catalog *cat);
 
-  // Destructor.
-extern void
-  CatalogFree(Catalog *cat);
+/* Is the catalog valid? */
+extern GBool CatalogIsOk(Catalog *cat);
 
-  // Is catalog valid?
-extern GBool
-  CatalogIsOk(Catalog *cat);
+/* Get the number of pages in the document. */
+extern long CatalogGetNumPages(Catalog *cat);
 
-  // Get number of pages.
-extern long
-  CatalogGetNumPages(Catalog *cat);
-
-  // Materialize one page into caller-owned storage.  The caller must
-  // call PageFree() exactly once if this returns gTrue.
-extern GBool
-  CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page);
+/* Materialize one page into caller-owned storage.  The caller must
+ * call PageFree() exactly once if this returns gTrue. */
+extern GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page);
 
 
 #ifdef KEEP_PAGE_REFS
 
-  // Find a page, given its object ID.  Returns page number, or 0 if
-  // not found.
-extern long
-  CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref);
+/* Find a page by its object ID.  Returns the page number, or 0 if not found. */
+extern long CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref);
 
 #endif
 

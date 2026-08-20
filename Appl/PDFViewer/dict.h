@@ -1,25 +1,30 @@
 /***********************************************************************
  *
- * dict.h
+ *                      Copyright FreeGEOS-Project
+ *              Portions Copyright (c) GlobalPC 1999
+ *         Portions Copyright 1996 Derek B. Noonburg (xpdf)
  *
- * Copyright 1996 Derek B. Noonburg
- * Modifications Copyright 2026 Jirka Kunze/FreeGEOS Project
+ *      Licensed under the Apache License, Version 2.0 (the "License");
+ *      you may not use this file except in compliance with the License.
+ *      You may obtain a copy of the License at
  *
- * This file is derived from the original Xpdf source code and has been
- * modified for use in the PC/GEOS PDF Viewer.
+ *          http://www.apache.org/licenses/LICENSE-2.0
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * PROJECT:       FreeGEOS
+ * MODULE:        PDF Viewer
+ * FILE:          dict.h
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * AUTHOR:        Jirka Kunze: 18.08.2026
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/31/99   mevissen  Initial version (GlobalPC).
+ *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
+ * DESCRIPTION:
+ *      Port of Derek Noonburg's "Dict" class from xpdf 0.8.
+ *      Simple variable-length string type.
  ***********************************************************************/
 
 #ifndef _DICT_H
@@ -30,48 +35,43 @@
 #endif
 
 
-  // Constructor.
-extern void
-  DictInit(Dict *dict);
+/* Initialize an empty dictionary. */
+extern void DictInit(Dict *dict);
 
-  // Destructor.
-extern void
-  DictFree(Dict *dict);
+/* Release all entries and storage owned by a dictionary. */
+extern void DictFree(Dict *dict);
 
+/* Increment the reference count, failing if it would overflow. */
 #define DictIncRef(dict) \
-  (((dict)->ref == (word)0xffff) ? \
-   (GMemSetError(), (word)0) : (word)++((dict)->ref))
+    (((dict)->ref == (word)0xffff) ? \
+     (GMemSetError(), (word)0) : (word)++((dict)->ref))
+
+/* Decrement the reference count. */
 #define DictDecRef(dict) ((word)--((dict)->ref))
 
-  // Get number of entries.
-extern word
-  DictGetLength(Dict *dict);
+/* Get the number of entries in the dictionary. */
+extern word DictGetLength(Dict *dict);
 
-  // Add an entry.  NB: does not copy key.
-extern void
-  DictAdd(Dict *dict, char *key, Obj *val);
+/* Add an entry.  Takes ownership of key; does not copy it. */
+extern void DictAdd(Dict *dict, char *key, Obj *val);
 
-  // Check if dictionary is of specified type.
-extern GBool
-  DictIs(Dict *dict, char *type);
+/* Check whether the dictionary's /Type entry matches the given name. */
+extern GBool DictIs(Dict *dict, char *type);
 
-  // Look up an entry and return the value.  Returns a null object
-  // if <key> is not in the dictionary.
-extern void
-  DictLookup(Dict *dict, char *key, Obj *obj, XRef *xref);
+/* Look up and dereference an entry by key; a null object if not found. */
+extern void DictLookup(Dict *dict, char *key, Obj *obj, XRef *xref);
 
-extern void
-  DictLookupNF(Dict *dict, char *key, Obj *obj);
+/* Look up an entry by key without resolving indirect references. */
+extern void DictLookupNF(Dict *dict, char *key, Obj *obj);
 
-  // Iterative accessors.
-extern char
-  *DictGetKey(Dict *dict, word i);
+/* Get the key at a given entry index. */
+extern char *DictGetKey(Dict *dict, word i);
 
-extern void
-  DictGetVal(Dict *dict, word i, Obj *obj, XRef *xref);
+/* Fetch and dereference the value at a given entry index. */
+extern void DictGetVal(Dict *dict, word i, Obj *obj, XRef *xref);
 
-extern void
-  DictGetValNF(Dict *dict, word i, Obj *obj);
+/* Fetch the value at a given entry index without resolving references. */
+extern void DictGetValNF(Dict *dict, word i, Obj *obj);
 
 
 #endif  /* _DICT_H */

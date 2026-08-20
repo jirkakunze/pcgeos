@@ -1013,227 +1013,238 @@ XRefParseVarDigits(const char *p)
 {
     long value = 0;
 
-    while (*p >= '0' && *p <= '9') {
-	value = value * 10 + (*p++ - '0');
-    }
+    while (*p >= '0' && *p <= '9')
+	    value = value * 10 + (*p++ - '0');
+
     return value;
 }
 
 GBool
-XRefReadXRef (XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
+XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
 {
-/* GBool XRef::readXRef(FileStream *str, int *pos) {
-*/
-  Parser parser;
-  Obj obj, obj2;
-  char s[22];
-  GBool more;
-  long first, n, i, j;
-  long c;
-  Stream *fs2;
-//  Stream *str;
-  Lexer *lexer;
-  XRefEntry *pEntry;
-  word entrySize;
-  /*
-   * Batch-write support for the isFirstSection fast path (see
-   * project optimization analysis P8/V1) -- batchBuf accumulates
-   * real, filled-in XRefEntry copies (not a single template,
-   * matching the same HugeArrayAppend-vs-documentation discrepancy
-   * noted where xref->entries was first batch-initialized further
-   * up this file) for a contiguous run of entries, flushed with one
-   * HugeArrayReplace call instead of one HugeArrayLock/Unlock cycle
-   * per entry.
-   */
-  word batchMax, batchCount;
-  dword batchStart;
-  XRefEntry *batchBuf = NULL;
+    Parser parser;
+    Obj obj, obj2;
+    char s[22];
+    GBool more;
+    long first, n, i;
+    long c;
+    word j;
+    Stream *fs2;
+    Lexer *lexer;
+    XRefEntry *pEntry;
+    word entrySize;
 
-  if (isFirstSection) {
-    batchMax = HUGEARRAY_BATCH_MAX_BYTES / sizeof(XRefEntry);
-    if (batchMax < 1) {
-      batchMax = 1;
+    /*
+     * Batch-write support for the isFirstSection fast path (see
+     * project optimization analysis P8/V1) -- batchBuf accumulates
+     * real, filled-in XRefEntry copies (not a single template,
+     * matching the same HugeArrayAppend-vs-documentation discrepancy
+     * noted where xref->entries was first batch-initialized further
+     * up this file) for a contiguous run of entries, flushed with one
+     * HugeArrayReplace call instead of one HugeArrayLock/Unlock cycle
+     * per entry.
+     */
+    word batchMax, batchCount;
+    dword batchStart;
+    XRefEntry *batchBuf = NULL;
+    XRefEntry *pBatch;
+
+    if (isFirstSection) {
+        batchMax = HUGEARRAY_BATCH_MAX_BYTES / sizeof(XRefEntry);
+        if (batchMax < 1) {
+            batchMax = 1;
+        }
+        batchBuf = gmalloc((long)batchMax * sizeof(XRefEntry));
+        batchCount = 0;
     }
-    batchBuf = gmalloc( (long) batchMax * sizeof(XRefEntry) );
-    batchCount = 0;
-  }
 
-  // seek to xref in stream
-  StreamSetPos(fs, xref->start + *pos);
+    /* seek to xref in stream */
+    StreamSetPos(fs, xref->start + *pos);
 
-  // make sure it is an xref table
-  while ((c = StreamGetChar(fs)) != EOF && isspace(c)) ;
-  s[0] = (char)c;
-  s[1] = StreamGetChar(fs);
-  s[2] = StreamGetChar(fs);
-  s[3] = StreamGetChar(fs);
-  if (!(s[0] == 'x' && s[1] == 'r' && s[2] == 'e' && s[3] == 'f'))
-    goto err2;
-
-  // read xref
-
-  while (1) {
-    while ((c = StreamLookChar(fs)) != EOF && isspace(c))
-      StreamGetChar(fs);
-    if (c == 't')
-      break;
-    first = 0;
-    for (i = 0; (c = StreamGetChar(fs)) != EOF && isdigit(c) && i < 20; ++i)
-      first = first * 10 + (c - '0');
-    if (i == 0)
-      goto err2;
-    while ((c = StreamLookChar(fs)) != EOF && isspace(c))
-      StreamGetChar(fs);
-    n = 0;
-    for (i = 0; (c = StreamGetChar(fs)) != EOF && isdigit(c) && i < 20; ++i)
-      n = n * 10 + (c - '0');
-    if (i == 0)
-      goto err2;
-    while ((c = StreamLookChar(fs)) != EOF && isspace(c))
-      StreamGetChar(fs);
-    for (i = first; i < first + n; ++i) {
-      for (j = 0; j < 20; ++j) {
-	if ((c = StreamGetChar(fs)) == EOF)
-	  goto err2;
-	s[j] = (char)c;
-      }
-      if (i < 0 || i >= xref->size) {
-	continue;		/* malformed table -- ignore, matches
-				 * the stream-based path's same guard.
-				 * If isFirstSection, the contiguity
-				 * check below correctly flushes any
-				 * pending batch before the resulting
-				 * gap. */
-      }
-
-      if (isFirstSection) {
-	/*
-	 * Subsections can be (and often are) non-contiguous with
-	 * each other -- e.g. "0 5" then "100 3" -- and a malformed
-	 * table can also produce a gap via the out-of-range skip
-	 * just above. Either way, a batch can only ever be flushed
-	 * as one truly consecutive run, so check contiguity against
-	 * whatever's already accumulated before adding this entry;
-	 * flush first if it doesn't line up.
-	 */
-	if (batchCount > 0 && (dword) i != batchStart + batchCount) {
-	  HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
-	  batchCount = 0;
-	}
-	if (batchCount == 0) {
-	  batchStart = i;
-	}
-	batchBuf[batchCount].offset = XRefParseDigits(s, 10);
-	batchBuf[batchCount].gen = XRefParseDigits(&s[11], 5);
-	batchBuf[batchCount].type = xrefEntryClassic;
-	if (s[17] == 'n') {
-	  batchBuf[batchCount].used = gTrue;
-	} else if (s[17] == 'f') {
-	  batchBuf[batchCount].used = gFalse;
-	} else {
-	  /* malformed -- flush whatever was already valid, matching
-	   * the original per-entry path's own "commit what's already
-	   * dirtied, then bail" behavior, rather than silently
-	   * discarding it */
-	  if (batchCount > 0) {
-	    HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
-	  }
-	  gfree(batchBuf);
-	  batchBuf = NULL;
-	  goto err2;
-	}
-	++batchCount;
-	if (batchCount == batchMax) {
-	  HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
-	  batchCount = 0;
-	}
-      } else {
-	HugeArrayLock(xref->vmFile, xref->entries, i, (void**) &pEntry, &entrySize);
-	if (pEntry->offset < 0) {
-	  pEntry->offset = XRefParseDigits(s, 10);
-	  pEntry->gen = XRefParseDigits(&s[11], 5);
-	  pEntry->type = xrefEntryClassic;
-	  if (s[17] == 'n')
-	    pEntry->used = gTrue;
-	  else if (s[17] == 'f')
-	    pEntry->used = gFalse;
-	  else {
-	    HugeArrayDirty(pEntry);
-	    HugeArrayUnlock(pEntry);
-	    goto err2;
-	  }
-	  HugeArrayDirty(pEntry);
-	}
-	HugeArrayUnlock(pEntry);
-      }
+    /* make sure it is an xref table */
+    while ((c = StreamGetChar(fs)) != EOF && isspace(c))
+        ;
+    s[0] = (char)c;
+    s[1] = StreamGetChar(fs);
+    s[2] = StreamGetChar(fs);
+    s[3] = StreamGetChar(fs);
+    if (!(s[0] == 'x' && s[1] == 'r' && s[2] == 'e' && s[3] == 'f')) {
+        goto err2;
     }
-  }
 
-  /* flush any final partial batch left over after the last subsection */
-  if (batchBuf && batchCount > 0) {
-    HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
-    batchCount = 0;
-  }
-  if (batchBuf) {
-    gfree(batchBuf);
-    batchBuf = NULL;
-  }
+    /* read xref */
 
-  // read prev pointer from trailer dictionary
-  initNull(&obj);
-//    new FileStream(file, str->getPos(), -1, &obj)));
+    while (1) {
+        while ((c = StreamLookChar(fs)) != EOF && isspace(c)) {
+            StreamGetChar(fs);
+        }
+        if (c == 't') {
+            break;
+        }
+        first = 0;
+        for (i = 0; (c = StreamGetChar(fs)) != EOF && isdigit(c) && i < 20; ++i) {
+            first = first * 10 + (c - '0');
+        }
+        if (i == 0) {
+            goto err2;
+        }
+        while ((c = StreamLookChar(fs)) != EOF && isspace(c)) {
+            StreamGetChar(fs);
+        }
+        n = 0;
+        for (i = 0; (c = StreamGetChar(fs)) != EOF && isdigit(c) && i < 20; ++i) {
+            n = n * 10 + (c - '0');
+        }
+        if (i == 0) {
+            goto err2;
+        }
+        while ((c = StreamLookChar(fs)) != EOF && isspace(c)) {
+            StreamGetChar(fs);
+        }
+        for (i = first; i < first + n; ++i) {
+            for (j = 0; j < 20; ++j) {
+                if ((c = StreamGetChar(fs)) == EOF) {
+                    goto err2;
+                }
+                s[j] = (char)c;
+            }
+            if (i < 0 || i >= xref->size) {
+                continue; /* malformed table -- ignore, matches
+                           * the stream-based path's same guard.
+                           * If isFirstSection, the contiguity
+                           * check below correctly flushes any
+                           * pending batch before the resulting
+                           * gap. */
+            }
 
-  fs2 = gmalloc( sizeof(Stream) );
-//  str = gmalloc( sizeof (Stream) );
-  lexer = gmalloc( sizeof (Lexer) );
-
-  FStreamInit(fs2, xref->fHan, FStreamGetPos(fs), -1, &obj);
-//  StreamInitFS(str, fs2);
-  LexerInitFromStream(lexer, fs2, xref);
-  ParserInit(&parser, lexer);
-  ObjFree(&obj);
-
-  ParserGetObj(&parser, &obj);
-  if (!isCmdSame(&obj, "trailer"))
-    goto err1;
-  ObjFree(&obj);
-  ParserGetObj(&parser, &obj);
-  if (!isDict(&obj))
-    goto err1;
-  DictLookupNF(getDict(&obj), "Prev", &obj2);
-  if (isInt(&obj2)) {
-    *pos = getInt(&obj2);
-    more = gTrue;
-  } else {
-    more = gFalse;
-  }
-  ObjFree(&obj);
-  ObjFree(&obj2);
-
-  ParserFree(&parser);
-  return more;
-
- err1:
-  ObjFree(&obj);
- err2:
-  /*
-   * Catches every goto err2 path that didn't already flush+free
-   * batchBuf itself (e.g. a malformed first/n subsection header,
-   * reached before the per-entry loop's own handling runs) --
-   * NULL-guarded so it's a no-op wherever a specific error path
-   * already did this and set batchBuf back to NULL.
-   */
-  if (batchBuf) {
-    if (batchCount > 0) {
-      HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
+            if (isFirstSection) {
+                /*
+                 * Subsections can be (and often are) non-contiguous with
+                 * each other -- e.g. "0 5" then "100 3" -- and a malformed
+                 * table can also produce a gap via the out-of-range skip
+                 * just above. Either way, a batch can only ever be flushed
+                 * as one truly consecutive run, so check contiguity against
+                 * whatever's already accumulated before adding this entry;
+                 * flush first if it doesn't line up.
+                 */
+                if (batchCount > 0 && (dword)i != batchStart + batchCount) {
+                    HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
+                    batchCount = 0;
+                }
+                if (batchCount == 0) {
+                    batchStart = i;
+                }
+                pBatch = &batchBuf[batchCount];
+                pBatch->offset = XRefParseDigits(s, 10);
+                pBatch->gen = XRefParseDigits(&s[11], 5);
+                pBatch->type = xrefEntryClassic;
+                if (s[17] == 'n') {
+                    pBatch->used = gTrue;
+                } else if (s[17] == 'f') {
+                    pBatch->used = gFalse;
+                } else {
+                    /* malformed -- flush whatever was already valid, matching
+                     * the original per-entry path's own "commit what's already
+                     * dirtied, then bail" behavior, rather than silently
+                     * discarding it */
+                    if (batchCount > 0) {
+                        HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
+                    }
+                    gfree(batchBuf);
+                    batchBuf = NULL;
+                    goto err2;
+                }
+                ++batchCount;
+                if (batchCount == batchMax) {
+                    HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
+                    batchCount = 0;
+                }
+            } else {
+                HugeArrayLock(xref->vmFile, xref->entries, i, (void **)&pEntry, &entrySize);
+                if (pEntry->offset < 0) {
+                    pEntry->offset = XRefParseDigits(s, 10);
+                    pEntry->gen = XRefParseDigits(&s[11], 5);
+                    pEntry->type = xrefEntryClassic;
+                    if (s[17] == 'n') {
+                        pEntry->used = gTrue;
+                    } else if (s[17] == 'f') {
+                        pEntry->used = gFalse;
+                    } else {
+                        HugeArrayDirty(pEntry);
+                        HugeArrayUnlock(pEntry);
+                        goto err2;
+                    }
+                    HugeArrayDirty(pEntry);
+                }
+                HugeArrayUnlock(pEntry);
+            }
+        }
     }
-    gfree(batchBuf);
-  }
-  xref->ok = gFalse;
-  EC_WARNING(-1);
-  return gFalse;
 
-}	/* End of XRefReadXRef.	*/
+    /* flush any final partial batch left over after the last subsection */
+    if (batchBuf && batchCount > 0) {
+        HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
+        batchCount = 0;
+    }
+    if (batchBuf) {
+        gfree(batchBuf);
+        batchBuf = NULL;
+    }
+
+    /* read prev pointer from trailer dictionary */
+    initNull(&obj);
+
+    fs2 = gmalloc(sizeof(Stream));
+    lexer = gmalloc(sizeof(Lexer));
+
+    FStreamInit(fs2, xref->fHan, FStreamGetPos(fs), -1, &obj);
+    LexerInitFromStream(lexer, fs2, xref);
+    ParserInit(&parser, lexer);
+    ObjFree(&obj);
+
+    ParserGetObj(&parser, &obj);
+    if (!isCmdSame(&obj, "trailer")) {
+        goto err1;
+    }
+    ObjFree(&obj);
+    ParserGetObj(&parser, &obj);
+    if (!isDict(&obj)) {
+        goto err1;
+    }
+    DictLookupNF(getDict(&obj), "Prev", &obj2);
+    if (isInt(&obj2)) {
+        *pos = getInt(&obj2);
+        more = gTrue;
+    } else {
+        more = gFalse;
+    }
+    ObjFree(&obj);
+    ObjFree(&obj2);
+
+    ParserFree(&parser);
+    return more;
+
+err1:
+    ObjFree(&obj);
+err2:
+    /*
+     * Catches every goto err2 path that didn't already flush+free
+     * batchBuf itself (e.g. a malformed first/n subsection header,
+     * reached before the per-entry loop's own handling runs) --
+     * NULL-guarded so it's a no-op wherever a specific error path
+     * already did this and set batchBuf back to NULL.
+     */
+    if (batchBuf) {
+        if (batchCount > 0) {
+            HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart, batchBuf);
+        }
+        gfree(batchBuf);
+    }
+    xref->ok = gFalse;
+    EC_WARNING(-1);
+    return gFalse;
+
+}
 
 
 GBool XRefCheckEncrypted(XRef *xref) {
@@ -1242,22 +1253,7 @@ GBool XRefCheckEncrypted(XRef *xref) {
 
   ObjDictLookup(&xref->trailerDict, "Encrypt", &obj, xref);
   encrypted = !isNull(&obj);
-  /*
-   * An encrypted PDF is a legitimate input, not a programmer error --
-   * no decryption support (same as upstream xpdf 0.80, see the
-   * disabled error() calls below), but that's a missing feature, not
-   * a bug to trap on. main/pdfEngine.goc's PdfOpen reports this
-   * precisely as PDF_ERR_ENCRYPTED to its caller; this used to fire
-   * an EC_WARNING here too, which was the wrong tool for an
-   * externally-triggerable condition (see ec.h: EC_WARNING compiles
-   * away entirely in Retail builds, so it also provided zero
-   * production diagnostics -- the real diagnostic is now the engine's
-   * return code, which exists in every build).
-   */
-//    error(-1, "PDF file is encrypted and cannot be displayed");
-//    error(-1, "* Decryption support is currently not included in xpdf");
-//    error(-1, "* due to legal restrictions: the U.S.A. still has bogus");
-//    error(-1, "* export controls on cryptography software.");
+
   ObjFree(&obj);
   return encrypted;
 }
@@ -1634,9 +1630,6 @@ void XRefGetDocInfo(XRef *xref, Obj *obj) {
 
   // Is xref table valid?
   GBool XRefIsOk(XRef *xref) { return xref->ok; }
-
-  // Is the file encrypted?
-  GBool XRefIsEncrypted(XRef *xref) { (void) xref; return gFalse; }
 
   // Get catalog object.
   void XRefGetCatalog(XRef *xref, Obj *obj) { 

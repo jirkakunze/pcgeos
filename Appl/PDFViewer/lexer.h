@@ -35,54 +35,42 @@
 #endif
 
 
-//------------------------------------------------------------------------
-// Lexer
-//------------------------------------------------------------------------
+/***********************************************************************
+ *    Lexer
+ ***********************************************************************/
 
+/* Construct a lexer for a single stream; the stream is freed when the lexer is freed. */
+extern void LexerInitFromStream(Lexer *lexer, Stream *str, XRef *xref);
 
-  // Construct a lexer for a single stream.  Deletes the stream when
-  // lexer is deleted.
-extern void
-  LexerInitFromStream(Lexer *lexer, Stream *str, XRef *xref);
+/* Construct a lexer for a stream or array of streams. */
+extern void LexerInitFromObj(Lexer *lexer, Obj *obj, XRef *xref);
 
-  // Construct a lexer for a stream or array of streams (assumes obj
-  // is either a stream or array of streams).
-extern void
-  LexerInitFromObj(Lexer *lexer, Obj *obj, XRef *xref);
+/* Release storage owned by a lexer. */
+extern void LexerFree(Lexer *lexer);
 
-  // Destructor.
-extern void
-  LexerFree(Lexer *lexer);
+/* Get the next PDF object (token) from the input stream. */
+extern void LexerGetObj(Lexer *lexer, Obj *obj);
 
-  // Get the next object from the input stream.
-extern void
-  LexerGetObj (Lexer *lexer, Obj *obj);
+/* Skip to the beginning of the next line in the input stream. */
+extern void LexerSkipToNextLine(Lexer *lexer);
 
-  // Skip to the beginning of the next line in the input stream.
-extern void
-  LexerSkipToNextLine (Lexer *lexer);
+/* Get the current underlying stream. */
+extern Stream *LexerGetStream(Lexer *lexer);
 
-  // Get stream.
-extern Stream *
-  LexerGetStream(Lexer *lexer);
+/* Get the current position in the current stream. */
+extern long LexerGetPos(Lexer *lexer);
 
-  // Get current position in file.
-extern long
-  LexerGetPos(Lexer *lexer);
+/* Set the position in the current stream. */
+extern void LexerSetPos(Lexer *lexer, long pos);
 
-  // Set position in file.
-extern void
-  LexerSetPos(Lexer *lexer, long pos);
+/* Read and consume the next raw character, advancing across stream boundaries. */
+extern long LexerGetChar(Lexer *lexer);
 
+/* Peek at the next raw character without consuming it. */
+extern long LexerLookChar(Lexer *lexer);
 
-extern long
-  LexerGetChar(Lexer *lexer);
-
-extern long
-  LexerLookChar(Lexer *lexer);
-
-extern XRef *
-  LexerGetXRef(Lexer *lexer);
+/* Get the cross-reference table this lexer resolves indirect objects against. */
+extern XRef *LexerGetXRef(Lexer *lexer);
 
 
 #endif  /* _LEXER_H */
