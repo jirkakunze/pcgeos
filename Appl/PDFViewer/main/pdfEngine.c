@@ -10,7 +10,7 @@
  *
  * PROJECT:       FreeGEOS
  * MODULE:        PDF Viewer
- * FILE:          array.c
+ * FILE:          pdfEngine.c
  *
  * AUTHOR:        Jirka Kunze: 18.08.2026
  *
@@ -20,7 +20,7 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
- *
+ *     PDF engine implementation, formerly part of the UI class PDFDoc.
  ***********************************************************************/
 
 

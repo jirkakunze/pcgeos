@@ -1,10 +1,31 @@
-//========================================================================
-//
-// GfxFont.cc
-//
-// Copyright 1996 Derek B. Noonburg
-//
-//========================================================================
+/***********************************************************************
+ *
+ *                      Copyright FreeGEOS-Project
+ *              Portions Copyright (c) GlobalPC 1999
+ *         Portions Copyright 1996 Derek B. Noonburg (xpdf)
+ *
+ *      Licensed under the Apache License, Version 2.0 (the "License");
+ *      you may not use this file except in compliance with the License.
+ *      You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * PROJECT:       FreeGEOS
+ * MODULE:        PDF Viewer
+ * FILE:          gfxFont.goc
+ *
+ * AUTHOR:        Jirka Kunze: 18.08.2026
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/31/99   mevissen  Initial version (GlobalPC).
+ *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
+ *
+ * DESCRIPTION:
+ *      Port of Derek Noonburg's "gfxFont" class from xpdf 0.8.
+ *      Simple variable-length string type.
+ ***********************************************************************/
 
 #ifdef __GNUC__
 #pragma implementation
@@ -1157,9 +1178,6 @@ void GfxFontDictInit(GfxFontDict *this, Dict *fontDict, XRef *xref) {
   initNull(&obj1);
   initNull(&obj2);
 
-  /* TYPE-04: DictGetLength is word and Dict's backing DictEntry array
-   * has a stricter allocation bound than this pointer array, so the
-   * font count is already safe for the allocation below. */
   this->numFonts = DictGetLength(fontDict);
   this->fonts = (GfxFont **)gmalloc(this->numFonts * sizeof(GfxFont *));
   if (!this->fonts) {

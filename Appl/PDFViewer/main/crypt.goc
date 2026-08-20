@@ -1,12 +1,28 @@
-//========================================================================
-//
-// crypt.goc
-//
-// PDF Standard Security Handler (RC4 + MD5 only), empty user password.
-// See crypt.goh for scope.
-//
-//========================================================================
-
+/***********************************************************************
+ *
+ *                      Copyright FreeGEOS-Project
+ *
+ *      Licensed under the Apache License, Version 2.0 (the "License");
+ *      you may not use this file except in compliance with the License.
+ *      You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * PROJECT:       FreeGEOS
+ * MODULE:        PDF Viewer
+ * FILE:          crypt.goc
+ *
+ * AUTHOR:        Jirka Kunze: 18.08.2026
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
+ *
+ * DESCRIPTION:
+ *      PDF Standard Security Handler (RC4 + MD5 only).
+ *
+ ***********************************************************************/
 
 #include <Ansi/string.h>
 

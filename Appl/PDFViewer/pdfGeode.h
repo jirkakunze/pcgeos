@@ -1,30 +1,29 @@
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-  Copyright (c) GlobalPC 1999.  All rights reserved.
-  GLOBALPC CONFIDENTIAL
-
-PROJECT:
-MODULE:		PDF Viewer
-FILE:		pdfGeode.goh
-
-AUTHOR:		John Mevissen, Apr 02, 1999
-
-ROUTINES:
-  Name			Description
-  ----			-----------
-
-REVISION HISTORY:
-  Name		Date		Description
-  ----		----		-----------
-  mevissen	4/02/99   	Initial version.
-
-DESCRIPTION:
-
-  All the structs.
-
-  $Id$
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
+/***********************************************************************
+ *
+ *                      Copyright FreeGEOS-Project
+ *              Portions Copyright (c) GlobalPC 1999
+ *
+ *      Licensed under the Apache License, Version 2.0 (the "License");
+ *      you may not use this file except in compliance with the License.
+ *      You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * PROJECT:       FreeGEOS
+ * MODULE:        PDF Viewer
+ * FILE:          catalog.c
+ *
+ * AUTHOR:        Jirka Kunze: 18.08.2026
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/31/99   mevissen  Initial version (GlobalPC).
+ *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
+ *
+ * DESCRIPTION:
+ * 
+ ***********************************************************************/
 
 #ifndef _PDFGEODE_H
 #define _PDFGEODE_H

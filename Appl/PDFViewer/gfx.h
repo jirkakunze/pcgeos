@@ -42,50 +42,49 @@
 #define maxArgs 8
 
 
-
-//------------------------------------------------------------------------
-// Gfx
-//------------------------------------------------------------------------
+/***********************************************************************
+ *    Gfx
+ ***********************************************************************/
 
 typedef enum TchkType {
-  tchkBool,			// boolean
-  tchkInt,			// integer
-  tchkNum,			// number (integer or real)
-  tchkString,			// string
-  tchkName,			// name
-  tchkArray,			// array
-  tchkProps,			// properties (dictionary or name)
-  tchkSCN,			// scn/SCN args (number of name)
-  tchkNone			// used to avoid empty initializer lists
+    tchkBool,   /* boolean */
+    tchkInt,    /* integer */
+    tchkNum,    /* number (integer or real) */
+    tchkString, /* string */
+    tchkName,   /* name */
+    tchkArray,  /* array */
+    tchkProps,  /* properties (dictionary or name) */
+    tchkSCN,    /* scn/SCN args (number or name) */
+    tchkNone    /* used to avoid empty initializer lists */
 } TchkType;
 
 typedef void GfxOperatorFunc(Gfx *state, Obj args[], int numArgs);
 
 typedef struct Operator {
-  char name[4];
-  int numArgs;
-  TchkType tchk[maxArgs];
-  GfxOperatorFunc _near *func;
+    char name[4];
+    int numArgs;
+    TchkType tchk[maxArgs];
+    GfxOperatorFunc _near *func;
 } Operator;
 
 
-extern void
-  GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref, VMFileHandle vmFile1);
+/* Construct a content-stream interpreter bound to a page/form's gstring and resources. */
+extern void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref, VMFileHandle vmFile1);
 
-extern void
-  GfxFree(Gfx *this);
+/* Release storage owned by a Gfx interpreter. */
+extern void GfxFree(Gfx *this);
 
-extern void
-  GfxResourcesInit(GfxResources *this, GfxResources *next1);
+/* Push a new resource-dictionary scope onto the resource chain. */
+extern void GfxResourcesInit(GfxResources *this, GfxResources *next1);
 
-extern void
-  GfxResourcesFree(GfxResources *this);
+/* Release storage owned by a resource-dictionary scope. */
+extern void GfxResourcesFree(GfxResources *this);
 
-extern GBool
-  GfxDisplay(Gfx *this, Obj *obj);
-  
-extern void
-  GfxDrawAnnotations(Gfx *gfx, Obj *annotsObj);
+/* Interpret a content stream object, drawing into the bound gstring. */
+extern GBool GfxDisplay(Gfx *this, Obj *obj);
+
+/* Draw a page's annotation appearance streams. */
+extern void GfxDrawAnnotations(Gfx *gfx, Obj *annotsObj);
 
 
 #endif  /* _GFX_H */

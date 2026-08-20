@@ -1,10 +1,31 @@
-//========================================================================
-//
-// Gfx.cc
-//
-// Copyright 1996 Derek B. Noonburg
-//
-//========================================================================
+/***********************************************************************
+ *
+ *                      Copyright FreeGEOS-Project
+ *              Portions Copyright (c) GlobalPC 1999
+ *         Portions Copyright 1996 Derek B. Noonburg (xpdf)
+ *
+ *      Licensed under the Apache License, Version 2.0 (the "License");
+ *      you may not use this file except in compliance with the License.
+ *      You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * PROJECT:       FreeGEOS
+ * MODULE:        PDF Viewer
+ * FILE:          gfx.goc
+ *
+ * AUTHOR:        Jirka Kunze: 18.08.2026
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/31/99   mevissen  Initial version (GlobalPC).
+ *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
+ *
+ * DESCRIPTION:
+ *      Port of Derek Noonburg's "Gfx" class from xpdf 0.8.
+ *      Simple variable-length string type.
+ ***********************************************************************/
 
 #ifdef __GNUC__
 #pragma implementation
@@ -38,14 +59,6 @@
 
 #pragma warn -par
 
-/*
- * Phase 4: progress reporting and cancellation used to go through
- * PDFUpdateProgress/PDFPutUpImageProgress/PDFUpdateImageProgress/
- * PDFTakeDownImageProgress (all in ui/pdfvu.goc, called directly from
- * here) and a global GBool (stopLoadingImage). Both are gone now --
- * see the progressCallback/progressUserData/cancelFlag fields the PDF
- * engine sets on Gfx (main/pdfEngine.goc, right after GfxInit).
- */
 
 /*
  * Forward decls
@@ -61,10 +74,6 @@ static void doShowText(Gfx *gfx, GooString *s);
 static void GfxUpdateFont(Gfx *gfx);
 static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg);
 
-/* OPT-24: page-owned bitmap resources are governed primarily by a
- * byte budget instead of the historical hard 100-image cutoff.  The
- * high object-count ceiling is only a last-resort guard against PDFs
- * containing thousands of tiny image objects. */
 #define PDF_PAGE_RESOURCE_VM_BUDGET       0x00800000UL
 #define PDF_PAGE_RESOURCE_OBJECT_LIMIT    2048
 
@@ -341,10 +350,7 @@ static void _near opMarkPoint(Gfx *gfx, Obj args[], int numArgs);
 #pragma code_seg("GFXCore")
 #endif
 
-/* SEG-03B: resource-local ObjFree fastpath for the common scalar Object
- * types used by content operators.  Owned payload types still go through
- * GfxObjFree().  DEBUG_MEM keeps the original path so allocation accounting
- * remains exact. */
+
 static void _near GfxObjFree(Obj *obj) {
 #ifdef DEBUG_MEM
   ObjFree(obj);
@@ -696,16 +702,10 @@ static void GfxExecOp(Gfx *gfx, Obj *cmd, Obj args[], int numArgs, Operator *pOp
     }
   }
 
-  // SEG-01G: every operator-table target now lives in GFXCore.
-  // BI/Do use local wrappers which make ordinary named calls into GFXImage.
-  // Therefore the generic movable-function-pointer trampoline is no longer
-  // needed on the hot operator-dispatch path.
   (op->func)(gfx, args, numArgs);
 }
 
-/* SEG-01G: keep the operator function pointers local to GFXCore.
- * The real BI/Do implementations remain in GFXImage; normal named calls
- * across code resources are handled by the compiler/linker. */
+
 static void _near opBeginImageDispatch(Gfx *gfx, Obj args[], int numArgs) {
   opBeginImage(gfx, args, numArgs);
 }
@@ -843,14 +843,6 @@ static void _near opRestore(Gfx *gfx, Obj args[], int numArgs) {
 static void _near opConcat(Gfx *gfx, Obj args[], int numArgs) {
     TransMatrix tm;
     sdword tmp;
-
-//  state->concatCTM(args[0].getNum(), args[1].getNum(),
-//		   args[2].getNum(), args[3].getNum(),
-//		   args[4].getNum(), args[5].getNum());
-//  out->updateCTM(state, args[0].getNum(), args[1].getNum(),
-//		 args[2].getNum(), args[3].getNum(),
-//		 args[4].getNum(), args[5].getNum());
-//  fontChanged = gTrue;
 
 /* this is painful... */
 
@@ -1415,11 +1407,7 @@ static void _near opMoveTo(Gfx *gfx, Obj args[], int numArgs) {
 }
 
 static void _near opLineTo(Gfx *gfx, Obj args[], int numArgs) {
-//  if (!state->isCurPt()) {
-//    error(getPos(), "No current point in lineto");
-//    return;
-//  }
-//  state->lineTo(args[0].getNum(), args[1].getNum());
+
     gdouble x, y;
 
     x = getNum(&args[0]);
