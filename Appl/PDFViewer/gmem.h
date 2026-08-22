@@ -23,64 +23,63 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
- * 
+ *      Port of Derek Noonburg's "GMem" from xpdf 0.8.
+ *
  ***********************************************************************/
 
-#ifndef _GMEM_H
-#define _GMEM_H
-
+#ifndef GMEM_H
+#define GMEM_H
 
 #include <Ansi/stdio.h>
 #include "gtypes.h"
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
- * Same allocation contract as malloc: returns NULL immediately on OOM and
- * sets the sticky GMem error flag. It never sleeps or retries indefinitely.
- */
-extern void *gmalloc(long size);
+    /*
+     * GMem
+     */
 
-/*
- * Same allocation contract as realloc: returns NULL immediately on OOM,
- * leaves <p> valid, and sets the sticky GMem error flag. If <p> is NULL,
- * calls malloc instead.
- */
-extern void *grealloc(void *p, long size);
+    /*
+     * Same contract as malloc: NULL on OOM (sets the sticky error flag), never
+     * sleeps or retries.
+     */
+    extern void *gmalloc(long size);
 
-/* Sticky out-of-memory status for legacy code paths. */
-extern void GMemClearError(void);
+    extern void *grealloc(void *p, long size);
 
-extern GBool GMemHadError(void);
+    /* Clear the sticky out-of-memory error flag. */
+    extern void GMemClearError(void);
 
-extern void GMemSetError(void);
+    /*
+     * Check whether an allocation has failed since the last GMemClearError().
+     */
+    extern GBool GMemHadError(void);
 
-/*
- * Same as free, but checks for and ignores NULL pointers.
- */
-extern void gfree(void *p);
+    extern void GMemSetError(void);
 
-/*
- * Checked arithmetic for non-negative PDF-controlled sizes and offsets.
- * Returns gFalse without modifying *result if the operation would exceed
- * the signed 32-bit long range used throughout the viewer.
- */
-extern GBool PdfCheckedAdd(long a, long b, long *result);
+    /* Same as free, but tolerates a NULL pointer. */
+    extern void gfree(void *p);
 
-extern GBool PdfCheckedMul(long a, long b, long *result);
+    /*
+     * Checked addition for non-negative PDF-controlled sizes; gFalse (result
+     * untouched) on overflow.
+     */
+    extern GBool PdfCheckedAdd(long a, long b, long *result);
 
+    /*
+     * Checked multiplication for non-negative PDF-controlled sizes; gFalse
+     * (result untouched) on overflow.
+     */
+    extern GBool PdfCheckedMul(long a, long b, long *result);
 
-/*
- * Allocate memory and copy a string into it.
- */
-extern char *copyString(char *s);
-
+    /* Allocate memory and copy a NUL-terminated string into it. */
+    extern char *copyString(char *s);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /* _GEMEM_H */
+#endif  /* GMEM_H */
+

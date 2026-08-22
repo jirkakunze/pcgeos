@@ -31,34 +31,30 @@
 #pragma implementation
 #endif
 
-
 #include "pdfGeode.h"
 #include "array.h"
 #include "gmem.h"
 #include "obj.h"
 
-
-/***********************************************************************
- *    Array
- ***********************************************************************/
+/*
+ * Array
+ */
 
 #define ARRAY_MAX_ELEMS ((word)(65535L / (long)sizeof(Obj)))
 
 /***********************************************************************
  *      ArrayInit
  ***********************************************************************
- * SYNOPSIS:        initialize an empty array
- * PARAMETERS:      Array *arr    array to initialize
+ * SYNOPSIS:        Initialize.
+ * PARAMETERS:      Array *arr    array
  *
  * RETURNS:         void
  *
  * CONTEXT:
- *      Called once before an Array is used, to bring it into a
- *      well-defined, empty state with a single owning reference.
  *
  * STRATEGY:
- *      Clear the element pointer and size/length counters, and set
- *      the reference count to 1.
+ *      Clear the element pointer and size/length counters, and set the
+ *      reference count to 1.
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -76,18 +72,14 @@ void ArrayInit(Array *arr)
 /***********************************************************************
  *      ArrayFree
  ***********************************************************************
- * SYNOPSIS:        release all elements and storage owned by an array
- * PARAMETERS:      Array *arr    array to free
+ * SYNOPSIS:        Release.
+ * PARAMETERS:      Array *arr    array
  *
  * RETURNS:         void
  *
  * CONTEXT:
- *      Called when the last reference to an Array goes away, to
- *      release the Obj elements it holds and its backing storage.
  *
  * STRATEGY:
- *      Free each stored Obj in turn, then free the element buffer
- *      itself.
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -99,7 +91,8 @@ void ArrayFree(Array *arr)
 {
     word i;
 
-    for (i = 0; i < arr->length; ++i) {
+    for (i = 0; i < arr->length; ++i)
+    {
         ObjFree(&arr->elems[i]);
     }
     gfree(arr->elems);
@@ -108,22 +101,17 @@ void ArrayFree(Array *arr)
 /***********************************************************************
  *      ArrayAdd
  ***********************************************************************
- * SYNOPSIS:        append an element to the end of an array
- * PARAMETERS:      Array *arr    array to append to
- *                  Obj *elem     element to copy into the array
+ * SYNOPSIS:        Add.
+ * PARAMETERS:      Array *arr    array
+ *                  Obj *elem    elem
  *
  * RETURNS:         void
  *
  * CONTEXT:
- *      Called whenever a new element needs to be appended, e.g.
- *      while parsing a PDF array object.
  *
  * STRATEGY:
  *      Grow the backing storage by 50% (minimum 8, capped at
- *      ARRAY_MAX_ELEMS) via grealloc() if the array is full, then
- *      copy the element into the new slot and bump the length. Bails
- *      out silently (leaving the array unchanged) on allocation
- *      failure, size-limit overflow, or a copy error.
+ *      ARRAY_MAX_ELEMS) via grealloc() if the array is full, then...
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -137,24 +125,29 @@ void ArrayAdd(Array *arr, Obj *elem)
     word newSize;
     Obj *newElems;
 
-    if (arr->length >= arr->size) {
-        if (arr->size >= ARRAY_MAX_ELEMS) {
+    if (arr->length >= arr->size)
+    {
+        if (arr->size >= ARRAY_MAX_ELEMS)
+        {
             GMemSetError();
             return;
         }
 
         growBy = arr->size >> 1;
-        if (growBy < 8) {
+        if (growBy < 8)
+        {
             growBy = 8;
         }
 
-        if (growBy > ARRAY_MAX_ELEMS - arr->size) {
+        if (growBy > ARRAY_MAX_ELEMS - arr->size)
+        {
             growBy = ARRAY_MAX_ELEMS - arr->size;
         }
 
         newSize = arr->size + growBy;
         newElems = (Obj *)grealloc(arr->elems, (long)newSize * sizeof(Obj));
-        if (!newElems) {
+        if (!newElems)
+        {
             return;
         }
 
@@ -163,7 +156,8 @@ void ArrayAdd(Array *arr, Obj *elem)
     }
 
     ObjCopy(&arr->elems[arr->length], elem);
-    if (GMemHadError()) {
+    if (GMemHadError())
+    {
         return;
     }
 
@@ -173,18 +167,15 @@ void ArrayAdd(Array *arr, Obj *elem)
 /***********************************************************************
  *      ArrayGet
  ***********************************************************************
- * SYNOPSIS:        fetch and dereference an array element by index
- * PARAMETERS:      Array *arr    array to read from
- *                  word i        zero-based element index
- *                  Obj *obj      receives the fetched object
- *                  XRef *xref    cross-reference table for indirect
- *                                object resolution
+ * SYNOPSIS:        Get.
+ * PARAMETERS:      Array *arr    array
+ *                  word i    index
+ *                  Obj *obj    object
+ *                  XRef *xref    cross-reference table
  *
  * RETURNS:         void
  *
  * CONTEXT:
- *      Called by callers that need the fully resolved value of an
- *      array element, following indirect references if present.
  *
  * STRATEGY:
  *      Delegate to ObjFetch() on the stored element.
@@ -203,21 +194,16 @@ void ArrayGet(Array *arr, word i, Obj *obj, XRef *xref)
 /***********************************************************************
  *      ArrayGetNF
  ***********************************************************************
- * SYNOPSIS:        fetch an array element without resolving references
- * PARAMETERS:      Array *arr    array to read from
- *                  word i        zero-based element index
- *                  Obj *obj      receives a copy of the raw element
+ * SYNOPSIS:        Get nf.
+ * PARAMETERS:      Array *arr    array
+ *                  word i    index
+ *                  Obj *obj    object
  *
  * RETURNS:         void
  *
  * CONTEXT:
- *      Called when the caller wants the element as stored, e.g. to
- *      inspect whether it is itself an indirect reference, without
- *      the fetch/resolve overhead of ArrayGet().
  *
  * STRATEGY:
- *      Copy the stored Obj directly via ObjCopy(), bypassing
- *      indirect reference resolution.
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -233,17 +219,14 @@ void ArrayGetNF(Array *arr, word i, Obj *obj)
 /***********************************************************************
  *      ArrayGetLength
  ***********************************************************************
- * SYNOPSIS:        get the number of elements in an array
- * PARAMETERS:      Array *arr    array to query
+ * SYNOPSIS:        Get length.
+ * PARAMETERS:      Array *arr    array
  *
- * RETURNS:         word          current element count
+ * RETURNS:         result value
  *
  * CONTEXT:
- *      Called by callers needing to bound iteration over an array's
- *      elements.
  *
  * STRATEGY:
- *      Return the length field directly.
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -255,3 +238,4 @@ word ArrayGetLength(Array *arr)
 {
     return arr->length;
 }
+

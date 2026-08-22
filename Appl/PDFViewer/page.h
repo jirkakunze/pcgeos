@@ -27,111 +27,132 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _PAGE_H
-#define _PAGE_H
+#ifndef PAGE_H
+#define PAGE_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
+/* PageAttrs */
 
-//------------------------------------------------------------------------
-// PageAttrs
-//------------------------------------------------------------------------
-
-
-  // Construct a new PageAttrs object by merging a dictionary
-  // (of type Pages or Page) into another PageAttrs object.  If
-  // <attrs> is NULL, uses defaults.
+/* Construct a new PageAttrs object by merging a dictionary */
+/* (of type Pages or Page) into another PageAttrs object. */
+/* <attrs> is NULL, uses defaults. */
 extern void
-  PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref);
+PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref);
 
-  // Destructor.
+/* Destructor. */
 extern
 void PageAttrsFree(PageAttrs *this);
 
-  // Accessors.
+/* Accessors. */
 extern
-  gdouble PageAttrsGetX1(PageAttrs *this);
+gdouble PageAttrsGetX1(PageAttrs *this);
+
+/* Get y1. */
 extern
-  gdouble PageAttrsGetY1(PageAttrs *this);
+gdouble PageAttrsGetY1(PageAttrs *this);
+
+/* Get x2. */
 extern
-  gdouble PageAttrsGetX2(PageAttrs *this);
+gdouble PageAttrsGetX2(PageAttrs *this);
+
+/* Get y2. */
 extern
-  gdouble PageAttrsGetY2(PageAttrs *this);
+gdouble PageAttrsGetY2(PageAttrs *this);
+
+/* Check cropped. */
 extern
-  GBool PageAttrsIsCropped(PageAttrs *this);
+GBool PageAttrsIsCropped(PageAttrs *this);
+
+/* Get crop x1. */
 extern
-  gdouble PageAttrsGetCropX1(PageAttrs *this);
+gdouble PageAttrsGetCropX1(PageAttrs *this);
+
+/* Get crop y1. */
 extern
-  gdouble PageAttrsGetCropY1(PageAttrs *this);
+gdouble PageAttrsGetCropY1(PageAttrs *this);
+
+/* Get crop x2. */
 extern
-  gdouble PageAttrsGetCropX2(PageAttrs *this);
+gdouble PageAttrsGetCropX2(PageAttrs *this);
+
+/* Get crop y2. */
 extern
-  gdouble PageAttrsGetCropY2(PageAttrs *this);
+gdouble PageAttrsGetCropY2(PageAttrs *this);
+
+/* Get rotate. */
 extern
-  long PageAttrsGetRotate(PageAttrs *this);
+long PageAttrsGetRotate(PageAttrs *this);
 
 
-//extern
-//Dict *PageAttrsGetResourceDict(PageAttrs *this);
 extern
 void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref);
 
-
-//------------------------------------------------------------------------
-// Page
-//------------------------------------------------------------------------
-
-
-  // Constructor.
+/* Constructor. */
 extern
 void PageInit(Page *page, long num1, Dict *pageDict, PageAttrs *attrs1);
 
-  // Destructor.
+/* Destructor. */
 extern
+/* Release. */
 void PageFree(Page *page);
 
-  // Is page valid?
+/* Is page valid? */
 extern
-  GBool PageIsOk(Page *page);
+GBool PageIsOk(Page *page);
 
-  // Get page parameters.
+/* Get x1. */
 extern
-  gdouble PageGetX1(Page *page);
-extern
-  gdouble PageGetY1(Page *page);
-extern
-  GBool  PageIsCropped(Page *page);
-extern
-  gdouble PageGetCropX1(Page *page);
-extern
-  gdouble PageGetCropY1(Page *page);
-extern
-  gdouble PageGetCropX2(Page *page);
-extern
-  gdouble PageGetCropY2(Page *page);
-extern
-  gdouble PageGetWidth(Page *page);
-extern
-  gdouble PageGetHeight(Page *page);
-extern
-  long PageGetRotate(Page *page);
+gdouble PageGetX1(Page *page);
 
+/* Get y1. */
+extern
+gdouble PageGetY1(Page *page);
 
-  // Get resource
-//extern
-//  Dict *PageGetResourceDict(Page *page);
+/* Check cropped. */
+extern
+GBool PageIsCropped(Page *page);
+
+/* Get crop x1. */
+extern
+gdouble PageGetCropX1(Page *page);
+
+/* Get crop y1. */
+extern
+gdouble PageGetCropY1(Page *page);
+
+/* Get crop x2. */
+extern
+gdouble PageGetCropX2(Page *page);
+
+/* Get crop y2. */
+extern
+gdouble PageGetCropY2(Page *page);
+
+/* Get width. */
+extern
+gdouble PageGetWidth(Page *page);
+
+/* Get height. */
+extern
+gdouble PageGetHeight(Page *page);
+
+/* Get rotate. */
+extern
+long PageGetRotate(Page *page);
+
 extern
 void PageCopyResourceDict(Page *page, Obj *dest, XRef *xref);
 
-  // Get annotations array.
+/* Get annots. */
 extern
-  void PageGetAnnots(Page *page, Obj *obj, XRef *xref);
+void PageGetAnnots(Page *page, Obj *obj, XRef *xref);
 
-  // Get contents.
+/* Get contents. */
 extern
-  void PageGetContents(Page *page, Obj *obj, XRef *xref);
+void PageGetContents(Page *page, Obj *obj, XRef *xref);
 
+#endif  /* PAGE_H */
 
-#endif  /* _PAGE_H */

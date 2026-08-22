@@ -27,36 +27,47 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _GSTR_H
-#define _GSTR_H
+#ifndef GSTR_H
+#define GSTR_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
 #include "gtypes.h"
 
+/*
+ * GooString
+ */
 
-void GStrInit(GooString *gstr);
+extern void GStrInit(GooString *gstr);
 
-void GStrInitString(GooString *gstr, char *s1);
+/* Initialize string. */
+extern void GStrInitString(GooString *gstr, char *s1);
 
-void GStrInitGS(GooString *gstr, GooString *str);
+/* Initialize gs. */
+extern void GStrInitGS(GooString *gstr, GooString *str);
 
-void GStrFree(GooString *gstr);
+/* Release storage owned by a string. */
+extern void GStrFree(GooString *gstr);
 
-void GStrAppendChar(GooString *gstr, char c);
+/* Append a single character. */
+extern void GStrAppendChar(GooString *gstr, char c);
 
-void GStrAppendString(GooString *gstr, char *str);
+/* Append a NUL-terminated C string. */
+extern void GStrAppendString(GooString *gstr, char *str);
 
-void GStrAppendStringN(GooString *gstr, char *str, long length1);
+/* Append length1 bytes from str, which need not be NUL-terminated. */
+extern void GStrAppendStringN(GooString *gstr, char *str, long length1);
 
-long GStrGetLength(GooString *gstr);
+/* Get length. */
+extern long GStrGetLength(GooString *gstr);
 
-char *GStrGetCString(GooString *gstr);
+/* Get cstring. */
+extern char *GStrGetCString(GooString *gstr);
 
-long GStrCmpString(GooString *gstr, char *s1);
+/* Compare against a C string, per strcmp(). */
+extern long GStrCmpString(GooString *gstr, char *s1);
 
+#endif  /* GSTR_H */
 
-#endif  /* _GSTR_H */

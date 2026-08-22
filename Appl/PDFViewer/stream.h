@@ -27,190 +27,226 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _STREAM_H
-#define _STREAM_H
+#ifndef STREAM_H
+#define STREAM_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
 #include "gtypes.h"
 
-
-//------------------------------------------------------------------------
-// Stream (base class)
-//------------------------------------------------------------------------
-
-  // Constructor.
+/* Constructor. */
 extern
 void StreamInit(Stream *stream);
 
-  // Destructor.
+/* Destructor. */
 extern
 void StreamFree(Stream *stream);
 
-  // Reference counting.
+/* Reference counting. */
 #define StreamIncRef(stream) ((long)++((stream)->ref))
 #define StreamDecRef(stream) ((long)--((stream)->ref))
 
+/* Get file. */
 extern
 FileHandle StreamGetFile(Stream *str);
 
+/* Get char. */
 extern
 long StreamGetChar(Stream *str);
+
+/* Read. */
 extern
 word StreamRead(Stream *str, Guchar *buf, word size);
+
+/* Process stream look char. */
 extern
 long StreamLookChar(Stream *str);
 
+/* Get dictionary. */
 extern
 Dict *StreamGetDict(Stream *str);
 
+/* Reset. */
 extern
 void StreamReset(Stream *str);
 
+/* Get length. */
 extern
 long StreamGetLength(Stream *str);
+
+/* Get position. */
 extern
 long StreamGetPos(Stream *str);
+
 extern
 void StreamSetPos(Stream *str, long pos1);
 
+/* Add filters. */
 extern
 Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref);
 
+/* Check binary. */
 extern
 GBool StreamIsBinary(Stream *str, GBool last);
 
+/* Get line. */
 extern
 void StreamGetLine(Stream *str, char *buf, long size);
 
+/* Reset image. */
 extern
-GBool StreamResetImage(Stream *stream, long width1, short nComps1, short nBits1);
+GBool StreamResetImage(Stream *stream, long width1, short nComps1,
+    short nBits1);
 
+/* Get image pixel. */
 extern
 GBool StreamGetImagePixel(Stream *this, Guchar *pix);
 
+/* FileStream */
 
-//------------------------------------------------------------------------
-// FileStream
-//------------------------------------------------------------------------
-
-
-void FStreamInit(Stream *this, FileHandle f1, long start1, long length1, Obj *dict1);
+void FStreamInit(Stream *this, FileHandle f1, long start1, long length1,
+    Obj *dict1);
+/* Initialize with storage. */
 void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1,
-                            long start1, long length1, Obj *dict1);
+    long start1, long length1, Obj *dict1);
+    
+/* Read cache. */
 void FStreamInvalidateReadCache(FileHandle file);
+
+/* Release. */
 void FStreamFree(Stream *this);
 
-//  virtual StreamKind getKind() { return strFile; }
-
+/* Reset. */
 void FStreamReset(Stream *str);
 void FStreamSetPos(Stream *str, long pos1);
 
-  // Check for a PDF header on this stream.  Skip past some garbage
-  // if necessary.
-
+/* Check for a PDF header on this stream. */
 
 GBool FStreamIsBinary(Stream *str);
+
+/* Get char. */
 long FStreamGetChar(Stream *str);
+
+/* Handle fstream look char. */
 long FStreamLookChar(Stream *str);
+
+/* Get length. */
 long FStreamGetLength(Stream *str);
+
+/* Get position. */
 long FStreamGetPos(Stream *str);
+
+/* Get file. */
 FileHandle FStreamGetFile(Stream *str);
+
+/* Get dictionary. */
 Dict *FStreamGetDict(Stream *str);
 
-
-//------------------------------------------------------------------------
-// SubStream
-//------------------------------------------------------------------------
+/* SubStream */
 
 void SubStreamInit(Stream *str, Stream *str1, Obj *dict1);
+/* Release. */
 void SubStreamFree(Stream *str);
+/* Reset. */
 void SubStreamReset(Stream *str);
 
-
-//------------------------------------------------------------------------
-// LZWStream
-//------------------------------------------------------------------------
-
+/* LZWStream */
 
 extern
-void LZWStreamInit(Stream *str, Stream *str2, long predictor1, long columns1, long colors1,
-		     long bits1, long early1);
+void LZWStreamInit(Stream *str, Stream *str2, long predictor1, long columns1,
+    long colors1,
+    long bits1, long early1);
+    
+/* Release. */
 extern
 void LZWStreamFree(Stream *str);
+
+/* Reset. */
 extern
 void LZWStreamReset(Stream *str);
+
+/* Get char. */
 extern
 long LZWStreamGetChar(Stream *str);
+
+/* Process lzwstream look char. */
 extern
 long LZWStreamLookChar(Stream *str);
 
-
-
-//------------------------------------------------------------------------
-// FlateStream
-//------------------------------------------------------------------------
+/* FlateStream */
 
 extern
 void FlateStreamInit(Stream *str, Stream *str1, long predictor1, long columns1,
-			 long colors1, long bits1);
+    long colors1, long bits1);
+/* Release. */
 extern
+/* Release. */
 void FlateStreamFree(Stream *str);
+/* Reset. */
 extern
+/* Reset. */
 void FlateStreamReset(Stream *str);
+/* Get char. */
 extern
 long FlateStreamGetChar(Stream *str);
+/* Read. */
 extern
 word FlateStreamRead(Stream *str, Guchar *buf, word size);
+/* Process flate stream look char. */
 extern
+/* Handle flate stream look char. */
 long FlateStreamLookChar(Stream *str);
+/* Initialize. */
 extern
 
-
-//------------------------------------------------------------------------
-// ObjStmCacheStream
-//------------------------------------------------------------------------
+/* ObjStmCacheStream */
 
 GBool ObjStmCacheStreamInit(Stream *str, VMFileHandle vmFile,
-                             VMBlockHandle data, long start, long length);
+    VMBlockHandle data, long start, long length);
+    
+/* Release. */
 void ObjStmCacheStreamFree(Stream *str);
+
+/* Reset. */
 void ObjStmCacheStreamReset(Stream *str);
+
+/* Get char. */
 long ObjStmCacheStreamGetChar(Stream *str);
+
+/* Handle obj stm cache stream look char. */
 long ObjStmCacheStreamLookChar(Stream *str);
+
+/* Get length. */
 long ObjStmCacheStreamGetLength(Stream *str);
+
+/* Get position. */
 long ObjStmCacheStreamGetPos(Stream *str);
+
+/* Set position. */
 void ObjStmCacheStreamSetPos(Stream *str, long pos);
 
+/* RC4Stream */
 
-//------------------------------------------------------------------------
-// RC4Stream
-//------------------------------------------------------------------------
-
-/*
- * Only RC4StreamInit needs to be visible outside stream.goc --
- * RC4StreamFree/Reset/LookChar/GetChar are all static (file-local),
- * dispatched to internally via the stream's own vtable, not called
- * directly from elsewhere.
- */
+/* Initialize. */
 void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen);
 
-
-//------------------------------------------------------------------------
-// EOFStream
-//------------------------------------------------------------------------
+/* EOFStream */
 
 void EOFStreamInit(Stream *str, Stream *str2);
 
+/* Release. */
 void EOFStreamFree(Stream *str);
 
+/* Reset. */
 void EOFStreamReset(Stream *str);
 
+/* Get char. */
 long EOFStreamGetChar(Stream *str);
 
+/* Handle eofstream look char. */
 long EOFStreamLookChar(Stream *str);
 
+#endif  /* STREAM_H */
 
-#endif  /* _STREAM_H */

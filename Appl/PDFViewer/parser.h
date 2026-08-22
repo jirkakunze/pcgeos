@@ -27,40 +27,38 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _PARSER_H
-#define _PARSER_H
+#ifndef PARSER_H
+#define PARSER_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
+/* Parser */
 
-//------------------------------------------------------------------------
-// Parser
-//------------------------------------------------------------------------
-
-
-  // Constructor.
+/* Constructor. */
 extern void
-  ParserInit(Parser *parser, Lexer *lexer1);
+ParserInit(Parser *parser, Lexer *lexer1);
 
-  // Destructor.
+/* Destructor. */
 extern void
-  ParserFree(Parser *parser);
+ParserFree(Parser *parser);
 
-  // Get the next object from the input stream.
+/* Get object. */
 extern void
-  ParserGetObj(Parser *parser, Obj *obj);
+ParserGetObj(Parser *parser, Obj *obj);
 
-  // Get current position in file.
+/* Get position. */
 extern long
-  ParserGetPos (Parser *parser);
+ParserGetPos(Parser *parser);
 
+/* Get length. */
 extern long
-  ParserGetLength (Parser *parser);
+ParserGetLength(Parser *parser);
 
+/* Process parser shift. */
 extern void
-  ParserShift (Parser *parser);
+ParserShift(Parser *parser);
 
+#endif  /* PARSER_H */
 
-#endif  /* _PARSER_H */

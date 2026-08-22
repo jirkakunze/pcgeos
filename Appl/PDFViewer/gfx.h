@@ -27,35 +27,32 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _GFX_H
-#define _GFX_H
+#ifndef GFX_H
+#define GFX_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
 #include "gtypes.h"
 #include "pdfGeode.h"
 
-
 #define maxArgs 8
 
-
-/***********************************************************************
- *    Gfx
- ***********************************************************************/
+/* 
+ * Gfx 
+ */
 
 typedef enum TchkType {
-    tchkBool,   /* boolean */
-    tchkInt,    /* integer */
-    tchkNum,    /* number (integer or real) */
-    tchkString, /* string */
-    tchkName,   /* name */
-    tchkArray,  /* array */
-    tchkProps,  /* properties (dictionary or name) */
-    tchkSCN,    /* scn/SCN args (number or name) */
-    tchkNone    /* used to avoid empty initializer lists */
+    tchkBool, /* boolean */
+        tchkInt, /* integer */
+        tchkNum, /* number(integer or real) */
+        tchkString, /* string */
+        tchkName, /* name */
+        tchkArray, /* array */
+        tchkProps, /* properties(dictionary or name) */
+        tchkSCN, /* scn/SCN args(number or name) */
+        tchkNone /* used to avoid empty initializer lists */
 } TchkType;
 
 typedef void GfxOperatorFunc(Gfx *state, Obj args[], int numArgs);
@@ -67,9 +64,11 @@ typedef struct Operator {
     GfxOperatorFunc _near *func;
 } Operator;
 
-
-/* Construct a content-stream interpreter bound to a page/form's gstring and resources. */
-extern void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref, VMFileHandle vmFile1);
+/*
+ * Construct a content-stream interpreter bound to a page/form's gstring and resources.
+ */
+extern void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
+    VMFileHandle vmFile1);
 
 /* Release storage owned by a Gfx interpreter. */
 extern void GfxFree(Gfx *this);
@@ -83,8 +82,8 @@ extern void GfxResourcesFree(GfxResources *this);
 /* Interpret a content stream object, drawing into the bound gstring. */
 extern GBool GfxDisplay(Gfx *this, Obj *obj);
 
-/* Draw a page's annotation appearance streams. */
+/* Draw annotations. */
 extern void GfxDrawAnnotations(Gfx *gfx, Obj *annotsObj);
 
+#endif  /* GFX_H */
 
-#endif  /* _GFX_H */

@@ -27,18 +27,16 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _XREF_H
-#define _XREF_H
+#ifndef XREF_H
+#define XREF_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
-/***********************************************************************
- * XRef
- ***********************************************************************/
-
+/*
+ * XRef 
+ */
 
 /* Zero-initialize an XRef structure. */
 extern void XRefInitNull(XRef *xref);
@@ -52,26 +50,27 @@ extern void XRefFree(XRef *xref);
 /* Is xref table valid? */
 extern GBool XRefIsOk(XRef *xref);
 
-/* Are printing allowed?  If not, print an error message. */
+/* Are printing allowed? */
 extern GBool XRefOkToPrint(XRef *xref);
 
-/* Are copying allowed?  If not, print an error message. */
+/* Are copying allowed? */
 extern GBool XRefOkToCopy(XRef *xref);
 
-/* Get catalog object. */
+/* Get catalog. */
 extern void XRefGetCatalog(XRef *xref, Obj *obj);
 
 /* Fetch an indirect reference. */
 extern void XRefFetch(XRef *xref, long num, long gen, Obj *obj);
 
-/* Return the document''s Info dictionary (if any). */
+/* Get document info. */
 extern void XRefGetDocInfo(XRef *xref, Obj *obj);
 
-/* Read an xref subsection table and its trailer Prev pointer. */
-extern GBool XRefReadXRef (XRef *xref, Stream *fs, long *pos, GBool isFirstSection);
+/* Read cross-reference table. */
+extern GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos,
+    GBool isFirstSection);
 
-/* Return whether the trailer dictionary has an Encrypt entry. */
+/* Check encrypted. */
 extern GBool XRefCheckEncrypted(XRef *xref);
 
+#endif  /* XREF_H */
 
-#endif  /* _XREF_H */

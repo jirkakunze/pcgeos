@@ -27,15 +27,14 @@
  *
  ***********************************************************************/
 
-#ifndef _ARRAY_H
-#define _ARRAY_H
+#ifndef ARRAY_H
+#define ARRAY_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
-/* Initialize an empty array. */
+/* Initialize. */
 extern void ArrayInit(Array *arr);
 
 /* Release all elements and storage owned by an array. */
@@ -43,12 +42,11 @@ extern void ArrayFree(Array *arr);
 
 /* Increment the reference count, failing if it would overflow. */
 #define ArrayIncRef(arr)  (((arr)->ref == (word)0xffff) ? \
-                          (GMemSetError(), (word)0) : (word)++((arr)->ref))
+	(GMemSetError(), (word)0) : (word)++((arr)->ref))
 
 /* Decrement the reference count. */
 #define ArrayDecRef(arr) ((word)--((arr)->ref))
 
-/* Get the number of elements in the array. */
 extern word ArrayGetLength(Array *arr);
 
 /* Append an element to the end of the array. */
@@ -60,5 +58,5 @@ extern void ArrayGet(Array *arr, word i, Obj *obj, XRef *xref);
 /* Fetch an array element without resolving indirect references. */
 extern void ArrayGetNF(Array *arr, word i, Obj *obj);
 
+#endif  /* ARRAY_H */
 
-#endif  /* _ARRAY_H */

@@ -27,16 +27,16 @@
  *
  ***********************************************************************/
 
-#ifndef _CATALOG_H
-#define _CATALOG_H
+#ifndef CATALOG_H
+#define CATALOG_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
 /* Parse the document catalog dictionary and locate the page tree root. */
-extern void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref);
+extern void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile,
+    XRef *xref);
 
 /* Zero-initialize a Catalog into an invalid, empty state. */
 extern void CatalogInitNull(Catalog *cat);
@@ -47,20 +47,21 @@ extern void CatalogFree(Catalog *cat);
 /* Is the catalog valid? */
 extern GBool CatalogIsOk(Catalog *cat);
 
-/* Get the number of pages in the document. */
+/* Get number pages. */
 extern long CatalogGetNumPages(Catalog *cat);
 
-/* Materialize one page into caller-owned storage.  The caller must
- * call PageFree() exactly once if this returns gTrue. */
+/*
+ * Materialize one page into caller-owned storage. The caller must call
+ * PageFree() exactly once if this returns gTrue.
+ */
 extern GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page);
-
 
 #ifdef KEEP_PAGE_REFS
 
-/* Find a page by its object ID.  Returns the page number, or 0 if not found. */
+/* Find a page by its object ID. */
 extern long CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref);
 
 #endif
 
+#endif  /* CATALOG_H */
 
-#endif  /* _CATALOG_H */

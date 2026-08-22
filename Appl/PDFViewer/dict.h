@@ -27,44 +27,42 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _DICT_H
-#define _DICT_H
+#ifndef DICT_H
+#define DICT_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
-
-/* Initialize an empty dictionary. */
+/* Initialize. */
 extern void DictInit(Dict *dict);
 
 /* Release all entries and storage owned by a dictionary. */
 extern void DictFree(Dict *dict);
 
 /* Increment the reference count, failing if it would overflow. */
-#define DictIncRef(dict) \
-    (((dict)->ref == (word)0xffff) ? \
-     (GMemSetError(), (word)0) : (word)++((dict)->ref))
+#define DictIncRef(dict)		 		\
+	(((dict)->ref == (word)0xffff) ? 	\
+    (GMemSetError(), (word)0) : (word)++((dict)->ref))
 
 /* Decrement the reference count. */
 #define DictDecRef(dict) ((word)--((dict)->ref))
 
-/* Get the number of entries in the dictionary. */
 extern word DictGetLength(Dict *dict);
 
-/* Add an entry.  Takes ownership of key; does not copy it. */
+/* Takes ownership of key; does not copy it. */
 extern void DictAdd(Dict *dict, char *key, Obj *val);
 
 /* Check whether the dictionary's /Type entry matches the given name. */
 extern GBool DictIs(Dict *dict, char *type);
 
-/* Look up and dereference an entry by key; a null object if not found. */
+/* Look up. */
 extern void DictLookup(Dict *dict, char *key, Obj *obj, XRef *xref);
 
 /* Look up an entry by key without resolving indirect references. */
 extern void DictLookupNF(Dict *dict, char *key, Obj *obj);
 
-/* Get the key at a given entry index. */
+/* Get key. */
 extern char *DictGetKey(Dict *dict, word i);
 
 /* Fetch and dereference the value at a given entry index. */
@@ -73,5 +71,5 @@ extern void DictGetVal(Dict *dict, word i, Obj *obj, XRef *xref);
 /* Fetch the value at a given entry index without resolving references. */
 extern void DictGetValNF(Dict *dict, word i, Obj *obj);
 
+#endif  /* DICT_H */
 
-#endif  /* _DICT_H */

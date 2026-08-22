@@ -27,8 +27,8 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _OBJ_H
-#define _OBJ_H
+#ifndef OBJ_H
+#define OBJ_H
 
 #ifdef __GNUC__
 #pragma interface
@@ -36,64 +36,84 @@
 
 #include "pdfGeode.h"
 
+/* Initialize bool. */
+extern
+void initBool(Obj *obj, GBool booln1);
 
-  // Initialize an object.
+/* Initialize int. */
 extern
-  void initBool(Obj *obj, GBool booln1);
+void initInt(Obj *obj, long intg1);
+
+/* Initialize real. */
 extern
-  void initInt(Obj *obj, long intg1);
+void initReal(Obj *obj, gdouble real1);
+
+/* Initialize string. */
 extern
-  void initReal(Obj *obj, gdouble real1);
+void initString(Obj *obj, GooString *string1);
+
+/* Initialize name. */
 extern
-  void initString(Obj *obj, GooString *string1);
-extern
-  void initName(Obj *obj, char *name1);
+void initName(Obj *obj, char *name1);
+
 #ifdef DEBUG_MEM
+/* Initialize null. */
 extern
-  void initNull(Obj *obj);
+void initNull(Obj *obj);
 #else
 #define initNull(obj) ((void)((obj)->type = objNull))
 #endif
-extern
-  void initRef(Obj *obj, long num1, long gen1);
-extern
-  void initCmd(Obj *obj, char *cmd1);
-extern
-  void initError(Obj *obj);
-extern
-  void initEOF(Obj *obj);
 
+/* Initialize ref. */
+extern
+void initRef(Obj *obj, long num1, long gen1);
+
+/* Initialize cmd. */
+extern
+void initCmd(Obj *obj, char *cmd1);
+
+/* Initialize error. */
+extern
+void initError(Obj *obj);
+
+/* Initialize eof. */
+extern
+void initEOF(Obj *obj);
+
+/* Initialize array. */
 extern
 void initArray(Obj *obj);
+/* Initialize dictionary. */
+
 extern
 void initDict(Obj *obj);
+
+/* Initialize dictionary data. */
 extern
 void initDictData(Obj *obj, Dict *dict1);
+
+/* Initialize stream. */
 extern
 void initStream(Obj *obj, Stream *stream1);
 
-
-  // Copy an object.
+/* Move. */
 extern
-/*
- * Transfer ownership from *src to *dest without ObjCopy's
- * allocation/deep-copy work -- see ObjMove's own doc comment in
- * main/obj.goc for the full contract. Part of project roadmap P1/A1;
- * not yet used anywhere in the project as of this declaration.
- */
 void ObjMove(Obj *dest, Obj *src);
+
+/* Copy. */
 void ObjCopy(Obj *obj, Obj *obj2);
 
-  // If object is a Ref, fetch and return the referenced object.
-  // Otherwise, return a copy of the object.
+/* If object is a Ref, fetch and return the referenced object. */
+/* Otherwise, return a copy of the object. */
 extern
+/* Fetch. */
 void ObjFetch(Obj *dest, Obj *obj, XRef *xref);
 
-  // Free object contents.
+/* Release. */
 extern
 void ObjFree(Obj *obj);
 
-  // Type checking.  SEG-05A: single-field tests stay local.
+/* Type checking. */
 #define isBool(obj)   ((obj)->type == objBool)
 #define isInt(obj)    ((obj)->type == objInt)
 #define isNum(obj)    ((obj)->type == objInt || (obj)->type == objReal)
@@ -109,85 +129,109 @@ void ObjFree(Obj *obj);
 #define isEOF(obj)    ((obj)->type == objEOF)
 #define isNone(obj)   ((obj)->type == objNone)
 
-  // Special type checking.
+/* Special type checking. */
 extern
-  GBool isNameSame(Obj *obj, char *name1);
+GBool isNameSame(Obj *obj, char *name1);
+/* Check cmd same. */
 extern
-  GBool isCmdSame(Obj *obj, char *cmd1);
+GBool isCmdSame(Obj *obj, char *cmd1);
 
-  // Accessors.  NB: these assume object is of correct type.
+/* Accessors. */
 #define getBool(obj)   ((obj)->u.booln)
 #define getInt(obj)    ((obj)->u.intg)
+
+/* Get number. */
 extern
-  gdouble getNum(Obj *obj);
+gdouble getNum(Obj *obj);
+
+/* Get string. */
 extern
-  GooString *getString(Obj *obj);
+GooString *getString(Obj *obj);
+
+/* Get name. */
 extern
-  char *getName(Obj *obj);
+char *getName(Obj *obj);
+
+/* Get array. */
 extern
-  Array *getArray(Obj *obj);
+Array *getArray(Obj *obj);
+
+/* Get dictionary. */
 extern
-  Dict *getDict(Obj *obj);
+Dict *getDict(Obj *obj);
+
+/* Get stream. */
 extern
-  Stream *getStream(Obj *obj);
+Stream *getStream(Obj *obj);
+
+/* Get ref. */
 extern
-  Ref getRef(Obj *obj);
+Ref getRef(Obj *obj);
+
 #define getRefNum(obj) ((obj)->u.ref.num)
+
 #define getRefGen(obj) ((obj)->u.ref.gen)
 
-
-  // Array accessors.  SEG-05C: bypass the obj resource for pure forwarders.
+/* Get length. */
 #define ObjArrayGetLength(obj) \
-  ArrayGetLength((obj)->u.array)
+	ArrayGetLength((obj)->u.array)
+	
 #define ObjArrayAdd(obj, elem) \
-  ArrayAdd((obj)->u.array, (elem))
+	ArrayAdd((obj)->u.array, (elem))
+	
 #define ObjArrayGet(obj, i, obj2, xref) \
-  ArrayGet((obj)->u.array, (i), (obj2), (xref))
+	ArrayGet((obj)->u.array, (i), (obj2), (xref))
+	
 #define ObjArrayGetNF(obj, i, obj2) \
-  ArrayGetNF((obj)->u.array, (i), (obj2))
+	ArrayGetNF((obj)->u.array, (i), (obj2))
 
-
-  // Dict accessors.
+/* Dict accessors. */
 #define ObjDictAdd(obj, key, val) \
-  DictAdd((obj)->u.dict, (key), (val))
-/* SEG-05C2: bypass obj resource for the remaining small typed wrappers. */
+	DictAdd((obj)->u.dict, (key), (val))
+
 #define ObjIsDictSame(obj, dictType) \
-  ((obj)->type == objDict && DictIs((obj)->u.dict, (dictType)))
+	((obj)->type == objDict && DictIs((obj)->u.dict, (dictType)))
+
 #define ObjDictLookup(obj, key, obj2, xref) \
-  DictLookup((obj)->u.dict, (key), (obj2), (xref))
+	DictLookup((obj)->u.dict, (key), (obj2), (xref))
+
 #define ObjDictLookupNF(obj, key, obj2) \
-  DictLookupNF((obj)->u.dict, (key), (obj2))
+	DictLookupNF((obj)->u.dict, (key), (obj2))
+
 #define ObjDictGetKey(obj, i) \
-  DictGetKey((obj)->u.dict, (i))
+	DictGetKey((obj)->u.dict, (i))
 
-
-  // Stream accessors.
+/* Stream accessors. */
 
 #define ObjIsStream(obj, dictType) \
-  ((obj)->type == objStream && \
-   DictIs(StreamGetDict((obj)->u.stream), (dictType)))
+((obj)->type == objStream && \
+    DictIs(StreamGetDict((obj)->u.stream), (dictType)))
 
 #define ObjStreamReset(obj) \
-  StreamReset((obj)->u.stream)
+	StreamReset((obj)->u.stream)
+
 #define ObjStreamGetChar(obj) \
-  ((int)StreamGetChar((obj)->u.stream))
+	((int)StreamGetChar((obj)->u.stream))
+
 #define ObjStreamLookChar(obj) \
-  ((int)StreamLookChar((obj)->u.stream))
+	((int)StreamLookChar((obj)->u.stream))
+
 #define ObjStreamGetPos(obj) \
-  StreamGetPos((obj)->u.stream)
+	StreamGetPos((obj)->u.stream)
+
 #define ObjStreamSetPos(obj, pos) \
-  StreamSetPos((obj)->u.stream, (pos))
+	StreamSetPos((obj)->u.stream, (pos))
+
 #define ObjStreamGetDict(obj) \
-  StreamGetDict((obj)->u.stream)
+	StreamGetDict((obj)->u.stream)
+
 #define ObjStreamGetLine(obj, buf, size) \
-  StreamGetLine((obj)->u.stream, (buf), (size))
-
-
+	StreamGetLine((obj)->u.stream, (buf), (size))
 
 #ifdef DEBUG_MEM
-  static long			// number of each type of object
-  numAlloc[numObjTypes];	//   currently allocated
+static long /* number of each type of object */
+numAlloc[numObjTypes]; /* currently allocated */
 #endif
 
+#endif  /* OBJ_H */
 
-#endif  /* _OBJ_H */

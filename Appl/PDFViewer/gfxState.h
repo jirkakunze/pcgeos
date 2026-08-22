@@ -34,65 +34,63 @@
 #pragma interface
 #endif
 
-
 #include "gtypes.h"
 
+/*
+ * GfxColor
+ */
 
-/***********************************************************************
- *    GfxColor
- ***********************************************************************/
-
-/* Set a color from CMYK components. */
 extern void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k);
 
-/* Set a color from a single gray component. */
+/* Set gray. */
 extern void GfxColorSetGray(GfxColor *this, short gray);
 
-/* Set a color from RGB components. */
+/* Set rgb. */
 extern void GfxColorSetRGB(GfxColor *this, short r1, short g1, short b1);
 
+/*
+ * GfxColorSpace
+ */
 
-/***********************************************************************
- *    GfxColorSpace
- ***********************************************************************/
-
-/* Parse a PDF colorspace object into mode, component count, and lookup table. */
+/*
+ * Parse a PDF colorspace object into mode, component count, and lookup table.
+ */
 extern void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref);
 
 /* Release storage owned by a colorspace. */
 extern void GfxColorSpaceFree(GfxColorSpace *this);
 
-/* Get the number of components per pixel sample. */
+/* Get number pixel comps. */
 extern short GfxColorSpaceGetNumPixelComps(GfxColorSpace *this);
 
 /* Convert a raw component tuple to a device color. */
-extern void GfxColorSpaceGetColor(GfxColorSpace *this, short x[4], GfxColor *color);
+extern void GfxColorSpaceGetColor(GfxColorSpace *this, short x[4],
+    GfxColor *color);
 
-
-/***********************************************************************
- *    GfxImageColorMap
- ***********************************************************************/
+/*
+ * GfxImageColorMap
+ */
 
 /* Build a lookup table mapping image samples to device colors. */
-extern void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
-                                  GfxColorSpace *colorSpace1, XRef *xref);
+extern void GfxImageColorMapInit(GfxImageColorMap *this, short bits1,
+    Obj *decode, GfxColorSpace *colorSpace1, XRef *xref);
 
 /* Release storage owned by an image color map. */
 extern void GfxImageColorMapFree(GfxImageColorMap *this);
 
-/* Get the number of components per pixel sample. */
+/* Map get number pixel comps. */
 extern short GfxImageColorMapGetNumPixelComps(GfxImageColorMap *this);
 
-/* Get the number of bits per component. */
+/* Map get bits. */
 extern short GfxImageColorMapGetBits(GfxImageColorMap *this);
 
 /* Convert a raw image sample to a device color. */
-extern void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4], GfxColor *color);
+extern void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4],
+    GfxColor *color);
 
-
-/***********************************************************************
- *    GfxState
- ***********************************************************************/
+/*
+ * GfxState
+ */
 
 /* Construct a default GfxState bound to a GEOS gstring. */
 extern void GfxStateInit(GfxState *state, Handle gstring);
@@ -100,7 +98,7 @@ extern void GfxStateInit(GfxState *state, Handle gstring);
 /* Release the saved-state chain owned by a GfxState. */
 extern void GfxStateFree(GfxState *state);
 
-/* Copy all fields of one GfxState into another. */
+/* Copy. */
 extern void GfxStateCopy(GfxState *dest, GfxState *state);
 
 /* Push the current state onto its own saved-state stack. */
@@ -109,56 +107,56 @@ extern void GfxStateSave(GfxState *state);
 /* Pop and restore the most recently saved state. */
 extern void GfxStateRestore(GfxState *state);
 
-/* Get the current font. */
+/* Get font. */
 extern GfxFont *GfxStateGetFont(GfxState *state);
 
-/* Get the current font size. */
+/* Get font size. */
 extern gdouble GfxStateGetFontSize(GfxState *state);
 
-/* Get the current text matrix. */
+/* Get text mat. */
 extern gdouble *GfxStateGetTextMat(GfxState *state);
 
-/* Get the current character spacing. */
+/* Get char space. */
 extern sdword GfxStateGetCharSpace(GfxState *state);
 
-/* Get the current word spacing. */
+/* Get word space. */
 extern gdouble GfxStateGetWordSpace(GfxState *state);
 
-/* Get the current horizontal scaling. */
+/* Get horiz scaling. */
 extern sdword GfxStateGetHorizScaling(GfxState *state);
 
-/* Get the current leading. */
+/* Get leading. */
 extern gdouble GfxStateGetLeading(GfxState *state);
 
-/* Get the current text rise. */
+/* Get rise. */
 extern sdword GfxStateGetRise(GfxState *state);
 
-/* Get the current text rendering mode. */
+/* Get render. */
 extern short GfxStateGetRender(GfxState *state);
 
-/* Set the current font and size. */
+/* Set font. */
 extern void GfxStateSetFont(GfxState *state, GfxFont *font1, gdouble fontSize1);
 
-/* Set the text matrix. */
+/* Set text mat. */
 extern void GfxStateSetTextMat(GfxState *state, gdouble a, gdouble b, gdouble c,
-                                gdouble d, gdouble e, gdouble f);
+    gdouble d, gdouble e, gdouble f);
 
-/* Set the character spacing. */
+/* Set char space. */
 extern void GfxStateSetCharSpace(GfxState *state, gdouble space);
 
-/* Set the word spacing. */
+/* Set word space. */
 extern void GfxStateSetWordSpace(GfxState *state, gdouble space);
 
-/* Set the horizontal scaling, as a percentage. */
+/* Set horiz scaling. */
 extern void GfxStateSetHorizScaling(GfxState *state, gdouble scale);
 
-/* Set the leading. */
+/* Set leading. */
 extern void GfxStateSetLeading(GfxState *state, gdouble leading1);
 
-/* Set the text rise. */
+/* Set rise. */
 extern void GfxStateSetRise(GfxState *state, gdouble rise1);
 
-/* Set the text rendering mode. */
+/* Set render. */
 extern void GfxStateSetRender(GfxState *state, short render1);
 
 /* Move the text line origin to (tx, ty) in text space. */
@@ -167,5 +165,5 @@ extern void GfxStateTextMoveTo(GfxState *state, gdouble tx, gdouble ty);
 /* Shift the text position horizontally by tx in text space. */
 extern void GfxStateTextShift(GfxState *state, gdouble tx);
 
+#endif  /* GFXSTATE_H */
 
-#endif	/* gfxstate_h */

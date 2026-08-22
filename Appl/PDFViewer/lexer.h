@@ -27,19 +27,17 @@
  *      Simple variable-length string type.
  ***********************************************************************/
 
-#ifndef _LEXER_H
-#define _LEXER_H
+#ifndef LEXER_H
+#define LEXER_H
 
 #ifdef __GNUC__
 #pragma interface
 #endif
 
+/*
+ * Lexer
+ */
 
-/***********************************************************************
- *    Lexer
- ***********************************************************************/
-
-/* Construct a lexer for a single stream; the stream is freed when the lexer is freed. */
 extern void LexerInitFromStream(Lexer *lexer, Stream *str, XRef *xref);
 
 /* Construct a lexer for a stream or array of streams. */
@@ -48,29 +46,33 @@ extern void LexerInitFromObj(Lexer *lexer, Obj *obj, XRef *xref);
 /* Release storage owned by a lexer. */
 extern void LexerFree(Lexer *lexer);
 
-/* Get the next PDF object (token) from the input stream. */
+/* Get object. */
 extern void LexerGetObj(Lexer *lexer, Obj *obj);
 
-/* Skip to the beginning of the next line in the input stream. */
+/* Skip to next line. */
 extern void LexerSkipToNextLine(Lexer *lexer);
 
-/* Get the current underlying stream. */
+/* Get stream. */
 extern Stream *LexerGetStream(Lexer *lexer);
 
-/* Get the current position in the current stream. */
+/* Get position. */
 extern long LexerGetPos(Lexer *lexer);
 
-/* Set the position in the current stream. */
+/* Set position. */
 extern void LexerSetPos(Lexer *lexer, long pos);
 
-/* Read and consume the next raw character, advancing across stream boundaries. */
+/*
+ * Read and consume the next raw character, advancing across stream boundaries.
+ */
 extern long LexerGetChar(Lexer *lexer);
 
 /* Peek at the next raw character without consuming it. */
 extern long LexerLookChar(Lexer *lexer);
 
-/* Get the cross-reference table this lexer resolves indirect objects against. */
+/*
+ * Get the cross-reference table this lexer resolves indirect objects against.
+ */
 extern XRef *LexerGetXRef(Lexer *lexer);
 
+#endif  /* LEXER_H */
 
-#endif  /* _LEXER_H */

@@ -33,47 +33,83 @@
 #include "gmem.h"
 #include "crypt.h"
 
-/***********************************************************************
- *		MD5
- ***********************************************************************
- * Standard RFC 1321 MD5, one-shot (whole message already in memory --
- * see crypt.goh for why no incremental API is needed here).
- ***********************************************************************/
+/*
+ * MD5 Standard RFC 1321 MD5, one-shot .
+ */
 
 static dword md5K[64] = {
     0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
-    0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
-    0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
-    0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
-    0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
-    0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
-    0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
-    0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
-    0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c,
-    0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
-    0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05,
-    0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
-    0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039,
-    0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-    0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
-    0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
+        0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
+        0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
+        0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
+        0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
+        0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+        0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
+        0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
+        0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c,
+        0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+        0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05,
+        0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+        0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039,
+        0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+        0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
+        0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
 
 static short md5S[64] = {
-    7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,
-    5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,
-    4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,
-    6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+        5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+        4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+        6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
 };
 
-static dword
-md5RotL(dword x, short c)
+/***********************************************************************
+ *      md5RotL
+ ***********************************************************************
+ * SYNOPSIS:        Process md5 rot l.
+ * PARAMETERS:      dword x    x
+ *                  short c    c
+ *
+ * RETURNS:         result value
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
+ ***********************************************************************/
+
+static dword md5RotL(dword x, short c)
 {
-    return (x << c) | (x >> (32 - c));
+    return(x << c) | (x >> (32 - c));
 }
 
-void
-MD5Compute(Guchar *data, word len, Guchar digest[16])
+/***********************************************************************
+ *      MD5Compute
+ ***********************************************************************
+ * SYNOPSIS:        Compute.
+ * PARAMETERS:      Guchar *data    data
+ *                  word len    length
+ *                  Guchar digest[16]    digest
+ *
+ * RETURNS:         void
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
+ ***********************************************************************/
+
+void MD5Compute(Guchar *data, word len, Guchar digest[16])
 {
     dword a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
     dword a, b, c, d, f, m, temp;
@@ -82,99 +118,154 @@ MD5Compute(Guchar *data, word len, Guchar digest[16])
     Guchar *msg;
     dword bitLen;
 
-    /* pad: 0x80, then zeros, until length % 64 == 56, then original
-     * bit-length as a little-endian 8-byte value (only the low 4
-     * bytes can be non-zero for any input this module ever sees --
-     * always well under 2^32 bits) */
+    /*
+     * pad: 0x80, then zeros, until length % 64 == 56, then original bit-length
+     * as a little-endian 8-byte value
+     */
     paddedLen = (word)((len + 72) & 0xffc0);
     msg = gmalloc(paddedLen);
-    if (!msg) {
+    if (!msg)
+    {
         memset(digest, 0, 16);
         return;
     }
     memcpy(msg, data, len);
     msg[len] = 0x80;
-    for (i = len + 1; i < paddedLen - 8; ++i) {
-	msg[i] = 0;
+    for (i = len + 1; i < paddedLen - 8; ++i)
+    {
+        msg[i] = 0;
     }
     bitLen = ((dword)len) << 3;
-    for (i = 0; i < 4; ++i) {
-	msg[paddedLen - 8 + i] = (Guchar) (bitLen >> (i << 3));
+    for (i = 0; i < 4; ++i)
+    {
+        msg[paddedLen - 8 + i] = (Guchar)(bitLen >> (i << 3));
     }
-    for (i = 4; i < 8; ++i) {
-	msg[paddedLen - 8 + i] = 0;
-    }
-
-    for (chunkStart = 0; chunkStart < paddedLen; chunkStart += 64) {
-	dword w[16];
-	for (i = 0; i < 16; ++i) {
-	    w[i] = ((dword) msg[chunkStart + (i << 2) + 0]) |
-		   ((dword) msg[chunkStart + (i << 2) + 1] << 8) |
-		   ((dword) msg[chunkStart + (i << 2) + 2] << 16) |
-		   ((dword) msg[chunkStart + (i << 2) + 3] << 24);
-	}
-
-	a = a0; b = b0; c = c0; d = d0;
-
-	for (j = 0; j < 64; ++j) {
-	    if (j < 16) {
-		f = (b & c) | (~b & d);
-		g = j;
-	    } else if (j < 32) {
-		f = (d & b) | (~d & c);
-		g = (5*j + 1) & 15;
-	    } else if (j < 48) {
-		f = b ^ c ^ d;
-		g = (3*j + 5) & 15;
-	    } else {
-		f = c ^ (b | ~d);
-		g = (7*j) & 15;
-	    }
-	    temp = d;
-	    d = c;
-	    c = b;
-	    m = a + f + md5K[j] + w[g];
-	    b = b + md5RotL(m, md5S[j]);
-	    a = temp;
-	}
-
-	a0 += a; b0 += b; c0 += c; d0 += d;
+    for (i = 4; i < 8; ++i)
+    {
+        msg[paddedLen - 8 + i] = 0;
     }
 
-    for (i = 0; i < 4; ++i) {
-	digest[i]      = (Guchar) (a0 >> (i << 3));
-	digest[4 + i]  = (Guchar) (b0 >> (i << 3));
-	digest[8 + i]  = (Guchar) (c0 >> (i << 3));
-	digest[12 + i] = (Guchar) (d0 >> (i << 3));
+    for (chunkStart = 0; chunkStart < paddedLen; chunkStart += 64)
+    {
+        dword w[16];
+        for (i = 0; i < 16; ++i)
+        {
+            w[i] = ((dword)msg[chunkStart + (i << 2) + 0]) |
+            ((dword)msg[chunkStart + (i << 2) + 1] << 8) |
+            ((dword)msg[chunkStart + (i << 2) + 2] << 16) |
+            ((dword)msg[chunkStart + (i << 2) + 3] << 24);
+        }
+
+        a = a0; b = b0; c = c0; d = d0;
+
+        for (j = 0; j < 64; ++j)
+        {
+            if (j < 16)
+            {
+                f = (b & c) | (~b & d);
+                g = j;
+            }
+            else if (j < 32)
+            {
+                f = (d & b) | (~d & c);
+                g = (5 * j + 1) & 15;
+            }
+            else if (j < 48)
+            {
+                f = b ^ c ^ d;
+                g = (3 * j + 5) & 15;
+            }
+            else
+            {
+                f = c ^ (b | ~d);
+                g = (7 * j) & 15;
+            }
+            temp = d;
+            d = c;
+            c = b;
+            m = a + f + md5K[j] + w[g];
+            b = b + md5RotL(m, md5S[j]);
+            a = temp;
+        }
+
+        a0 += a; b0 += b; c0 += c; d0 += d;
+    }
+
+    for (i = 0; i < 4; ++i)
+    {
+        digest[i] = (Guchar)(a0 >> (i << 3));
+        digest[4 + i] = (Guchar)(b0 >> (i << 3));
+        digest[8 + i] = (Guchar)(c0 >> (i << 3));
+        digest[12 + i] = (Guchar)(d0 >> (i << 3));
     }
 
     gfree(msg);
 }
 
+/* RC4 ********************************************************************* */
+
 /***********************************************************************
- *		RC4
+ *      RC4KeySchedule
+ ***********************************************************************
+ * SYNOPSIS:        Process rc4 key schedule.
+ * PARAMETERS:      Guchar *key    key
+ *                  short keyLen    key len
+ *                  Guchar sBox[256]    s box
+ *
+ * RETURNS:         void
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
  ***********************************************************************/
 
-void
-RC4KeySchedule(Guchar *key, short keyLen, Guchar sBox[256])
+void RC4KeySchedule(Guchar *key, short keyLen, Guchar sBox[256])
 {
     short i, j;
     Guchar tmp;
 
-    for (i = 0; i < 256; ++i) {
-	sBox[i] = (Guchar) i;
+    for (i = 0; i < 256; ++i)
+    {
+        sBox[i] = (Guchar)i;
     }
     j = 0;
-    for (i = 0; i < 256; ++i) {
-	j = (j + sBox[i] + key[i % keyLen]) & 0xff;
-	tmp = sBox[i];
-	sBox[i] = sBox[j];
-	sBox[j] = tmp;
+    for (i = 0; i < 256; ++i)
+    {
+        j = (j + sBox[i] + key[i % keyLen]) & 0xff;
+        tmp = sBox[i];
+        sBox[i] = sBox[j];
+        sBox[j] = tmp;
     }
 }
 
-Guchar
-RC4NextByte(Guchar sBox[256], Guchar *rc4i, Guchar *rc4j)
+/***********************************************************************
+ *      RC4NextByte
+ ***********************************************************************
+ * SYNOPSIS:        Process rc4 next byte.
+ * PARAMETERS:      Guchar sBox[256]    s box
+ *                  Guchar *rc4i    rc4i
+ *                  Guchar *rc4j    rc4j
+ *
+ * RETURNS:         result value
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
+ ***********************************************************************/
+
+Guchar RC4NextByte(Guchar sBox[256], Guchar *rc4i, Guchar *rc4j)
 {
     Guchar i, j, tmp;
 
@@ -188,8 +279,29 @@ RC4NextByte(Guchar sBox[256], Guchar *rc4i, Guchar *rc4j)
     return sBox[(sBox[i] + sBox[j]) & 0xff];
 }
 
-void
-RC4Apply(Guchar *key, short keyLen, Guchar *data, long len)
+/***********************************************************************
+ *      RC4Apply
+ ***********************************************************************
+ * SYNOPSIS:        Apply.
+ * PARAMETERS:      Guchar *key    key
+ *                  short keyLen    key len
+ *                  Guchar *data    data
+ *                  long len    length
+ *
+ * RETURNS:         void
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
+ ***********************************************************************/
+
+void RC4Apply(Guchar *key, short keyLen, Guchar *data, long len)
 {
     Guchar sBox[256];
     Guchar rc4i, rc4j;
@@ -197,37 +309,51 @@ RC4Apply(Guchar *key, short keyLen, Guchar *data, long len)
 
     RC4KeySchedule(key, keyLen, sBox);
     rc4i = rc4j = 0;
-    for (i = 0; i < len; ++i) {
-	data[i] ^= RC4NextByte(sBox, &rc4i, &rc4j);
+    for (i = 0; i < len; ++i)
+    {
+        data[i] ^= RC4NextByte(sBox, &rc4i, &rc4j);
     }
 }
 
-/***********************************************************************
- *		PDF Standard Security Handler
- ***********************************************************************/
+/*
+ * PDF Standard Security Handler
+ * *********************************************************************
+ */
 
 static Guchar pdfPadding[32] = {
     0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41,
-    0x64, 0x00, 0x4e, 0x56, 0xff, 0xfa, 0x01, 0x08,
-    0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
-    0x2f, 0x0c, 0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a
+        0x64, 0x00, 0x4e, 0x56, 0xff, 0xfa, 0x01, 0x08,
+        0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
+        0x2f, 0x0c, 0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a
 };
 
 /***********************************************************************
- *		XRefDeriveFileKey
+ *      XRefDeriveFileKey
  ***********************************************************************
- * SYNOPSIS:	    PDF Algorithm 2, empty user password: derive the
- *		    file-level encryption key from /O, /P, /ID[0] (and,
- *		    for R>=4 with /EncryptMetadata false, the extra
- *		    0xFFFFFFFF block). The padded-password step is a
- *		    no-op for an empty password -- the "padded" result
- *		    is just the padding string itself.
+ * SYNOPSIS:        Process cross-reference table derive file key.
+ * PARAMETERS:      Guchar *ownerHash    owner hash
+ *                  dword perms    perms
+ *                  Guchar *id0    id0
+ *                  word id0Len    id0 len
+ *                  short revision    revision
+ *                  short keyLenBytes    key len bytes
+ *                  GBool encryptMetadata    encrypt metadata
+ *                  Guchar outKey[16]    out key
+ *
+ * RETURNS:         void
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
  *
  ***********************************************************************/
-static void
-XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word id0Len,
-		   short revision, short keyLenBytes, GBool encryptMetadata,
-		   Guchar outKey[16])
+static void XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word id0Len,
+    short revision, short keyLenBytes, GBool encryptMetadata, Guchar outKey[16])
 {
     Guchar buf[32 + 32 + 4 + 64 + 4];
     word pos;
@@ -239,51 +365,62 @@ XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word id0Len,
     pos += 32;
     memcpy(&buf[pos], ownerHash, 32);
     pos += 32;
-    buf[pos++] = (Guchar) (perms);
-    buf[pos++] = (Guchar) (perms >> 8);
-    buf[pos++] = (Guchar) (perms >> 16);
-    buf[pos++] = (Guchar) (perms >> 24);
-    if (id0Len > 64) {
-	id0Len = 64;		/* defensive; /ID entries are conventionally
-				 * 16 bytes (an MD5 digest themselves), but
-				 * nothing in the spec strictly requires it --
-				 * matches buf[]'s sizing above */
+    buf[pos++] = (Guchar)(perms);
+    buf[pos++] = (Guchar)(perms >> 8);
+    buf[pos++] = (Guchar)(perms >> 16);
+    buf[pos++] = (Guchar)(perms >> 24);
+    if (id0Len > 64)
+    {
+        id0Len = 64;
     }
     memcpy(&buf[pos], id0, id0Len);
     pos += id0Len;
-    if (revision >= 4 && !encryptMetadata) {
-	buf[pos++] = 0xff;
-	buf[pos++] = 0xff;
-	buf[pos++] = 0xff;
-	buf[pos++] = 0xff;
+    if (revision >= 4 && !encryptMetadata)
+    {
+        buf[pos++] = 0xff;
+        buf[pos++] = 0xff;
+        buf[pos++] = 0xff;
+        buf[pos++] = 0xff;
     }
 
     MD5Compute(buf, pos, digest);
 
-    if (revision >= 3) {
-	for (round = 0; round < 50; ++round) {
-	    MD5Compute(digest, (word)keyLenBytes, digest);
-	}
+    if (revision >= 3)
+    {
+        for (round = 0; round < 50; ++round)
+        {
+            MD5Compute(digest, (word)keyLenBytes, digest);
+        }
     }
 
     memcpy(outKey, digest, keyLenBytes);
 }
 
 /***********************************************************************
- *		XRefVerifyEmptyPassword
+ *      XRefVerifyEmptyPassword
  ***********************************************************************
- * SYNOPSIS:	    PDF Algorithm 6, empty user password: does the
- *		    already-derived file key actually reproduce /U?
- *		    Distinguishes "empty password works, we can view
- *		    this file" from "a real password is required, we
- *		    genuinely can't" -- proceeding without this check
- *		    would silently hand back garbage-decrypted content
- *		    instead of a clean error for the latter case.
+ * SYNOPSIS:        Process cross-reference table verify empty password.
+ * PARAMETERS:      Guchar *fileKey    file key
+ *                  short keyLenBytes    key len bytes
+ *                  short revision    revision
+ *                  Guchar *id0    id0
+ *                  word id0Len    id0 len
+ *                  Guchar *uValue    u value
+ *
+ * RETURNS:         success flag
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
  *
  ***********************************************************************/
-static GBool
-XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes, short revision,
-			 Guchar *id0, word id0Len, Guchar *uValue)
+static GBool XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes, 
+    short revision, Guchar *id0, word id0Len, Guchar *uValue)
 {
     Guchar result[32];
     Guchar roundKey[16];
@@ -291,15 +428,17 @@ XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes, short revision,
     Guchar buf[32 + 64];
     short round, i;
 
-    if (revision == 2) {
-	memcpy(result, pdfPadding, 32);
-	RC4Apply(fileKey, keyLenBytes, result, 32);
-	return memcmp(result, uValue, 32) == 0;
+    if (revision == 2)
+    {
+        memcpy(result, pdfPadding, 32);
+        RC4Apply(fileKey, keyLenBytes, result, 32);
+        return memcmp(result, uValue, 32) == 0;
     }
 
     /* R >= 3 */
-    if (id0Len > 64) {
-	id0Len = 64;
+    if (id0Len > 64)
+    {
+        id0Len = 64;
     }
     memcpy(buf, pdfPadding, 32);
     memcpy(&buf[32], id0, id0Len);
@@ -308,35 +447,49 @@ XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes, short revision,
     memcpy(result, digest, 16);
     RC4Apply(fileKey, keyLenBytes, result, 16);
 
-    for (round = 1; round <= 19; ++round) {
-	for (i = 0; i < keyLenBytes; ++i) {
-	    roundKey[i] = fileKey[i] ^ (Guchar) round;
-	}
-	RC4Apply(roundKey, keyLenBytes, result, 16);
+    for (round = 1; round <= 19; ++round)
+    {
+        for (i = 0; i < keyLenBytes; ++i)
+        {
+            roundKey[i] = fileKey[i] ^ (Guchar)round;
+        }
+        RC4Apply(roundKey, keyLenBytes, result, 16);
     }
 
     return memcmp(result, uValue, 16) == 0;
 }
 
-GBool
-XRefSetupEncryption(XRef *xref)
+/***********************************************************************
+ *      XRefSetupEncryption
+ ***********************************************************************
+ * SYNOPSIS:        Set up encryption.
+ * PARAMETERS:      XRef *xref    cross-reference table
+ *
+ * RETURNS:         success flag
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
+ ***********************************************************************/
+
+GBool XRefSetupEncryption(XRef *xref)
 {
     Obj encryptObj, fieldObj, idObj, id0Obj;
     Dict *encryptDict;
     long v, r, p;
     short keyLenBits, keyLenBytes;
     Guchar oValue[32], uValue[32];
-    Guchar id0[64];	/* PDF doesn't cap /ID[0]'s length; 16 bytes
-			 * (an MD5 hash) is the near-universal convention,
-			 * but not a hard rule -- a file with a longer
-			 * /ID[0] that got silently truncated here would
-			 * derive the wrong file key from a right password,
-			 * and fail to open with no indication why. 64 is
-			 * generous for any real-world file while staying
-			 * a cheap, fixed stack cost; pathological files
-			 * with a still-longer ID fall back to the same
-			 * "can't open" outcome this already had for every
-			 * encrypted file before this module existed. */
+    /*
+     * PDF doesn't cap /ID[0]'s length; 16 bytes (an MD5 hash) is the near-
+     * universal convention.
+     */
+    Guchar id0[64];
     long id0Len;
     GBool encryptMetadata;
     GBool ok;
@@ -344,62 +497,66 @@ XRefSetupEncryption(XRef *xref)
     xref->encrypted = gFalse;
 
     ObjDictLookup(&xref->trailerDict, "Encrypt", &encryptObj, xref);
-    if (!isDict(&encryptObj)) {
-	ObjFree(&encryptObj);
-	return gFalse;
+    if (!isDict(&encryptObj))
+    {
+        ObjFree(&encryptObj);
+        return gFalse;
     }
     encryptDict = getDict(&encryptObj);
 
     DictLookup(encryptDict, "Filter", &fieldObj, xref);
     ok = isName(&fieldObj) && isNameSame(&fieldObj, "Standard");
     ObjFree(&fieldObj);
-    if (!ok) {
-	ObjFree(&encryptObj);
-	return gFalse;		/* not the Standard Security Handler --
-				 * a public-key handler or something this
-				 * module doesn't know about */
+    if (!ok)
+    {
+        ObjFree(&encryptObj);
+        return gFalse;
     }
 
     DictLookup(encryptDict, "V", &fieldObj, xref);
     v = isInt(&fieldObj) ? getInt(&fieldObj) : 0;
     ObjFree(&fieldObj);
-    if (v != 1 && v != 2) {
-	ObjFree(&encryptObj);
-	return gFalse;		/* V4/V5 use a Crypt filter, almost always
-				 * AES -- out of scope, see crypt.goh */
+    if (v != 1 && v != 2)
+    {
+        ObjFree(&encryptObj);
+        return gFalse;
     }
 
     DictLookup(encryptDict, "R", &fieldObj, xref);
     r = isInt(&fieldObj) ? getInt(&fieldObj) : 0;
     ObjFree(&fieldObj);
-    if (r != 2 && r != 3) {
-	ObjFree(&encryptObj);
-	return gFalse;
+    if (r != 2 && r != 3)
+    {
+        ObjFree(&encryptObj);
+        return gFalse;
     }
 
     DictLookup(encryptDict, "Length", &fieldObj, xref);
     keyLenBits = isInt(&fieldObj) ? getInt(&fieldObj) : 40;
     ObjFree(&fieldObj);
     keyLenBytes = keyLenBits / 8;
-    if (keyLenBytes < 5 || keyLenBytes > 16) {
-	ObjFree(&encryptObj);
-	return gFalse;
+    if (keyLenBytes < 5 || keyLenBytes > 16)
+    {
+        ObjFree(&encryptObj);
+        return gFalse;
     }
 
     DictLookup(encryptDict, "O", &fieldObj, xref);
-    if (!isString(&fieldObj) || GStrGetLength(getString(&fieldObj)) < 32) {
-	ObjFree(&fieldObj);
-	ObjFree(&encryptObj);
-	return gFalse;
+    if (!isString(&fieldObj) || GStrGetLength(getString(&fieldObj)) < 32)
+    {
+        ObjFree(&fieldObj);
+        ObjFree(&encryptObj);
+        return gFalse;
     }
     memcpy(oValue, GStrGetCString(getString(&fieldObj)), 32);
     ObjFree(&fieldObj);
 
     DictLookup(encryptDict, "U", &fieldObj, xref);
-    if (!isString(&fieldObj) || GStrGetLength(getString(&fieldObj)) < 32) {
-	ObjFree(&fieldObj);
-	ObjFree(&encryptObj);
-	return gFalse;
+    if (!isString(&fieldObj) || GStrGetLength(getString(&fieldObj)) < 32)
+    {
+        ObjFree(&fieldObj);
+        ObjFree(&encryptObj);
+        return gFalse;
     }
     memcpy(uValue, GStrGetCString(getString(&fieldObj)), 32);
     ObjFree(&fieldObj);
@@ -415,64 +572,86 @@ XRefSetupEncryption(XRef *xref)
     ObjFree(&encryptObj);
 
     ObjDictLookup(&xref->trailerDict, "ID", &idObj, xref);
-    if (!isArray(&idObj) || ObjArrayGetLength(&idObj) < 1) {
-	ObjFree(&idObj);
-	return gFalse;		/* Algorithm 2 needs /ID[0]; a file
-				 * claiming encryption without an /ID is
-				 * malformed */
+    if (!isArray(&idObj) || ObjArrayGetLength(&idObj) < 1)
+    {
+        ObjFree(&idObj);
+        return gFalse;
     }
     ObjArrayGet(&idObj, 0, &id0Obj, xref);
     ObjFree(&idObj);
-    if (!isString(&id0Obj)) {
-	ObjFree(&id0Obj);
-	return gFalse;
+    if (!isString(&id0Obj))
+    {
+        ObjFree(&id0Obj);
+        return gFalse;
     }
     id0Len = GStrGetLength(getString(&id0Obj));
-    if (id0Len > 64) {
-	id0Len = 64;
+    if (id0Len > 64)
+    {
+        id0Len = 64;
     }
     memcpy(id0, GStrGetCString(getString(&id0Obj)), id0Len);
     ObjFree(&id0Obj);
 
-    XRefDeriveFileKey(oValue, (dword) p, id0, (word)id0Len, r, keyLenBytes,
-		       encryptMetadata, xref->fileKey);
+    XRefDeriveFileKey(oValue, (dword)p, id0, (word)id0Len, r, keyLenBytes,
+        encryptMetadata, xref->fileKey);
 
     if (!XRefVerifyEmptyPassword(xref->fileKey, keyLenBytes, r,
-				  id0, (word)id0Len, uValue)) {
-	return gFalse;		/* a real, non-empty user password is
-				 * actually required -- same end result
-				 * (PDF_ERR_ENCRYPTED) as before this
-				 * module existed, just now we know
-				 * *which* kind of "can't open" this is */
+        id0, (word)id0Len, uValue))
+    {
+        return gFalse;
     }
 
     xref->fileKeyLen = keyLenBytes;
-    xref->encryptRevision = (short) r;
+    xref->encryptRevision = (short)r;
     xref->encrypted = gTrue;
     return gTrue;
 }
 
-void
-XRefDeriveObjectKey(XRef *xref, long num, long gen,
-		     Guchar outKey[16], short *outKeyLen)
+/***********************************************************************
+ *      XRefDeriveObjectKey
+ ***********************************************************************
+ * SYNOPSIS:        Process cross-reference table derive object key.
+ * PARAMETERS:      XRef *xref    cross-reference table
+ *                  long num    number
+ *                  long gen    gen
+ *                  Guchar outKey[16]    out key
+ *                  short *outKeyLen    out key len
+ *
+ * RETURNS:         void
+ *
+ * CONTEXT:
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      08/22/26    Style cleanup
+ *
+ ***********************************************************************/
+
+void XRefDeriveObjectKey(XRef *xref, long num, long gen,
+    Guchar outKey[16], short *outKeyLen)
 {
     Guchar buf[16 + 5];
     Guchar digest[16];
     short objKeyLen;
 
     memcpy(buf, xref->fileKey, xref->fileKeyLen);
-    buf[xref->fileKeyLen + 0] = (Guchar) (num);
-    buf[xref->fileKeyLen + 1] = (Guchar) (num >> 8);
-    buf[xref->fileKeyLen + 2] = (Guchar) (num >> 16);
-    buf[xref->fileKeyLen + 3] = (Guchar) (gen);
-    buf[xref->fileKeyLen + 4] = (Guchar) (gen >> 8);
+    buf[xref->fileKeyLen + 0] = (Guchar)(num);
+    buf[xref->fileKeyLen + 1] = (Guchar)(num >> 8);
+    buf[xref->fileKeyLen + 2] = (Guchar)(num >> 16);
+    buf[xref->fileKeyLen + 3] = (Guchar)(gen);
+    buf[xref->fileKeyLen + 4] = (Guchar)(gen >> 8);
 
     MD5Compute(buf, (word)(xref->fileKeyLen + 5), digest);
 
     objKeyLen = xref->fileKeyLen + 5;
-    if (objKeyLen > 16) {
-	objKeyLen = 16;
+    if (objKeyLen > 16)
+    {
+        objKeyLen = 16;
     }
     memcpy(outKey, digest, objKeyLen);
     *outKeyLen = objKeyLen;
 }
+
