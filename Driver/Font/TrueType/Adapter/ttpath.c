@@ -233,6 +233,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
 Fail:
         TrueType_Unlock_Face( trueTypeVars );
 Fin:
+        TT_Done_Glyph( GLYPH );
         MemUnlock( varBlock );
 }
 
@@ -341,6 +342,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
 Fail:
         TrueType_Unlock_Face( trueTypeVars );
 Fin:
+        TT_Done_Glyph( GLYPH );
         MemUnlock( varBlock );
 }
 

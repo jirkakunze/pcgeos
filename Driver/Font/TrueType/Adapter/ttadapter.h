@@ -505,6 +505,6 @@ extern WWFixedAsDWord
 
 Boolean TrueType_Lock_Face(TRUETYPE_VARS, TrueTypeOutlineEntry* entry);
 void TrueType_Unlock_Face(TRUETYPE_VARS);
-void TrueType_Free_Face(TRUETYPE_VARS);
+
 
 #endif /* _TTADAPTER_H_ */

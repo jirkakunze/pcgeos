@@ -68,7 +68,7 @@ static word toHash( const char* str );
 
 static word strlen( const char* str );
 
-static char* strcpy( char* dest, const char* source );
+static void strcpoy( char* dest, const char* source );
 
 static int strcmp( const char* s1, const char* s2 );
 
@@ -396,7 +396,7 @@ EC(     ECCheckFileHandle( truetypeFile ) );
 
                 /* get pointer to FontInfo and fill it */
 		fontInfo = LMemDerefHandles( fontInfoBlock, fontInfoChunk );
-                strcpy( fontInfo->FI_faceName, familyName );
+                strcopy( fontInfo->FI_faceName, familyName );
                 fontInfo->FI_fileHandle   = NullHandle;
                 fontInfo->FI_fontID       = fontID;
                 fontInfo->FI_family       = FA_USEFUL | FA_OUTLINE | ( mappedFont ? FA_FAMILY : 0 );
@@ -429,7 +429,7 @@ EC(     ECCheckFileHandle( truetypeFile ) );
 		trueTypeOutlineEntry = LMemDerefHandles( fontInfoBlock, trueTypeOutlineChunk );
 
                 /* fill TrueTypeOutlineEntry */
-                strcpy( trueTypeOutlineEntry->TTOE_fontFileName, fileName );
+                strcopy( trueTypeOutlineEntry->TTOE_fontFileName, fileName );
             	trueTypeOutlineEntry->TTOE_fontFileSize = FileSize(truetypeFile);
 		trueTypeOutlineEntry->TTOE_magicWord = CalcMagicNumber(truetypeFile, 
 							trueTypeOutlineEntry->TTOE_fontFileSize);
@@ -492,7 +492,7 @@ EC(     ECCheckFileHandle( truetypeFile ) );
 	
                 /* fill TrueTypeOutlineEntry */
                 trueTypeOutlineEntry = LMemDerefHandles( fontInfoBlock, trueTypeOutlineChunk );
-                strcpy( trueTypeOutlineEntry->TTOE_fontFileName, fileName );
+                strcopy( trueTypeOutlineEntry->TTOE_fontFileName, fileName );
 		trueTypeOutlineEntry->TTOE_fontFileSize = FileSize(truetypeFile);
 		trueTypeOutlineEntry->TTOE_magicWord = CalcMagicNumber(truetypeFile, 
 							trueTypeOutlineEntry->TTOE_fontFileSize);
@@ -1133,50 +1133,57 @@ static Boolean activateBytecodeInterpreter()
  *      11/08/23  JK        Initial Revision
  *******************************************************************/
 #pragma code_seg(ttcharmapper_TEXT)
-word GetKernCount( TRUETYPE_VARS )
+word
+GetKernCount( TRUETYPE_VARS )
 {
         TT_Kerning        kerningDir;
         word              table;
         TT_Kern_0_Pair*   pairs;
         word              numGeosKernPairs = 0;
         LookupEntry*      indices;
+        const word        minKernValue = UNITS_PER_EM / KERN_VALUE_DIVIDENT;
 
         if( TT_Load_Kerning_Directory( FACE, &kerningDir ) )
                 return 0;
 
         if( kerningDir.nTables == 0 )
-                return 0;        
+        {
+                TT_Kerning_Directory_Done( &kerningDir );
+                return 0;
+        }
 
         /* get pointer to lookup table */
         indices = GEO_LOCK( LOOKUP_TABLE );
 EC(     ECCheckBounds( indices ) );
 
-        /* search for format 0 subtable */
+        /* search for format 0 subtables */
         for( table = 0; table < kerningDir.nTables; ++table )
         {
                 word i;
-                word minKernValue = UNITS_PER_EM / KERN_VALUE_DIVIDENT;
+                TT_Kern_Subtable* subtable = &kerningDir.tables[table];
 
                 if( TT_Load_Kerning_Table( FACE, &kerningDir, table ) )
                         continue;
 
-                if( kerningDir.tables->format != 0 )
+                if( subtable->format != 0 )
                         continue;
 
-                pairs = GEO_LOCK( kerningDir.tables->t.kern0.pairsBlock );
+                pairs = GEO_LOCK( subtable->t.kern0.pairsBlock );
+EC(             ECCheckBounds( pairs ) );
 
-                for( i = 0; i < kerningDir.tables->t.kern0.nPairs; ++i )
+                for( i = 0; i < subtable->t.kern0.nPairs; ++i )
                 {
                         if( ABS( pairs[i].value ) <= minKernValue )
                                 continue;
 
-                        if ( GetGEOSCharForIndex( indices, pairs[i].left ) && 
-                             GetGEOSCharForIndex( indices, pairs[i].right ) )
+                        if( GetGEOSCharForIndex( indices, pairs[i].left ) &&
+                            GetGEOSCharForIndex( indices, pairs[i].right ) )
                                 ++numGeosKernPairs;
                 }
 
-                GEO_UNLOCK( kerningDir.tables->t.kern0.pairsBlock );
+                GEO_UNLOCK( subtable->t.kern0.pairsBlock );
         }
+
         GEO_UNLOCK( LOOKUP_TABLE );
         TT_Kerning_Directory_Done( &kerningDir );
 
@@ -1199,10 +1206,9 @@ static word strlen( const char* str )
 }
 
 
-static char* strcpy( char* dest, const char* source )
+static void strcopy( char* dest, const char* source )
 {
         while( (*dest++ = *source++) != '\0' );
-        return dest;
 }
 
 
