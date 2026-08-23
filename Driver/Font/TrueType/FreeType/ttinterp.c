@@ -1202,7 +1202,7 @@
  *
  *****************************************************************/
 
-  static void  Compute_Round( EXEC_OPS Byte  round_mode )
+  static inline void  Compute_Round( EXEC_OPS Byte  round_mode )
   {
     switch ( round_mode )
     {
