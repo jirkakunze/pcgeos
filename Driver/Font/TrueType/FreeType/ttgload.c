@@ -563,7 +563,7 @@
 
     Short   table;
     UShort  load_top;
-    Long    k, l;
+    Short   k, l;
     UShort  new_flags;
     Short   index;
     UShort  u, v;
@@ -934,10 +934,10 @@ EC( ECCheckBounds( exec ) );
         subglyph->transform.yx = yx;
         subglyph->transform.yy = yy;
 
-        k = TT_MulFix( xx, yy ) -  TT_MulFix( xy, yx );
+        x = TT_MulFix( xx, yy ) -  TT_MulFix( xy, yx );
 
         /* disable hinting in case of scaling/slanting */
-        if ( ABS( k ) != (1L << 16) )
+        if ( ABS( x ) != (1L << 16) )
           subglyph2->is_hinted = FALSE;
 
         subglyph->file_offset = FILE_Pos();
