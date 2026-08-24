@@ -743,7 +743,7 @@ EC( ECCheckBounds( _glyph ) );
     DEFINE_ALL_LOCALS;
 
     PFace     faze = HANDLE_Face(face);
-    Long      table;
+    Short     table;
     PStorage  glyphLocations;
     Short     bearing;
     UShort    advance;
