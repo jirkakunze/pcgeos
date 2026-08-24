@@ -230,8 +230,10 @@
       mov     eax, a
       imul    b
 
-      ; rounding
-      add     eax, 0x8000
+      ; round to nearest
+      bt      edx, 31
+      cmc
+      adc     eax, 0x7fff
       adc     edx, 0
 
       ; fixed point scaling
@@ -452,54 +454,63 @@
   {
   #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
     __asm {
-        mov     esi, l
-        mov     eax, [esi]       ; eax = l->lo
-        mov     edx, [esi+4]     ; edx = l->hi
+        push    es
 
-        ; check for 0 and 1
-        test    edx, edx
-        jnz     start_calc
+        les     si, l                     ; es:si = l
+        mov     eax, dword ptr es:[si]    ; edx:eax = l
+        mov     edx, dword ptr es:[si+4]
+
+        test    edx, edx                  ; handle 0 and 1
+        jnz     sqrt_start
         test    eax, eax
-        jz      done             ; return 0
+        jz      sqrt_done
         cmp     eax, 1
-        je      done             ; return 1
+        je      sqrt_done
 
-    start_calc:
-        mov     ebx, edx
-        test    ebx, ebx
-        jnz     guess_hi
+  sqrt_start:
+        ; determine floor(log2(l))
+        test    edx, edx
+        jnz     sqrt_guess_hi
+
         bsr     ecx, eax
-        jmp     set_guess
-    guess_hi:
+        jmp     sqrt_set_guess
+
+sqrt_guess_hi:
         bsr     ecx, edx
         add     ecx, 32
-    set_guess:
-        shr     ecx, 1           ; n / 2
-        mov     ebx, 1
-        shl     ebx, cl          ; ebx = x
 
-    sqrt_loop:
-        ; Newton: next = (x + (l / x)) / 2
-        mov     eax, [esi]       ; l->lo
-        mov     edx, [esi+4]     ; l->hi
-        div     ebx              ; eax = l / x
-        
-        add     eax, ebx         ; eax = x + (l/x)
-        shr     eax, 1           ; eax = (x + (l/x)) / 2
-        
+sqrt_set_guess:
+        shr     ecx, 1
+        inc     ecx
+
+        mov     ebx, 1
+        shl     ebx, cl
+
+sqrt_loop:
+        ; quotient = l / x
+        mov     eax, dword ptr es:[si]
+        mov     edx, dword ptr es:[si+4]
+        div     ebx
+
+        ; next = (x + quotient) / 2
+        add     eax, ebx
+        rcr     eax, 1
+
         cmp     eax, ebx
-        jae     sqrt_finished    ; if next >= x, finished
-        
-        mov     ebx, eax         ; x = next
+        jae     sqrt_finished
+        mov     ebx, eax
         jmp     sqrt_loop
 
-    sqrt_finished:
-        mov     eax, ebx         ; return x
-    done:
-        mov     edx, eax         ; store result in dx:ax
+sqrt_finished:
+        mov     eax, ebx
+
+sqrt_done:
+        pop     es
+
+        mov     edx, eax      ; store result in dx:ax
         shr     edx, 16
     }
-  #else
+#else
 	  long  x = l->hi ? l->hi >> 1 : l->lo >> 1;
 	
     if (l->hi == 0 )

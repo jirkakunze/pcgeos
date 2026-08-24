@@ -217,8 +217,10 @@
         mov     eax, a
         imul    b
 
-        ; rounding
-        add     eax, 0x8000
+        ; round to nearest
+        bt      edx, 31
+        cmc
+        adc     eax, 0x7fff
         adc     edx, 0
 
         ; fixed point scaling
