@@ -658,8 +658,6 @@
     Bool            instruction_trap;  /* If True, the interpreter will */
 #endif                                 /* exit after each instruction   */
 
-    Bool            is_composite;  /* ture if the glyph is composite */
-
 #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
    Bool            pedantic_hinting;  /* if true, read and write array   */
 #endif                                /* bounds faults halt the hinting  */

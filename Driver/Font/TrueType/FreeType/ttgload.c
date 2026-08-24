@@ -366,7 +366,6 @@
         /* now consider hinting */
         if ( n_ins > 0 )
         {
-          exec->is_composite     = FALSE;
 #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
           exec->pedantic_hinting = load_flags & TTLOAD_PEDANTIC;
 #endif
@@ -451,9 +450,6 @@
     pts->cur[n_points - 2] = subg->pp1;
     pts->cur[n_points - 1] = subg->pp2;
 
-    //pts->touch[n_points - 1] = 0;  REDUNDANT!
-    //ts->touch[n_points - 2] = 0;
-
     /* if hinting, round the phantom points */
     if ( subg->is_hinted )
     {
@@ -469,7 +465,6 @@
     /* now consider hinting */
     if ( subg->is_hinted && n_ins > 0 )
     {
-      exec->is_composite     = TRUE;
 #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
       exec->pedantic_hinting = load_flags & TTLOAD_PEDANTIC;
 
