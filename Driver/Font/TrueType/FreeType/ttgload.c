@@ -519,9 +519,6 @@
     element->transform.yx = 0;
     element->transform.yy = 1L << 16;
 
-    element->transform.ox = 0;
-    element->transform.oy = 0;
-
     element->metrics.bearingX = 0;
     element->metrics.advance  = 0;
   }
@@ -890,12 +887,6 @@ EC( ECCheckBounds( exec ) );
         subglyph->arg1 = k;
         subglyph->arg2 = l;
 
-        if ( new_flags & ARGS_ARE_XY_VALUES )
-        {
-          subglyph->transform.ox = k;
-          subglyph->transform.oy = l;
-        }
-
         xx = 1L << 16;
         xy = 0;
         yx = 0;
@@ -1023,8 +1014,8 @@ EC( ECCheckBounds( exec ) );
           {
             /* apply offset */
 
-            x = subglyph->transform.ox;
-            y = subglyph->transform.oy;
+            x = subglyph->arg1;
+            y = subglyph->arg2;
 
             if ( load_flags & TTLOAD_SCALE_GLYPH )
             {

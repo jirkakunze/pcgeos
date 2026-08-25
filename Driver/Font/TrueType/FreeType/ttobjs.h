@@ -335,7 +335,6 @@
   {
     TT_Fixed    xx, xy; /* transformation */
     TT_Fixed    yx, yy; /*     matrix     */
-    TT_F26Dot6  ox, oy; /*    offsets     */
   };
 
   typedef struct TTransform_  TTransform;
@@ -431,9 +430,6 @@
 
     UShort      resolution;  /* device resolution in dpi. */
     UShort      ppem;        /* maximum ppem size */
-  //  Long        x_scale1;
-
-  //  Long        units_per_em;
 
     Long        ratio;       /* current ratio     */
     Long        scale1;
