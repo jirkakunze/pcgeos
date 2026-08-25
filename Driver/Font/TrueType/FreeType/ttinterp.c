@@ -4050,30 +4050,8 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
   static void  Ins_SCANCTRL( INS_ARG )
   {
-    Int  A;
-
-
-    /* Get Threshold */
-    A = (Int)(args[0] & 0xFF);
-
-    if ( A == 0xFF )
-    {
-      CUR.GS.scan_control = TRUE;
-      return;
-    }
-    else if ( A == 0 )
-    {
-      CUR.GS.scan_control = FALSE;
-      return;
-    }
-
-    A *= 64;
-
-    if ( (args[0] & 0x100) != 0 && CUR.metrics.pointSize <= A )
-      CUR.GS.scan_control = TRUE;
-
-    if ( (args[0] & 0x800) != 0 && CUR.metrics.pointSize > A )
-      CUR.GS.scan_control = FALSE;
+    (void)args;
+    (void)exc;
 }
 
 

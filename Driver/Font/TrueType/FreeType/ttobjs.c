@@ -524,8 +524,7 @@ extern TEngine_Instance engineInstance;
     TT_Error  error;
 
 
-    if ( (error = Goto_CodeRange( exec,
-                                  TT_CodeRange_Glyph, 0 )) != TT_Err_Ok )
+    if ( (error = Goto_CodeRange( exec, TT_CodeRange_Glyph, 0 )) != TT_Err_Ok )
       return error;
 
     exec->zp0 = exec->pts;
@@ -563,7 +562,7 @@ extern TEngine_Instance engineInstance;
     { 0x4000, 0 },
     1, 64, 1,
     TRUE, 68, 0, 0, 9, 3,
-    0, FALSE, 2, 1, 1, 1
+    0, 2, 1, 1, 1
   };
 
 
@@ -617,7 +616,6 @@ extern TEngine_Instance engineInstance;
 
     ins->owner = NULL;
     ins->valid = FALSE;
-
   }
 
 
@@ -740,8 +738,8 @@ EC( ECCheckBounds( exec ) );
 
       metrics->ppem         = 0;
       metrics->pointSize    = 0;
-      metrics->x_scale1     = 0;
-      metrics->units_per_em = 1;
+      //metrics->x_scale1     = 0;
+      //metrics->units_per_em = 1;
       metrics->scale1       = 0;
       metrics->scale2       = 1;
       metrics->ratio        = 1L << 16;
@@ -818,8 +816,8 @@ EC( ECCheckBounds( ins ) );
       return TT_Err_Invalid_PPem;
 
     /* compute new transformation */
-    ins->metrics.scale1 = ins->metrics.x_scale1;
-    ins->metrics.scale2 = ins->metrics.units_per_em;
+    //ins->metrics.scale1 = ins->metrics.x_scale1;
+    //ins->metrics.scale2 = ins->metrics.units_per_em;
 
     /* Scale the cvt values to the new ppem.          */
     /* We use by default the y ppem to scale the CVT. */

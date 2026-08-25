@@ -171,7 +171,7 @@
 
   static TT_Pos  Scale( PIns_Metrics  metrics, TT_Pos  val )
   {
-    return TT_MulDiv( val, metrics->x_scale1, metrics->units_per_em );
+    return TT_MulDiv( val, metrics->scale1, metrics->scale2 );
   }
 
 

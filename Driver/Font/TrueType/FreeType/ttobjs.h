@@ -195,7 +195,6 @@
     Short          delta_shift;
 
     Byte           instruct_control;
-    Bool           scan_control;
     Int            scan_type;
 
     UShort         gep0;
@@ -432,9 +431,9 @@
 
     UShort      resolution;  /* device resolution in dpi. */
     UShort      ppem;        /* maximum ppem size */
-    Long        x_scale1;
+  //  Long        x_scale1;
 
-    Long        units_per_em;
+  //  Long        units_per_em;
 
     Long        ratio;       /* current ratio     */
     Long        scale1;
@@ -723,10 +722,6 @@
                            void*               base,
                            UShort              length );
 
-  /* Clear a given coderange */
-  LOCAL_DEF
-  TT_Error  Clear_CodeRange( PExecution_Context  exec, Int  range );
-
 
   LOCAL_DEF
   PExecution_Context  New_Context( PFace  face );
@@ -738,10 +733,6 @@
   LOCAL_DEF
   TT_Error  Context_Load( PExecution_Context  exec,
                           PFace               face,
-                          PInstance           ins );
-
-  LOCAL_DEF
-  void      Context_Save( PExecution_Context  exec,
                           PInstance           ins );
 
   LOCAL_DEF

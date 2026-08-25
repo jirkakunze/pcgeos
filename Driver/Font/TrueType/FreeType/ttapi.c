@@ -485,13 +485,13 @@ EC( ECCheckBounds( ins ) );
 
     if ( ins->valid                        &&
          ins->metrics.resolution == resolution &&
-         ins->metrics.x_scale1   == scale1     &&
+         ins->metrics.scale1     == scale1     &&
          ins->metrics.pointSize  == charSize )
       return TT_Err_Ok;
 
     ins->metrics.resolution   = resolution;
-    ins->metrics.x_scale1     = scale1;
-    ins->metrics.units_per_em = ins->owner->fontHeader.Units_Per_EM;
+    ins->metrics.scale1       = scale1;
+    ins->metrics.scale2       = ins->owner->fontHeader.Units_Per_EM;
     ins->metrics.ppem         = scale1 >> 6;
     ins->metrics.pointSize    = charSize;
     ins->valid                = FALSE;
