@@ -294,7 +294,7 @@ EC(     ECCheckBounds( (void*)(((byte*)fontBuf) + fontBuf->FB_dataSize ) ) );
 EC(     ECCheckBounds( (void*)(((byte*)fontBuf) + fontBuf->FB_dataSize  + charDataSize - 1) ) );
 
         /* copy rendered Glyph to fontBuf */
-        memmove( ((byte*)fontBuf) + fontBuf->FB_dataSize, charData, charDataSize );
+        memcpy( ((byte*)fontBuf) + fontBuf->FB_dataSize, charData, charDataSize );
 
         /* update CharTableEntry and FontBuf */
         charTableEntries[indexGeosChar].CTE_dataOffset = fontBuf->FB_dataSize;       
