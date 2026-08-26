@@ -240,7 +240,7 @@ static void CalcTransformMatrix( TextStyle         stylesToImplement,
                 transMatrix->TM_matrix.xx = MUL_100_WWFIXED( transMatrix->TM_matrix.xx, weight );
 
         /* fake script style       */
-        if( stylesToImplement & ( TS_SUBSCRIPT | TS_SUBSCRIPT ) )
+        if( stylesToImplement & ( TS_SUBSCRIPT | TS_SUPERSCRIPT ) )
         {      
                 transMatrix->TM_matrix.xx = GrMulWWFixed( transMatrix->TM_matrix.xx, SCRIPT_FACTOR );
                 transMatrix->TM_matrix.yy = GrMulWWFixed( transMatrix->TM_matrix.yy, SCRIPT_FACTOR );
