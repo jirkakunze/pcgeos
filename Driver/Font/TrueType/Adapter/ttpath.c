@@ -396,8 +396,6 @@ EC(     ECCheckBounds( (void*)outline ) );
                 v_start   = outline->points[first];
                 v_last    = outline->points[last];
 
-                v_control = v_start;
-
                 point = outline->points + first;
                 tags  = outline->flags  + first;
 
