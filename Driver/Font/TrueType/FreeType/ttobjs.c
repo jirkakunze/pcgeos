@@ -430,9 +430,9 @@ extern TEngine_Instance engineInstance;
       exec->maxFunc  = ins->maxFunc;
       exec->maxIns   = ins->maxIns;
 
-      ins->codeRangeTable[0] = exec->codeRangeTable[0];
-      ins->codeRangeTable[1] = exec->codeRangeTable[1];
-      ins->codeRangeTable[2] = exec->codeRangeTable[2];
+      exec->codeRangeTable[0] = ins->codeRangeTable[0]; // = exec->codeRangeTable[0];
+      exec->codeRangeTable[1] = ins->codeRangeTable[1];
+      exec->codeRangeTable[2] = ins->codeRangeTable[2];
 
       /* set graphics state */
       exec->GS = ins->GS;

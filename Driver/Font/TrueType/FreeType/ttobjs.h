@@ -354,8 +354,8 @@
 
     TGlyph_Zone  zone;
 
-    Long         arg1;  /* first argument  */
-    Long         arg2;  /* second argument */
+    Short        arg1;  /* first argument  */
+    Short        arg2;  /* second argument */
 
     UShort       element_flag;    /* current load element flag */
 
