@@ -115,9 +115,6 @@ EC(     ECCheckBounds( (void*)transformMatrix ) );
         /* set pointsize and resolution */
         TT_Set_Instance_CharSize_And_Resolutions( INSTANCE, pointSize >> 10, transformMatrix->TM_resolution );
 
-        /* create new glyph */
-        TT_New_Glyph( FACE, &GLYPH );
-
         /* load glyph and load glyphs outline */
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, TTLOAD_DEFAULT );
         TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
@@ -208,8 +205,6 @@ EC_ERROR_IF(    size < RASTER_MAP.size, ERROR_BITMAP_BUFFER_OVERFLOW );
                 ((CharData*)charData)->CD_yoff         = transformMatrix->TM_scriptY + 
                                                          transformMatrix->TM_heightY - ( GLYPH_BBOX.yMax >> 6 );
         }
-
-        TT_Done_Glyph( GLYPH );
 
         if( fontBuf->FB_dataSize > MAX_FONTBUF_SIZE )
                 ShrinkFontBuf( fontBuf );

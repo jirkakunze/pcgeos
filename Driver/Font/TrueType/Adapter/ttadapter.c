@@ -83,6 +83,8 @@ EC(     ECCheckFileHandle( TTFILE) );
                 goto Fail;
         if ( TT_New_Instance( FACE, &INSTANCE ) )
                 goto Fail;
+        if( TT_New_Glyph( FACE, &GLYPH ) )
+                goto Fail;
 
         /* create lookup table for kernpairs if face supports kerning */
         LOOKUP_TABLE = CreateIndexLookupTable( CHAR_MAP );
@@ -147,6 +149,7 @@ static void TrueType_Free_Face(TRUETYPE_VARS)
 {
         if ( trueTypeVars->entry.TTOE_fontFileName[0] )
         {
+            TT_Done_Glyph( GLYPH );
             TT_Done_Instance( INSTANCE );
             TT_Close_Face( FACE );
             trueTypeVars->entry.TTOE_fontFileName[0] = 0;

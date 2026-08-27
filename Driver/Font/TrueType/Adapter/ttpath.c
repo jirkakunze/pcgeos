@@ -171,7 +171,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
                 GrSaveState( gstate );
         
         /* load glyph and scale its outline to 1000 units per em */
-        TT_New_Glyph( FACE, &GLYPH );
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, TTLOAD_HINT_GLYPH );
         TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
         CalcScaleAndScaleOutline( trueTypeVars );
@@ -233,7 +232,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
 Fail:
         TrueType_Unlock_Face( trueTypeVars );
 Fin:
-        TT_Done_Glyph( GLYPH );
         MemUnlock( varBlock );
 }
 
@@ -314,7 +312,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
                 goto Fail;
 
         /* load glyph */
-        TT_New_Glyph( FACE, &GLYPH );
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, 0 );
         TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
 
@@ -342,7 +339,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
 Fail:
         TrueType_Unlock_Face( trueTypeVars );
 Fin:
-        TT_Done_Glyph( GLYPH );
         MemUnlock( varBlock );
 }
 
