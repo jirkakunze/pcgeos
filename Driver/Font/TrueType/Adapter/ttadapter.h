@@ -375,9 +375,6 @@ typedef struct
     WWFixedAsDWord              scaleHeight;
     WWFixedAsDWord              scaleWidth;
 
-    /* render glyphs */
-    TT_Raster_Map               rasterMap;
-
     /* general purpose */
     TT_Face                     face;
     TT_Face_Properties          faceProperties; 
@@ -410,7 +407,6 @@ typedef struct
 #define OUTLINE                 trueTypeVars->outline
 #define GLYPH_METRICS           trueTypeVars->glyphMetrics
 #define GLYPH_BBOX              trueTypeVars->glyphMetrics.bbox
-#define RASTER_MAP              trueTypeVars->rasterMap
 #define SCALE_HEIGHT            trueTypeVars->scaleHeight
 #define SCALE_WIDTH             trueTypeVars->scaleWidth
 #define TTFILE                  trueTypeVars->ttfile

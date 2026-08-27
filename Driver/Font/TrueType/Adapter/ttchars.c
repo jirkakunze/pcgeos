@@ -82,6 +82,7 @@ void _pascal TrueType_Gen_Chars(
         TT_UShort              charIndex;
         TrueTypeVars*          trueTypeVars;
         TransformMatrix*       transformMatrix;
+        TT_Raster_Map          rasterMap;
         void*                  charData;
         sword                  width, height, size;
 
@@ -146,31 +147,31 @@ EC(     ECCheckBounds( (void*)transformMatrix ) );
                 charData = EnsureBitmapBlock( bitmapHandle, size );
 EC(             ECCheckBounds( (void*)charData ) );
 
-                /* init RASTER_MAP */
-                RASTER_MAP.rows   = height;
-                RASTER_MAP.width  = width;
-                RASTER_MAP.cols   = width;
-                RASTER_MAP.bitmap = ((byte*)charData) + SIZE_REGION_HEADER;
+                /* init rasterMap */
+                rasterMap.rows   = height;
+                rasterMap.width  = width;
+                rasterMap.cols   = width;
+                rasterMap.bitmap = ((byte*)charData) + SIZE_REGION_HEADER;
 
                 /* translate outline and render it */
                 TT_Transform_Outline( &OUTLINE, &flipmatrix );
                 TT_Translate_Outline( &OUTLINE, -GLYPH_BBOX.xMin, GLYPH_BBOX.yMax );
-                TT_Get_Outline_Region( &OUTLINE, &RASTER_MAP );
+                TT_Get_Outline_Region( &OUTLINE, &rasterMap );
 
-EC_ERROR_IF(    size < RASTER_MAP.size, ERROR_BITMAP_BUFFER_OVERFLOW );
+EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
 
                 /* fill header of charData */
                 ((RegionCharData*)charData)->RCD_xoff = transformMatrix->TM_scriptX + 
                                                         transformMatrix->TM_heightX + ( GLYPH_BBOX.xMin >> 6 );
                 ((RegionCharData*)charData)->RCD_yoff = transformMatrix->TM_scriptY + 
                                                         transformMatrix->TM_heightY - ( GLYPH_BBOX.yMax >> 6 ); 
-                ((RegionCharData*)charData)->RCD_size = RASTER_MAP.size;
+                ((RegionCharData*)charData)->RCD_size = rasterMap.size;
                 ((RegionCharData*)charData)->RCD_bounds.R_left   = 0;
                 ((RegionCharData*)charData)->RCD_bounds.R_right  = width;
                 ((RegionCharData*)charData)->RCD_bounds.R_top    = 0;
                 ((RegionCharData*)charData)->RCD_bounds.R_bottom = height;
 
-                size = RASTER_MAP.size + SIZE_REGION_HEADER;
+                size = rasterMap.size + SIZE_REGION_HEADER;
         }
         else
         {      
@@ -185,17 +186,17 @@ EC_ERROR_IF(    size < RASTER_MAP.size, ERROR_BITMAP_BUFFER_OVERFLOW );
 EC(             ECCheckBounds( (void*)charData ) );
 
                 /* init rasterMap */
-                RASTER_MAP.rows   = height;
-                RASTER_MAP.width  = width;
-                RASTER_MAP.cols   = (width + 7) >> 3;
-                RASTER_MAP.size   = RASTER_MAP.rows * RASTER_MAP.cols;
-                RASTER_MAP.bitmap = ((byte*)charData) + SIZE_CHAR_HEADER;
+                rasterMap.rows   = height;
+                rasterMap.width  = width;
+                rasterMap.cols   = (width + 7) >> 3;
+                rasterMap.size   = rasterMap.rows * rasterMap.cols;
+                rasterMap.bitmap = ((byte*)charData) + SIZE_CHAR_HEADER;
 
                 /* translate outline and render it */
                 TT_Translate_Outline( &OUTLINE, -GLYPH_BBOX.xMin, -GLYPH_BBOX.yMin );
-                TT_Get_Outline_Bitmap( &OUTLINE, &RASTER_MAP );
+                TT_Get_Outline_Bitmap( &OUTLINE, &rasterMap );
 
-EC_ERROR_IF(    size < RASTER_MAP.size, ERROR_BITMAP_BUFFER_OVERFLOW );
+EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
 
                 /* fill header of charData */
                 ((CharData*)charData)->CD_pictureWidth = width;

@@ -587,7 +587,7 @@ freeAndRemoveBlock:
 	call	RemoveHandleFromMallocList
 	mov	bx, ds:[LMBH_handle]
 	call	MemFree
-	jmp	exit
+	jmp	exitZero
 
 smallBlockFree:
 ;	Small block: free the lmem chunk only.  The lmem block itself
