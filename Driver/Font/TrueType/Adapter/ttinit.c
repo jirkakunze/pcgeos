@@ -72,8 +72,6 @@ static void strcpoy( char* dest, const char* source );
 
 static int strcmp( const char* s1, const char* s2 );
 
-static Boolean activateBytecodeInterpreter();
-
 
 /********************************************************************
  *                      Init_FreeType
@@ -106,7 +104,9 @@ TT_Error _pascal Init_FreeType()
         if ( error != TT_Err_Ok )
                 return error;
 
-        engineInstance.interpreterActive = activateBytecodeInterpreter();
+        if( InitFileReadBoolean( TTFDRIVER_CATEGORY,
+                BYTECODEINTERPRETER_KEY, &engineInstance.interpreterActive ) )
+                engineInstance.interpreterActive = TRUE;
 
         return TT_Err_Ok;
 }
@@ -1062,43 +1062,6 @@ static char GetDefaultChar( TRUETYPE_VARS, char firstChar )
                 return firstChar;  
 
         return DEFAULT_CHAR; 
-}
-
-
-/********************************************************************
- *                      activateBytecodeInterpreter
- ********************************************************************
- * SYNOPSIS:       Activates or determines if the bytecode interpreter 
- *                 should be active for the TrueType font driver. Reads 
- *                 the configuration setting from geos.ini.
- * 
- * PARAMETERS:     None
- * 
- * RETURNS:        Boolean
- *                    TRUE if the bytecode interpreter should be active 
- *                    (default behavior) or the value retrieved from the 
- *                    initialization file if it is successfully read.
- * 
- * STRATEGY:       - Attempt to read the BYTECODEINTERPRETER_KEY from the 
- *                   initialization file under the TTFDRIVER_CATEGORY.
- *                 - If the key is successfully read, return the retrieved value.
- *                 - If reading fails, return TRUE as the default behavior.
- * 
- * REVISION HISTORY:
- *      Date      Name      Description
- *      ----      ----      -----------
- *      17.11.24  jk        Initial Revision
- *******************************************************************/
-
-static Boolean activateBytecodeInterpreter()
-{
-        Boolean  bytecodeInterpreterActive;
-
-
-        if( !InitFileReadBoolean( TTFDRIVER_CATEGORY, BYTECODEINTERPRETER_KEY, &bytecodeInterpreterActive ) )
-                return bytecodeInterpreterActive;
-
-        return TRUE;
 }
 
 
