@@ -22,6 +22,7 @@
 #include "ttcmap.h"
 #include "tttags.h"
 #include "ttmemory.h"
+#include "ttload.h"
 #include <ec.h>
 #include <geode.h>
 #include <heap.h>
@@ -89,6 +90,9 @@ EC(     ECCheckFileHandle( TTFILE) );
         /* create lookup table for kernpairs if face supports kerning */
         LOOKUP_TABLE = CreateIndexLookupTable( CHAR_MAP );
 EC(     ECCheckMemHandle( LOOKUP_TABLE ) );
+
+        /* runtime rendering does not require font name information. */
+        Free_TrueType_Names( HANDLE_Face( FACE ) );
 
         /* font has been fully loaded */
         trueTypeVars->entry = *entry;
