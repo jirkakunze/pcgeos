@@ -60,8 +60,6 @@ static word getNameFromNameTable(
 
 void InitConvertHeader(         TRUETYPE_VARS, FontHeader* fontHeader );
 
-static char GetDefaultChar(     TRUETYPE_VARS, char firstChar );
-
 word GetKernCount(       TRUETYPE_VARS );
 
 static word toHash( const char* str );
@@ -1014,7 +1012,8 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         fontHeader->FH_numChars = CountValidGeosChars( CHAR_MAP, 
                                                        &fontHeader->FH_firstChar, 
                                                        &fontHeader->FH_lastChar ); 
-        fontHeader->FH_defaultChar = GetDefaultChar( trueTypeVars, fontHeader->FH_firstChar );
+        fontHeader->FH_defaultChar = TT_Char_Index( CHAR_MAP, GeosCharToUnicode(
+                        DEFAULT_CHAR ) ) ? DEFAULT_CHAR : fontHeader->FH_firstChar;
         fontHeader->FH_kernCount   = GetKernCount( trueTypeVars );
         fontHeader->FH_initialized = TRUE;
 
@@ -1026,43 +1025,6 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
                                 fontHeader);
 }
 #pragma code_seg()
-
-/********************************************************************
- *                      GetDefaultChar
- ********************************************************************
- * SYNOPSIS:       Determines the default character for a given TrueType 
- *                 font, verifying if the standard default character is 
- *                 available in the font's character map.
- * 
- * PARAMETERS:     TRUETYPE_VARS
- *                    Cached variables needed by the driver.
- *                 char firstChar
- *                    The fallback character to use if the standard default 
- *                    character is not present in the font.
- * 
- * RETURNS:        char
- *                    The character to be used as the default. Returns 
- *                    DEFAULT_CHAR if it exists in the font, 
- *                    otherwise returns firstChar.
- * 
- * STRATEGY:       - Check if the default character (DEFAULT_CHAR) 
- *                   is present in the font's character map.
- *                 - If it exists, return DEFAULT_CHAR.
- *                 - Otherwise, return the provided firstChar as the fallback.
- * 
- * REVISION HISTORY:
- *      Date      Name      Description
- *      ----      ----      -----------
- *      23.04.23  JK        Initial Revision
- *******************************************************************/
-
-static char GetDefaultChar( TRUETYPE_VARS, char firstChar )
-{
-        if ( !TT_Char_Index( CHAR_MAP, GeosCharToUnicode( DEFAULT_CHAR ) ) )
-                return firstChar;  
-
-        return DEFAULT_CHAR; 
-}
 
 
 /********************************************************************
