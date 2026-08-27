@@ -466,39 +466,37 @@ Fail:
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Set_Instance_CharSize_And_Resolutions( TT_Instance  instance,
-                                                      TT_F26Dot6   charSize,
-                                                      TT_UShort    resolution )
-  {
-    PInstance   ins = HANDLE_Instance( instance );
-    TT_F26Dot6  scale1;
+  TT_Error TT_Set_Instance_CharSize_And_Resolutions( TT_Instance instance,
+                                                     TT_F26Dot6 charSize,
+                                                     TT_UShort resolution )
+{
+        PInstance   ins = HANDLE_Instance( instance );
+        TT_F26Dot6  scale1;
 
-EC( ECCheckBounds( ins ) );
+EC(     ECCheckBounds( ins ) );
 
-    if ( charSize < 1 * 64 )
-      charSize = 1 * 64;
+        if( charSize < 1 * 64 )
+                charSize = 1 * 64;
 
-    scale1 = ( charSize * resolution ) / 72;
+        if( ins->valid &&
+            ins->metrics.resolution == resolution &&
+            ins->metrics.pointSize == charSize )
+                return TT_Err_Ok;
 
-    if ( ins->owner->fontHeader.Flags & 8 )
-      scale1 = ( scale1 + 32 ) & -64;
+        scale1 = ( charSize * resolution ) / 72;
 
-    if ( ins->valid                        &&
-         ins->metrics.resolution == resolution &&
-         ins->metrics.scale1     == scale1     &&
-         ins->metrics.pointSize  == charSize )
-      return TT_Err_Ok;
+        if( ins->owner->fontHeader.Flags & 8 )
+                scale1 = ( scale1 + 32 ) & -64;
 
-    ins->metrics.resolution   = resolution;
-    ins->metrics.scale1       = scale1;
-    ins->metrics.scale2       = ins->owner->fontHeader.Units_Per_EM;
-    ins->metrics.ppem         = scale1 >> 6;
-    ins->metrics.pointSize    = charSize;
-    ins->valid                = FALSE;
+        ins->metrics.resolution = resolution;
+        ins->metrics.scale1 = scale1;
+        ins->metrics.scale2 = ins->owner->fontHeader.Units_Per_EM;
+        ins->metrics.ppem = scale1 >> 6;
+        ins->metrics.pointSize = charSize;
+        ins->valid = FALSE;
 
-    return Instance_Reset( ins );
-  }
-
+        return Instance_Reset( ins );
+}
 
 /*******************************************************************
  *
