@@ -76,6 +76,8 @@ WWFixedAsDWord _pascal TrueType_Char_Metrics(
 {
         TrueTypeOutlineEntry*  trueTypeOutline;
         TransformMatrix        transMatrix;
+        TT_Glyph_Metrics       glyphMetrics;
+        TT_Outline             outline;
         word                   charIndex;
         TrueTypeVars*          trueTypeVars;
         WWFixedAsDWord         result;
@@ -106,30 +108,30 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, 0 );
 
         // transform glyphs outline
-        TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
-        TT_Transform_Outline( &OUTLINE, &transMatrix.TM_matrix );
-        TT_Translate_Outline( &OUTLINE, 0, WWFIXEDASDWORD_TO_FIXED26DOT6( transMatrix.TM_scriptY ) );
+        TT_Get_Glyph_Outline( GLYPH, &outline );
+        TT_Transform_Outline( &outline, &transMatrix.TM_matrix );
+        TT_Translate_Outline( &outline, 0, WWFIXEDASDWORD_TO_FIXED26DOT6( transMatrix.TM_scriptY ) );
 
         // get metrics
-        TT_Get_Glyph_Metrics( GLYPH, &GLYPH_METRICS );
+        TT_Get_Glyph_Metrics( GLYPH, &glyphMetrics );
 
         switch( info )
         {
                 case GCMI_MIN_X:
                 case GCMI_MIN_X_ROUNDED:
-                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.xMin ), SCALE_WIDTH );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( glyphMetrics.bbox.xMin ), SCALE_WIDTH );
                         break;
                 case GCMI_MIN_Y:
                 case GCMI_MIN_Y_ROUNDED:
-                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.yMin ), SCALE_HEIGHT );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( glyphMetrics.bbox.yMin ), SCALE_HEIGHT );
                         break;
                 case GCMI_MAX_X:
                 case GCMI_MAX_X_ROUNDED:
-                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.xMax ), SCALE_WIDTH );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( glyphMetrics.bbox.xMax ), SCALE_WIDTH );
                         break;
                 case GCMI_MAX_Y:
                 case GCMI_MAX_Y_ROUNDED:
-                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( GLYPH_BBOX.yMax ), SCALE_HEIGHT );
+                        result = GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( glyphMetrics.bbox.yMax ), SCALE_HEIGHT );
                         break;
         }
 

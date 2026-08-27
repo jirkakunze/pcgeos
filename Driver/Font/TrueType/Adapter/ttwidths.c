@@ -305,6 +305,7 @@ static void ConvertWidths( TRUETYPE_VARS, FontHeader* fontHeader, FontBuf* fontB
         word             currentChar;
         CharTableEntry*  charTableEntry = (CharTableEntry*) (((byte*)fontBuf) + sizeof( FontBuf ));
         WWFixedAsDWord   scaledWidth;
+        TT_Glyph_Metrics glyphMetrics;
         const word       winDescent = FACE_PROPERTIES.os2->usWinDescent;
         const word       winAscent  = FACE_PROPERTIES.os2->usWinAscent;
 
@@ -329,10 +330,10 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
                 else
                 {
                         /* load metrics */
-                        TT_Get_Index_Metrics( FACE, charIndex, &GLYPH_METRICS );
+                        TT_Get_Index_Metrics( FACE, charIndex, &glyphMetrics );
 
                         /* compute scaled advance width for glyph */
-                        scaledWidth = GrMulWWFixed( MakeWWFixed( GLYPH_METRICS.advance), SCALE_WIDTH );
+                        scaledWidth = GrMulWWFixed( MakeWWFixed( glyphMetrics.advance), SCALE_WIDTH );
 
                         /* fill CharTableEntry */
                         charTableEntry->CTE_width.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( scaledWidth );
@@ -343,13 +344,13 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
                 
                
                         /* set flags in CTE_flags if needed */
-                        if( GLYPH_BBOX.xMin < 0 )
+                        if( glyphMetrics.bbox.xMin < 0 )
                                 charTableEntry->CTE_flags |= CTF_NEGATIVE_LSB;
                         
-                        if( -GLYPH_BBOX.yMin > winDescent )
+                        if( -glyphMetrics.bbox.yMin > winDescent )
                                 charTableEntry->CTE_flags |= CTF_BELOW_DESCENT;
 
-                        if( GLYPH_BBOX.yMax > winAscent )
+                        if( glyphMetrics.bbox.yMax > winAscent )
                                 charTableEntry->CTE_flags |= CTF_ABOVE_ASCENT;
                 }
 

@@ -83,6 +83,8 @@ void _pascal TrueType_Gen_Chars(
         TrueTypeVars*          trueTypeVars;
         TransformMatrix*       transformMatrix;
         TT_Raster_Map          rasterMap;
+        TT_BBox                glyphBBox;
+        TT_Outline             outline;
         void*                  charData;
         sword                  width, height, size;
 
@@ -118,22 +120,22 @@ EC(     ECCheckBounds( (void*)transformMatrix ) );
 
         /* load glyph and load glyphs outline */
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, TTLOAD_DEFAULT );
-        TT_Get_Glyph_Outline( GLYPH, &OUTLINE );
+        TT_Get_Glyph_Outline( GLYPH, &outline );
 
-        TT_Transform_Outline( &OUTLINE, &transformMatrix->TM_matrix );
+        TT_Transform_Outline( &outline, &transformMatrix->TM_matrix );
 
         /* get glyphs boundig box */
-        TT_Get_Outline_BBox( &OUTLINE, &GLYPH_BBOX );
+        TT_Get_Outline_BBox( &outline, &glyphBBox );
 
         /* Grid-fit it */
-        GLYPH_BBOX.xMin &= -64;
-        GLYPH_BBOX.xMax  = ( GLYPH_BBOX.xMax + 63 ) & -64;
-        GLYPH_BBOX.yMin &= -64;
-        GLYPH_BBOX.yMax  = ( GLYPH_BBOX.yMax + 63 ) & -64;
+        glyphBBox.xMin &= -64;
+        glyphBBox.xMax  = ( glyphBBox.xMax + 63 ) & -64;
+        glyphBBox.yMin &= -64;
+        glyphBBox.yMax  = ( glyphBBox.yMax + 63 ) & -64;
 
         /* compute pixel dimensions */
-        width  = (GLYPH_BBOX.xMax - GLYPH_BBOX.xMin) >> 6;
-        height = (GLYPH_BBOX.yMax - GLYPH_BBOX.yMin) >> 6;
+        width  = (glyphBBox.xMax - glyphBBox.xMin) >> 6;
+        height = (glyphBBox.yMax - glyphBBox.yMin) >> 6;
 
         if( fontBuf->FB_flags & FBF_IS_REGION )
         {
@@ -154,17 +156,17 @@ EC(             ECCheckBounds( (void*)charData ) );
                 rasterMap.bitmap = ((byte*)charData) + SIZE_REGION_HEADER;
 
                 /* translate outline and render it */
-                TT_Transform_Outline( &OUTLINE, &flipmatrix );
-                TT_Translate_Outline( &OUTLINE, -GLYPH_BBOX.xMin, GLYPH_BBOX.yMax );
-                TT_Get_Outline_Region( &OUTLINE, &rasterMap );
+                TT_Transform_Outline( &outline, &flipmatrix );
+                TT_Translate_Outline( &outline, -glyphBBox.xMin, glyphBBox.yMax );
+                TT_Get_Outline_Region( &outline, &rasterMap );
 
 EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
 
                 /* fill header of charData */
                 ((RegionCharData*)charData)->RCD_xoff = transformMatrix->TM_scriptX + 
-                                                        transformMatrix->TM_heightX + ( GLYPH_BBOX.xMin >> 6 );
+                                                        transformMatrix->TM_heightX + ( glyphBBox.xMin >> 6 );
                 ((RegionCharData*)charData)->RCD_yoff = transformMatrix->TM_scriptY + 
-                                                        transformMatrix->TM_heightY - ( GLYPH_BBOX.yMax >> 6 ); 
+                                                        transformMatrix->TM_heightY - ( glyphBBox.yMax >> 6 ); 
                 ((RegionCharData*)charData)->RCD_size = rasterMap.size;
                 ((RegionCharData*)charData)->RCD_bounds.R_left   = 0;
                 ((RegionCharData*)charData)->RCD_bounds.R_right  = width;
@@ -193,8 +195,8 @@ EC(             ECCheckBounds( (void*)charData ) );
                 rasterMap.bitmap = ((byte*)charData) + SIZE_CHAR_HEADER;
 
                 /* translate outline and render it */
-                TT_Translate_Outline( &OUTLINE, -GLYPH_BBOX.xMin, -GLYPH_BBOX.yMin );
-                TT_Get_Outline_Bitmap( &OUTLINE, &rasterMap );
+                TT_Translate_Outline( &outline, -glyphBBox.xMin, -glyphBBox.yMin );
+                TT_Get_Outline_Bitmap( &outline, &rasterMap );
 
 EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
 
@@ -202,9 +204,9 @@ EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
                 ((CharData*)charData)->CD_pictureWidth = width;
                 ((CharData*)charData)->CD_numRows      = height;
                 ((CharData*)charData)->CD_xoff         = transformMatrix->TM_scriptX + 
-                                                         transformMatrix->TM_heightX + ( GLYPH_BBOX.xMin >> 6 );
+                                                         transformMatrix->TM_heightX + ( glyphBBox.xMin >> 6 );
                 ((CharData*)charData)->CD_yoff         = transformMatrix->TM_scriptY + 
-                                                         transformMatrix->TM_heightY - ( GLYPH_BBOX.yMax >> 6 );
+                                                         transformMatrix->TM_heightY - ( glyphBBox.yMax >> 6 );
         }
 
         if( fontBuf->FB_dataSize > MAX_FONTBUF_SIZE )

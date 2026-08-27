@@ -380,9 +380,7 @@ typedef struct
     TT_Face_Properties          faceProperties; 
     TT_Instance                 instance;
     TT_Glyph                    glyph;
-    TT_Glyph_Metrics            glyphMetrics;
     TT_CharMap                  charMap;
-    TT_Outline                  outline;
 
     /* lookuptable for truetype indices */
     MemHandle                   lookupTable;
@@ -404,9 +402,6 @@ typedef struct
 #define INSTANCE                trueTypeVars->instance
 #define GLYPH                   trueTypeVars->glyph
 #define CHAR_MAP                trueTypeVars->charMap
-#define OUTLINE                 trueTypeVars->outline
-#define GLYPH_METRICS           trueTypeVars->glyphMetrics
-#define GLYPH_BBOX              trueTypeVars->glyphMetrics.bbox
 #define SCALE_HEIGHT            trueTypeVars->scaleHeight
 #define SCALE_WIDTH             trueTypeVars->scaleWidth
 #define TTFILE                  trueTypeVars->ttfile
