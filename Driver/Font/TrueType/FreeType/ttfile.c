@@ -88,7 +88,9 @@
 
   struct  TStream_Rec_
   {
+#ifndef __GEOS__
     Long        position;                /* current position within the file */
+#endif
     FileHandle  file;                    /* file handle                      */
     Long        size;                    /* stream size in file              */
   };
@@ -103,7 +105,7 @@
 #define STREAM2REC( x )  ( (TStream_Rec*)HANDLE_Val( x ) )
 
   static  TT_Error  Stream_Activate  ( PStream_Rec  stream );
-  static  void      Stream_Deactivate( PStream_Rec  stream );
+//  static  void      Stream_Deactivate( PStream_Rec  stream );
 
 
 #ifndef TT_CONFIG_OPTION_THREAD_SAFE
@@ -479,9 +481,25 @@
   TT_Error  TT_Use_Stream( TT_Stream   input_stream,
                            TT_Stream*  copy )
   {
+
+  #if 0
     PStream_Rec  rec = STREAM2REC( input_stream );
 
     return TT_Open_Stream( rec->file, copy );
+  #endif
+
+        PStream_Rec input = STREAM2REC( input_stream );
+
+
+        if( !input || !input->file )
+        {
+                HANDLE_Set( *copy, NULL );
+                return TT_Err_Could_Not_ReOpen_File;
+        }
+
+        *copy = input_stream;
+
+        return TT_Err_Ok;
   }
 
 
@@ -500,7 +518,12 @@
   EXPORT_FUNC
   void  TT_Done_Stream( TT_Stream*  stream )
   {
+  #if 0
     TT_Close_Stream( stream );
+  #endif
+
+    
+        HANDLE_Set( *stream, NULL );
   }
 
 
@@ -675,6 +698,7 @@
     if ( stream->size < 0 )
       stream->size = FileSize( stream->file );
 
+#ifndef __GEOS__
     /* Reset cursor in file */
     if ( stream->position )
     {
@@ -682,6 +706,8 @@
       if ( ThreadGetError() != NO_ERROR_RETURNED )
         return TT_Err_Could_Not_ReSeek_File;
     }
+#endif
+
     return TT_Err_Ok;
   }
 
@@ -704,12 +730,13 @@
  *            destroyed by it..
  *
  ******************************************************************/
-
+#if 0
   static  void  Stream_Deactivate( PStream_Rec  stream )
   {
     /* Save its current position within the file */
     stream->position = FilePos( stream->file, 0, FILE_POS_RELATIVE );  
   }
+#endif
 
 
 #ifndef __GEOS__
@@ -774,7 +801,7 @@
 
     stream_rec->file     = file;
     stream_rec->size     = -1L;
-    stream_rec->position = 0;
+   // stream_rec->position = 0;
 
     error = Stream_Activate( stream_rec );
     if ( error )
@@ -810,7 +837,7 @@
     PStream_Rec  rec = STREAM2REC( *stream );
 
 
-    Stream_Deactivate( rec );
+  //  Stream_Deactivate( rec );
     FREE( rec );
 
     HANDLE_Set( *stream, NULL );
