@@ -57,17 +57,6 @@
   LOCAL_DEF TT_Error  Free_TrueType_Hdmx ( PFace  face );
 
 
-/* The following macros are defined to simplify the writing of */
-/* the various table and glyph loaders.                        */
-
-/* For examples see the code in ttload.c, ttgload.c etc.       */
-
-#define USE_Stream( original, duplicate ) \
-          ( (error = TT_Use_Stream( original, &duplicate )) != TT_Err_Ok )
-
-#define DONE_Stream( _stream ) \
-          TT_Done_Stream( &_stream )
-
 /* Define a file frame -- use it only when needed */
 #define DEFINE_A_FRAME   TFileFrame  frame = TT_Null_FileFrame
 

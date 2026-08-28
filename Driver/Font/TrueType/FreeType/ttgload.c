@@ -646,8 +646,9 @@ EC( ECCheckBounds( exec ) );
 
     /* now access stream */
 
-    if ( USE_Stream( face->stream, stream ) )
-      goto Fin;
+    /*if ( USE_Stream( face->stream, stream ) )
+      goto Fin;*/
+    stream = face->stream;
 
     /* Main loading loop */
 
@@ -1141,7 +1142,6 @@ EC( ECCheckBounds( exec ) );
 
   Fail_File:
   Fail:
-    DONE_Stream( stream );
 
   Fin:
 

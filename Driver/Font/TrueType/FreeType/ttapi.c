@@ -757,8 +757,7 @@ EC_ERROR_IF( index >= faze->numGlyphs, TT_Err_Invalid_Argument );
       return TT_Err_Glyf_Table_Missing;
 
     /* now access stream */
-    if ( USE_Stream( faze->stream, stream ) )
-      return error;
+    stream = faze->stream;
 
     glyphLocations = GEO_LOCK( faze->glyphLocationBlock );
 
@@ -805,7 +804,6 @@ EC_ERROR_IF( index >= faze->numGlyphs, TT_Err_Invalid_Argument );
     metrics->bearingX = bearing;
 
   Fail:
-    DONE_Stream( stream );
     return error;
   }
 
@@ -1127,7 +1125,6 @@ EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
                             TT_UShort    charmapIndex,
                             TT_CharMap*  charMap )
   {
-    TT_Stream   stream;
     PCMapTable  cmap;
     TT_Error    error = TT_Err_Ok;
     PFace       faze = HANDLE_Face( face );
@@ -1139,19 +1136,14 @@ EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
     cmap = faze->cMaps + charmapIndex;
 
     /* Load table if needed */
-    if ( !cmap->loaded )
+    if( !cmap->loaded )
     {
-      (void)USE_Stream( faze->stream, stream );
-      if ( !error )
-      {
-        error = CharMap_Load( cmap, stream );
-        DONE_Stream( stream );
-      }
+        error = CharMap_Load( cmap, faze->stream );
 
-      if ( error )
-        cmap = NULL;
-      else
-        cmap->loaded = TRUE;
+        if( error )
+          cmap = NULL;
+        else
+          cmap->loaded = TRUE;
     }
 
     HANDLE_Set( *charMap, cmap );
