@@ -640,7 +640,6 @@ extern TEngine_Instance engineInstance;
     PInstance  ins  = (PInstance)_instance;
     PFace      face = (PFace)_face;
     TT_Error   error;
-    Int        i;
     UShort     n_twilight;
 
     PMaxProfile  maxp = &face->maxProfile;
@@ -662,10 +661,6 @@ extern TEngine_Instance engineInstance;
       metrics->pointSize  = 10 << 6;   /* default pointsize  = 10pts */
       metrics->resolution = 72;        /* default resolution = 72dpi */
       metrics->ppem       = 0;
-
-      /* set default compensation ( all 0 ) */
-      for ( i = 0; i < 4; ++i )
-        metrics->compensations[i] = 0;
     }
 
     /* allocate function defs, instruction defs, cvt and storage area */

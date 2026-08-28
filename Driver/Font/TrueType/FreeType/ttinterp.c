@@ -176,7 +176,7 @@
 
 #define CUR_Func_dualproj( x, y )  CUR.func_dualproj( EXEC_ARGS x, y )
 
-#define CUR_Func_round( d, c )     CUR.func_round( EXEC_ARGS d, c )
+#define CUR_Func_round( d )        CUR.func_round( EXEC_ARGS d )
 
 #define WRITE_CVT( index, value )  (CUR.cvt[(index)] = (value))
 
@@ -872,7 +872,6 @@
  *  Description :  Does not round, but adds engine compensation.
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  rounded distance.
  *
@@ -882,33 +881,16 @@
  *         should add the compensation before rounding.
  *
  ******************************************************************/
-  static TT_F26Dot6 _near Round_None( EXEC_OPS TT_F26Dot6  distance,
-                                               TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_None( EXEC_OPS TT_F26Dot6  distance )
   {
-    TT_F26Dot6  val;
-    
-
     (void)exc;
 
-    if ( distance >= 0 )
-    {
-      val = distance + compensation;
-      if ( val < 0 )
-        val = 0;
-    }
-    else {
-      val = distance - compensation;
-      if ( val > 0 )
-        val = 0;
-    }
-
-    return val;
+    return distance;
   }
 
-  static TT_F26Dot6 _far FarRound_None( EXEC_OPS TT_F26Dot6  distance,
-                                               TT_F26Dot6  compensation )
+  static TT_F26Dot6 _far FarRound_None( EXEC_OPS TT_F26Dot6  distance )
   {
-    return Round_None( EXEC_ARGS distance, compensation);
+    return Round_None( EXEC_ARGS distance );
   }
 
 
@@ -916,18 +898,15 @@
  *
  *  Function    :  Round_To_Grid
  *
- *  Description :  Rounds value to grid after adding engine
- *                 compensation
+ *  Description :  Rounds value to grid
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_To_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                  TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_To_Grid( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6  val;
 
@@ -936,13 +915,13 @@
 
     if ( distance >= 0 )
     {
-      val = (distance + compensation + 32) & (-64);
+      val = (distance + 32) & (-64);
       if ( val < 0 )
         val = 0;
     }
     else
     {
-      val = -( (compensation - distance + 32) & (-64) );
+      val = -( (-distance + 32) & (-64) );
       if ( val > 0 )
         val = 0;
     }
@@ -955,18 +934,15 @@
  *
  *  Function    :  Round_To_Half_Grid
  *
- *  Description :  Rounds value to half grid after adding engine
- *                 compensation.
+ *  Description :  Rounds value to half grid
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_To_Half_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                       TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_To_Half_Grid( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6  val;
 
@@ -975,13 +951,13 @@
 
     if ( distance >= 0 )
     {
-      val = ((distance + compensation) & (-64)) + 32;
+      val = ((distance) & (-64)) + 32;
       if ( val < 0 )
         val = 0;
     }
     else
     {
-      val = -( ((compensation - distance) & (-64)) + 32 );
+      val = -( ((-distance) & (-64)) + 32 );
       if ( val > 0 )
         val = 0;
     }
@@ -994,18 +970,15 @@
  *
  *  Function    :  Round_Down_To_Grid
  *
- *  Description :  Rounds value down to grid after adding engine
- *                 compensation.
+ *  Description :  Rounds value down to grid 
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_Down_To_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                       TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Down_To_Grid( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6  val;
 
@@ -1014,13 +987,13 @@
 
     if ( distance >= 0 )
     {
-      val = (distance + compensation) & (-64);
+      val = distance & (-64);
       if ( val < 0 )
         val = 0;
     }
     else
     {
-      val = -( (compensation - distance) & (-64) );
+      val = -( (-distance) & (-64) );
       if ( val > 0 )
         val = 0;
     }
@@ -1033,18 +1006,15 @@
  *
  *  Function    :  Round_Up_To_Grid
  *
- *  Description :  Rounds value up to grid after adding engine
- *                 compensation.
+ *  Description :  Rounds value up to grid
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_Up_To_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                     TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Up_To_Grid( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6  val;
 
@@ -1053,13 +1023,13 @@
 
     if ( distance >= 0 )
     {
-      val = (distance + compensation + 63) & (-64);
+      val = (distance + 63) & (-64);
       if ( val < 0 )
         val = 0;
     }
     else
     {
-      val = -( (compensation - distance + 63) & (-64) );
+      val = -( (-distance + 63) & (-64) );
       if ( val > 0 )
         val = 0;
     }
@@ -1072,18 +1042,15 @@
  *
  *  Function    :  Round_To_Double_Grid
  *
- *  Description :  Rounds value to double grid after adding engine
- *                 compensation.
+ *  Description :  Rounds value to double grid 
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_To_Double_Grid( EXEC_OPS TT_F26Dot6  distance,
-                                                         TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_To_Double_Grid( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6 val;
 
@@ -1091,13 +1058,13 @@
 
     if ( distance >= 0 )
     {
-      val = (distance + compensation + 16) & (-32);
+      val = (distance + 16) & (-32);
       if ( val < 0 )
         val = 0;
     }
     else
     {
-      val = -( (compensation - distance + 16) & (-32) );
+      val = -( (-distance + 16) & (-32) );
       if ( val > 0 )
         val = 0;
     }
@@ -1110,11 +1077,9 @@
  *
  *  Function    :  Round_Super
  *
- *  Description :  Super-rounds value to grid after adding engine
- *                 compensation.
+ *  Description :  Super-rounds value to grid 
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
@@ -1125,24 +1090,21 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_Super( EXEC_OPS TT_F26Dot6  distance,
-                                                TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Super( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6  val;
 
 
     if ( distance >= 0 )
     {
-      val = (distance - CUR.phase + CUR.threshold + compensation) &
-              (-CUR.period);
+      val = (distance - CUR.phase + CUR.threshold) & (-CUR.period);
       if ( val < 0 )
         val = 0;
       val += CUR.phase;
     }
     else
     {
-      val = -( (CUR.threshold - CUR.phase - distance + compensation) &
-               (-CUR.period) );
+      val = -( (CUR.threshold - CUR.phase - distance) & (-CUR.period) );
       if ( val > 0 )
         val = 0;
       val -= CUR.phase;
@@ -1156,11 +1118,9 @@
  *
  *  Function    :  Round_Super_45
  *
- *  Description :  Super-rounds value to grid after adding engine
- *                 compensation.
+ *  Description :  Super-rounds value to grid 
  *
  *  Input  :  distance      : distance to round
- *            compensation  : engine compensation
  *
  *  Output :  Rounded distance.
  *
@@ -1169,24 +1129,21 @@
  *
  *****************************************************************/
 
-  static TT_F26Dot6 _near Round_Super_45( EXEC_OPS TT_F26Dot6  distance,
-                                                   TT_F26Dot6  compensation )
+  static TT_F26Dot6 _near Round_Super_45( EXEC_OPS TT_F26Dot6  distance )
   {
     TT_F26Dot6  val;
 
 
     if ( distance >= 0 )
     {
-      val = ( (distance - CUR.phase + CUR.threshold + compensation) /
-                CUR.period ) * CUR.period;
+      val = ( (distance - CUR.phase + CUR.threshold) / CUR.period ) * CUR.period;
       if ( val < 0 )
         val = 0;
       val += CUR.phase;
     }
     else
     {
-      val = -( ( (CUR.threshold - CUR.phase - distance + compensation) /
-                   CUR.period ) * CUR.period );
+      val = -( ( (CUR.threshold - CUR.phase - distance) / CUR.period ) * CUR.period );
       if ( val > 0 )
         val = 0;
       val -= CUR.phase;
@@ -1312,10 +1269,9 @@
 #pragma code_seg()
 #endif
 
-  static TT_F26Dot6 _far FarCUR_Func_round(EXEC_OPS TT_F26Dot6  distance,
-                                                   TT_F26Dot6  compensation)
+  static TT_F26Dot6 _far FarCUR_Func_round(EXEC_OPS TT_F26Dot6  distance)
   {
-    return CUR.func_round(EXEC_ARGS distance, compensation);
+    return CUR.func_round(EXEC_ARGS distance);
   }
 
   static void _far FarCUR_Func_move(EXEC_OPS PGlyph_Zone zone,
@@ -1952,11 +1908,11 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
 
 #define DO_ODD  \
-    args[0] = ( (FarCUR_Func_round(EXEC_ARGS args[0], 0 ) & 127) == 64 );
+    args[0] = ( (FarCUR_Func_round(EXEC_ARGS args[0] ) & 127) == 64 );
 
 
 #define DO_EVEN  \
-    args[0] = ( (FarCUR_Func_round( EXEC_ARGS args[0], 0 ) & 127) == 0 );
+    args[0] = ( (FarCUR_Func_round( EXEC_ARGS args[0] ) & 127) == 0 );
 
 
 #define DO_AND  \
@@ -2105,14 +2061,11 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
 
 #define DO_ROUND                                                            \
-    args[0] = FarCUR_Func_round( EXEC_ARGS args[0],                                      \
-                              CUR.metrics.compensations[CUR.opcode-0x68] );
+    args[0] = FarCUR_Func_round( EXEC_ARGS args[0] );
 
 
 #define DO_NROUND                                                         \
-    args[0] = FarRound_None( EXEC_ARGS                                       \
-                          args[0],                                        \
-                          CUR.metrics.compensations[CUR.opcode - 0x6C] );
+    args[0] = FarRound_None( EXEC_ARGS args[0] );
 
 
 #define DO_MAX               \
@@ -4532,8 +4485,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     if ( (CUR.opcode & 1) != 0 )
     {
       cur_dist = CUR_Func_project( CUR.zp0.cur + point, NULL_Vector );
-      distance = CUR_Func_round( cur_dist,
-                                 CUR.metrics.compensations[0] ) - cur_dist;
+      distance = CUR_Func_round( cur_dist ) - cur_dist;
     }
     else
       distance = 0;
@@ -4611,7 +4563,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
       if ( ABS( distance - org_dist ) > CUR.GS.control_value_cutin )
         distance = org_dist;
 
-      distance = CUR_Func_round( distance, CUR.metrics.compensations[0] );
+      distance = CUR_Func_round( distance );
     }
 
     CUR_Func_move( &CUR.zp0, point, distance - org_dist );
@@ -4663,12 +4615,9 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     /* round flag */
 
     if ( (CUR.opcode & 4) != 0 )
-      distance = CUR_Func_round( org_dist,
-                                 CUR.metrics.compensations[CUR.opcode & 3] );
+      distance = CUR_Func_round( org_dist );
     else
-      distance = Round_None( EXEC_ARGS
-                             org_dist,
-                             CUR.metrics.compensations[CUR.opcode & 3]  );
+      distance = Round_None( EXEC_ARGS org_dist );
 
     /* minimum distance flag */
 
@@ -4790,13 +4739,10 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
         if ( ABS( cvt_dist - org_dist ) >= CUR.GS.control_value_cutin )
           cvt_dist = org_dist;
 
-      distance = CUR_Func_round( cvt_dist,
-                                 CUR.metrics.compensations[CUR.opcode & 3] );
+      distance = CUR_Func_round( cvt_dist );
     }
     else
-      distance = Round_None( EXEC_ARGS
-                             cvt_dist,
-                             CUR.metrics.compensations[CUR.opcode & 3] );
+      distance = Round_None( EXEC_ARGS cvt_dist );
 
     /* minimum distance test */
 
