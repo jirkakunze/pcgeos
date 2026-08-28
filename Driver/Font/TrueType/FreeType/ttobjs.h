@@ -575,7 +575,6 @@
   struct  TExecution_Context_
   {
     PFace           face;
-    PInstance       instance;
 
     /* instructions state */
 

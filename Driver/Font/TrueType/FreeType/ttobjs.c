@@ -67,7 +67,6 @@ extern TEngine_Instance engineInstance;
     if ( exec != engineInstance.exec )
         return TT_Err_Invalid_Argument;
 
-    exec->instance = NULL;
     exec->face     = NULL;
     engineInstance.exec_in_use = FALSE;
 
@@ -292,7 +291,6 @@ extern TEngine_Instance engineInstance;
     FREE( exec->glyphIns );
     exec->glyphSize = 0;
 
-    exec->instance = NULL;
     exec->face     = NULL;
 
   }
@@ -414,8 +412,6 @@ extern TEngine_Instance engineInstance;
 
     exec->face     = face;
     maxp           = &face->maxProfile;
-
-    exec->instance = ins;
 
     if ( ins )
     {
