@@ -3501,9 +3501,6 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     def->Start  = CUR.IP + 1;
     def->Range  = CUR.curRange;
 
-    if ( opcode > CUR.maxIns )
-      CUR.maxIns = opcode;
-
     /* Now skip the whole function definition */
     /* We don't allow nested IDEFs & FDEFs.   */
 

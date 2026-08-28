@@ -551,7 +551,6 @@
     PDefArray        IDefs;     /* table of IDefs entries            */
 
     Int              maxFunc;   /* maximum function definition id    */
-    Int              maxIns;    /* maximum instruction definition id */
 
     TCodeRangeTable  codeRangeTable;
 
@@ -625,7 +624,6 @@
     PDefRecord      IDefs;     /* table of IDefs entries             */
 
     Int             maxFunc;
-    Int             maxIns;
 
     Int             callTop,    /* top of call stack during execution */
                     callSize;   /* size of call stack */

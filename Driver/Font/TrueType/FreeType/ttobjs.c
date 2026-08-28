@@ -428,7 +428,6 @@ extern TEngine_Instance engineInstance;
       exec->metrics  = ins->metrics;
 
       exec->maxFunc  = ins->maxFunc;
-      exec->maxIns   = ins->maxIns;
 
       exec->codeRangeTable[0] = ins->codeRangeTable[0]; // = exec->codeRangeTable[0];
       exec->codeRangeTable[1] = ins->codeRangeTable[1];
@@ -504,7 +503,6 @@ extern TEngine_Instance engineInstance;
     ins->numFDefs = exec->numFDefs;
     ins->numIDefs = exec->numIDefs;
     ins->maxFunc  = exec->maxFunc;
-    ins->maxIns   = exec->maxIns;
 
     ins->codeRangeTable[0] = exec->codeRangeTable[0];
     ins->codeRangeTable[1] = exec->codeRangeTable[1];
@@ -612,7 +610,6 @@ extern TEngine_Instance engineInstance;
     ins->maxFDefs = 0;
     ins->maxIDefs = 0;
     ins->maxFunc  = -1;
-    ins->maxIns   = -1;
 
     ins->owner = NULL;
     ins->valid = FALSE;
@@ -716,7 +713,6 @@ EC( ECCheckBounds( exec ) );
     ins->numFDefs = 0;
     ins->numIDefs = 0;
     ins->maxFunc  = -1;
-    ins->maxIns   = -1;
 
     Context_Load( exec, face, ins );
 
@@ -733,8 +729,6 @@ EC( ECCheckBounds( exec ) );
 
       metrics->ppem         = 0;
       metrics->pointSize    = 0;
-      //metrics->x_scale1     = 0;
-      //metrics->units_per_em = 1;
       metrics->scale1       = 0;
       metrics->scale2       = 1;
       metrics->ratio        = 1L << 16;
