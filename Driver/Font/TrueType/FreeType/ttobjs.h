@@ -256,7 +256,6 @@
     Int    Range;     /* in which code range is it located ? */
     UShort Start;     /* where does it start ?               */
     Int    Opc;       /* function #, or instruction code     */
-    Bool   Active;    /* is it active ?                      */
   };
 
   typedef struct TDefRecord_  TDefRecord;

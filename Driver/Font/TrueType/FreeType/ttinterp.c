@@ -3299,7 +3299,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     {
       hash = ( (UShort)n + cnt ) % CUR.maxFDefs;
       def  = &CUR.FDefs[ hash ];
-      if ( !def->Active )
+      if ( def->Range == 0 )
         return new_def ? def : NULL;
       if ( def->Opc == n )
         return def;
@@ -3349,13 +3349,12 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     }
 
     /* Some font programs are broken enough to redefine functions! */
-    if ( !def->Active )
+    if ( def->Range == 0 )
       CUR.numFDefs++;
 
     def->Range  = CUR.curRange;
     def->Opc    = n;
     def->Start  = CUR.IP + 1;
-    def->Active = TRUE;
 
     if ( n > CUR.maxFunc )
       CUR.maxFunc = n;
@@ -3548,7 +3547,6 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     def->Opc    = opcode;
     def->Start  = CUR.IP + 1;
     def->Range  = CUR.curRange;
-    def->Active = TRUE;
 
     if ( opcode > CUR.maxIns )
       CUR.maxIns = opcode;
@@ -5482,7 +5480,7 @@ static void Interp( UShort               p1,
     limit = def + CUR.numIDefs;
     for ( ; def < limit; ++def )
     {
-      if ( def->Opc == CUR.opcode && def->Active )
+      if ( def->Opc == CUR.opcode )
       {
         PCallRecord  pCrec;
 
@@ -6444,7 +6442,7 @@ static void Interp( UShort               p1,
           for ( A = 0; A < CUR.numIDefs; ++A )
           {
             WITH = &CUR.IDefs[A];
-            if ( WITH->Active && CUR.opcode == WITH->Opc )
+            if ( CUR.opcode == WITH->Opc )
             {
               if ( CUR.callTop >= CUR.callSize )
               {

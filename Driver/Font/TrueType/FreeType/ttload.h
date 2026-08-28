@@ -206,7 +206,6 @@
 #define GET_ULong()   TT_Get_ULong ()
 #define GET_Tag4()    TT_Get_ULong ()
 
-#define FILE_Pos()    TT_File_Pos()
 
 #define FILE_Seek( _position_ ) \
           ( (error = TT_Seek_File( (Long)(_position_) )) != TT_Err_Ok )
