@@ -447,12 +447,16 @@
                                          void*  buffer,
                                          Short  count )
   {
-    TT_Error  error;
+    PStream_Rec streamRec = STREAM2REC( stream );
 
 
-    if ( (error = TT_Seek_File( STREAM_VARS position ))      != TT_Err_Ok ||
-         (error = TT_Read_File( STREAM_VARS buffer, count )) != TT_Err_Ok )
-      return error;
+    FilePos( streamRec->file, position, FILE_POS_START );
+
+    if( ThreadGetError() != NO_ERROR_RETURNED )
+      return TT_Err_Invalid_File_Offset;
+
+    if( FileRead( streamRec->file, buffer, count, FALSE ) != count )
+      return TT_Err_Invalid_File_Read;
 
     return TT_Err_Ok;
   }
