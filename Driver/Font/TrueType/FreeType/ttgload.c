@@ -238,13 +238,9 @@
 
     if ( FILE_Read( exec->glyphIns, n_ins ) )
       return error;
-
-    if ( (error = Set_CodeRange( exec,
-                                 TT_CodeRange_Glyph,
-                                 exec->glyphIns,
-                                 n_ins )) != TT_Err_Ok )
-      return error;
-
+   
+    exec->codeRangeTable[TT_CodeRange_Glyph - 1].Base = exec->glyphIns;
+    exec->codeRangeTable[TT_CodeRange_Glyph - 1].Size = n_ins;
 
     /* read the flags */
 
@@ -368,13 +364,12 @@
         {
 #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
           exec->pedantic_hinting = load_flags & TTLOAD_PEDANTIC;
-#endif
 
           error = Context_Run( exec );
-
-#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
           if (error && exec->pedantic_hinting)
             return error;
+#else
+          Context_Run( exec );
 #endif
         }
       }
@@ -428,13 +423,8 @@
       if ( FILE_Read( exec->glyphIns, n_ins ) )
         return error;
 
-      error = Set_CodeRange( exec,
-                             TT_CodeRange_Glyph,
-                             exec->glyphIns,
-                             n_ins );
-
-      if ( error )
-        return error;
+      exec->codeRangeTable[TT_CodeRange_Glyph - 1].Base = exec->glyphIns;
+      exec->codeRangeTable[TT_CodeRange_Glyph - 1].Size = n_ins;
     }
 
 

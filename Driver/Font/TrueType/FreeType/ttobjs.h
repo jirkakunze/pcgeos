@@ -552,8 +552,6 @@
 
     Int              maxFunc;   /* maximum function definition id    */
 
-    TCodeRangeTable  codeRangeTable;
-
     TGraphicsState   GS;
 
     UShort           cvtSize;   /* the scaled control value table */
@@ -704,14 +702,6 @@
                             UShort              IP );
 
 
-  /* Set a given code range properties */
-  LOCAL_DEF
-  TT_Error  Set_CodeRange( PExecution_Context  exec,
-                           Int                 range,
-                           void*               base,
-                           UShort              length );
-
-
   LOCAL_DEF
   PExecution_Context  New_Context( PFace  face );
 
@@ -725,7 +715,11 @@
                           PInstance           ins );
 
   LOCAL_DEF
+  #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
   TT_Error  Context_Run( PExecution_Context  exec );
+  #else
+  void      Context_Run( PExecution_Context  exec );
+  #endif
 
   LOCAL_DEF
   TT_Error  Instance_Init( PInstance  ins );

@@ -120,11 +120,6 @@
   EXPORT_DEF
   Long  TT_File_Pos( STREAM_ARG );
 
-  /* Return length of a given stream, even if it is flushed */
-
-  EXPORT_DEF
-  Long  TT_Stream_Size( TT_Stream  stream );
-
 
   /********************************************************************/
   /*                                                                  */
@@ -147,18 +142,6 @@
 
   EXPORT_DEF
   const TFileFrame  TT_Null_FileFrame;
-
-
-/* The macro ZERO_Frame is used to define and init a frame.      */
-/* It is important to have a default frame of { NULL, NULL, 0 }  */
-/* before a call to TT_Access_Frame().  Otherwise, the call will */
-/* fail with a TT_Err_Nested_Frame_Accesses error.               */
-
-#define ZERO_Frame( frame )     \
-      {                         \
-        (frame).address = NULL; \
-        (frame).cursor  = NULL; \
-      }
 
 
 #define CHECK_FILE( _handle_ )  EC( ECCheckFileHandle( _handle_ ) )

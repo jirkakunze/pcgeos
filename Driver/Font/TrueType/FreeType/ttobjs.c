@@ -190,66 +190,6 @@ extern TEngine_Instance engineInstance;
 
 
 /*******************************************************************
- *
- *  Function    :  Set_CodeRange
- *
- *  Description :  Sets a code range.
- *
- *  Input  :  exec    target execution context
- *            range   code range index
- *            base    new code base
- *            length  range size in bytes
- *
- *  Output :  SUCCESS on success.  FAILURE on error.
- *
- *****************************************************************/
-
-  LOCAL_FUNC
-  TT_Error  Set_CodeRange( PExecution_Context  exec,
-                           Int                 range,
-                           void*               base,
-                           UShort              length )
-  {
-    if ( range < 1 || range > 3 )
-      return TT_Err_Bad_Argument;
-
-    exec->codeRangeTable[range - 1].Base = (Byte*)base;
-    exec->codeRangeTable[range - 1].Size = length;
-
-    return TT_Err_Ok;
-  }
-
-
-/*******************************************************************
- *
- *  Function    :  Clear_CodeRange
- *
- *  Description :  Clears a code range.
- *
- *  Input  :  exec    target execution context
- *            range   code range index
- *
- *  Output :  SUCCESS on success.  FAILURE on error.
- *
- *  Note   : Does not set the Error variable.
- *
- *****************************************************************/
-
-  static
-  TT_Error Clear_CodeRange( PExecution_Context  exec, Int  range )
-  {
-    if ( range < 1 || range > 3 )
-      return TT_Err_Bad_Argument;
-
-    exec->codeRangeTable[range - 1].Base = NULL;
-    exec->codeRangeTable[range - 1].Size = 0;
-
-    return TT_Err_Ok;
-  }
-
-
-
-/*******************************************************************
  *                                                                 *
  *                EXECUTION CONTEXT ROUTINES                       *
  *                                                                 *
@@ -292,7 +232,6 @@ extern TEngine_Instance engineInstance;
     exec->glyphSize = 0;
 
     exec->face     = NULL;
-
   }
 
 
@@ -422,12 +361,7 @@ extern TEngine_Instance engineInstance;
       exec->FDefs    = ins->FDefs;
       exec->IDefs    = ins->IDefs;
       exec->metrics  = ins->metrics;
-
       exec->maxFunc  = ins->maxFunc;
-
-      exec->codeRangeTable[0] = ins->codeRangeTable[0]; // = exec->codeRangeTable[0];
-      exec->codeRangeTable[1] = ins->codeRangeTable[1];
-      exec->codeRangeTable[2] = ins->codeRangeTable[2];
 
       /* set graphics state */
       exec->GS = ins->GS;
@@ -440,6 +374,12 @@ extern TEngine_Instance engineInstance;
 
       exec->twilight  = ins->twilight;
     }
+
+    exec->codeRangeTable[TT_CodeRange_Font - 1].Base = face->fontProgram;
+    exec->codeRangeTable[TT_CodeRange_Font - 1].Size = face->fontPgmSize;
+
+    exec->codeRangeTable[TT_CodeRange_Cvt - 1].Base = face->cvtProgram;
+    exec->codeRangeTable[TT_CodeRange_Cvt - 1].Size = face->cvtPgmSize;
 
     error = Update_Max( &exec->loadSize,
                         sizeof ( TSubglyph_Record ),
@@ -493,16 +433,9 @@ extern TEngine_Instance engineInstance;
   static void  Context_Save( PExecution_Context  exec,
                              PInstance           ins )
   {
-    /* XXXX : Will probably disappear soon with all the coderange */
-    /*        management, which is now rather obsolete.           */
-
     ins->numFDefs = exec->numFDefs;
     ins->numIDefs = exec->numIDefs;
     ins->maxFunc  = exec->maxFunc;
-
-    ins->codeRangeTable[0] = exec->codeRangeTable[0];
-    ins->codeRangeTable[1] = exec->codeRangeTable[1];
-    ins->codeRangeTable[2] = exec->codeRangeTable[2];
   }
 
 
@@ -513,13 +446,23 @@ extern TEngine_Instance engineInstance;
  *****************************************************************/
 
   LOCAL_FUNC
-  TT_Error  Context_Run( PExecution_Context  exec )
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
+  TT_Error
+#else
+  void
+#endif
+  Context_Run( PExecution_Context  exec )
   {
+#ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
     TT_Error  error;
 
 
     if ( (error = Goto_CodeRange( exec, TT_CodeRange_Glyph, 0 )) != TT_Err_Ok )
       return error;
+#else
+    if ( Goto_CodeRange( exec, TT_CodeRange_Glyph, 0 ) != TT_Err_Ok )
+      return;
+#endif
 
     exec->zp0 = exec->pts;
     exec->zp1 = exec->pts;
@@ -543,7 +486,11 @@ extern TEngine_Instance engineInstance;
     exec->top     = 0;
     exec->callTop = 0;
 
+  #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
     return CALL_INTERPRETER;
+  #else
+    CALL_INTERPRETER;
+  #endif
   }
 
 
@@ -739,15 +686,8 @@ EC( ECCheckBounds( exec ) );
 
     exec->F_dot_P = 0x10000;
 
-    /* allow font program execution */
-    Set_CodeRange( exec,
-                   TT_CodeRange_Font,
-                   face->fontProgram,
-                   face->fontPgmSize );
-
-    /* disable CVT and glyph programs coderange */
-    Clear_CodeRange( exec, TT_CodeRange_Cvt );
-    Clear_CodeRange( exec, TT_CodeRange_Glyph );
+    exec->codeRangeTable[TT_CodeRange_Cvt - 1].Base = NULL;
+    exec->codeRangeTable[TT_CodeRange_Cvt - 1].Size = 0;
 
     if ( face->fontPgmSize > 0 )
     {
@@ -800,10 +740,6 @@ EC( ECCheckBounds( ins ) );
     if ( ins->metrics.ppem < 1 )
       return TT_Err_Invalid_PPem;
 
-    /* compute new transformation */
-    //ins->metrics.scale1 = ins->metrics.x_scale1;
-    //ins->metrics.scale2 = ins->metrics.units_per_em;
-
     /* Scale the cvt values to the new ppem.          */
     /* We use by default the y ppem to scale the CVT. */
     MulDivList( ins->cvt, ins->cvtSize, face->cvt, ins->metrics.scale1, ins->metrics.scale2 );
@@ -824,13 +760,6 @@ EC( ECCheckBounds( ins ) );
       return TT_Err_Could_Not_Find_Context;
 
     Context_Load( exec, face, ins );
-
-    Set_CodeRange( exec,
-                   TT_CodeRange_Cvt,
-                   face->cvtProgram,
-                   face->cvtPgmSize );
-
-    Clear_CodeRange( exec, TT_CodeRange_Glyph );
 
 #ifdef DEBUG_INTERPRETER
     exec->instruction_trap = FALSE;

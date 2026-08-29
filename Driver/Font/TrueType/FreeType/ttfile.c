@@ -22,14 +22,6 @@
  *   The same source code can be used for thread-safe and re-entrant
  *   builds of the library.
  *
- *  Changes between 2.0 and 2.1 :
- *
- *  - added "TT_Stream_Size" to replace "TT_File_Size" which wasn't
- *    used anyway. This one returns the size of any stream, even
- *    flushed one (when the previous TT_File_Size could only return
- *    the size of the current working stream). This is used by the
- *    new "Load_TrueType_Any" function in the tables loader.
- *
  ******************************************************************/
 
 #include "ttconfig.h"
@@ -239,7 +231,7 @@
       return TT_Err_Nested_Frame_Access;
 
     FREE( CUR_Frame.address );
-    ZERO_Frame( CUR_Frame );
+    CUR_Frame.cursor = NULL;
 
     return TT_Err_Ok;
   }
