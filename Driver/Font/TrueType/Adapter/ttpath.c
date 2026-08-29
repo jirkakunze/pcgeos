@@ -398,7 +398,7 @@ EC(     ECCheckBounds( (void*)outline ) );
                 tags  = outline->flags  + first;
 
                 /* check first point to determine origin */
-                if ( *tags & CURVE_TAG_CONIC )
+                if ( !(*tags & CURVE_TAG_ON ) )
                 {
                         /* first point is conic control. Yes, this happens. */
                         if ( outline->flags[last] & CURVE_TAG_ON )
@@ -768,7 +768,7 @@ static void CalcScaleAndScaleOutline( TRUETYPE_VARS,
 
         SCALE_HEIGHT = SCALE_WIDTH = scaleMatrix.xx = scaleMatrix.yy = GrUDivWWFixed( STANDARD_GRIDSIZE, UNITS_PER_EM );
 
-        TT_Transform_Outline( &outline, &scaleMatrix );
+        TT_Transform_Outline( outline, &scaleMatrix );
 }
 
 
