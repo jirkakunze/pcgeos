@@ -254,9 +254,6 @@ extern TEngine_Instance engineInstance;
     Short     traceOfs;             /* current offset in target bitmap */
     Short     traceOfsLastLine;     /* offset in traget region before line step */
     Short     traceIncr;            /* sweep's increment in target bitmap */
-#ifdef __GEOS__
-    Bool      regionStarted;        /* true after region output was initialized */
-#endif
 
     /* dispatch variables */
 
@@ -315,13 +312,8 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
-    ras.cProfile->flow = ( aState == Ascending ) ? TT_Flow_Up : TT_Flow_Down;
-
-    ras.cProfile->start  = 0;
-    ras.cProfile->height = 0;
+    ras.cProfile->flow   = ( aState == Ascending ) ? TT_Flow_Up : TT_Flow_Down;
     ras.cProfile->offset = ras.top;
-    ras.cProfile->link   = (PProfile)0;
-    ras.cProfile->next   = (PProfile)0;
 
     if ( !ras.gProfile )
       ras.gProfile = ras.cProfile;
@@ -1468,18 +1460,9 @@ extern TEngine_Instance engineInstance;
 /*                                                                     */
 /***********************************************************************/
 
-  static void _near  Vertical_Region_Sweep_Init( RAS_ARGS Short*  min )
+  static void _near  Null_Sweep_Init( RAS_ARGS Short* min )
   {
-    (void)min;
-
-    if ( !ras.regionStarted )
-    {
-      ras.traceOfs         = 0;
-      ras.traceOfsLastLine = -1;
-      ras.regionStarted    = TRUE;
-    }
-
-    ras.traceIncr = 0;
+    (void)raster, (void)min;
   }
 
   static void _near  Vertical_Region_Sweep_Span( RAS_ARGS Short       y,
@@ -1569,12 +1552,7 @@ extern TEngine_Instance engineInstance;
 /*                                                                     */
 /***********************************************************************/
 
-  static void _near  Horizontal_Sweep_Init( RAS_ARGS Short*  min )
-  {
-    (void)raster, (void)min;
-  }
-
-
+ 
   static void _near  Horizontal_Sweep_Span( RAS_ARGS Short y,
                                                      TT_F26Dot6  x1,
                                                      TT_F26Dot6  x2 )
@@ -2284,7 +2262,7 @@ EC( ECCheckBounds( (void*)target_map ) );
 
     if ( ras.dropOutControl != 0 )
     {
-      ras.Proc_Sweep_Init   = Horizontal_Sweep_Init;
+      ras.Proc_Sweep_Init   = Null_Sweep_Init;
       ras.Proc_Sweep_Span   = Horizontal_Sweep_Span;
       ras.Proc_Sweep_Drop   = Horizontal_Sweep_Drop;
       ras.Proc_Sweep_Step   = Horizontal_Sweep_Step;
@@ -2335,7 +2313,7 @@ EC( ECCheckBounds( (void*)map ) );
     ras.dropOutControl = 0;
 
     /* Vertical Sweep */
-    ras.Proc_Sweep_Init   = Vertical_Region_Sweep_Init;
+    ras.Proc_Sweep_Init   = Null_Sweep_Init;
     ras.Proc_Sweep_Span   = Vertical_Region_Sweep_Span;
     ras.Proc_Sweep_Drop   = Vertical_Region_Sweep_Drop;
     ras.Proc_Sweep_Step   = Vertical_Region_Sweep_Step;
@@ -2343,9 +2321,11 @@ EC( ECCheckBounds( (void*)map ) );
     ras.band_stack[0].y_min = 0;
     ras.band_stack[0].y_max = ras.target.rows - 1;
 
-    ras.bWidth        = ras.target.cols;
-    ras.bTarget       = (PByte)ras.target.bitmap;
-    ras.regionStarted = FALSE;
+    ras.bWidth           = ras.target.cols;
+    ras.bTarget          = (PByte)ras.target.bitmap;
+    ras.traceOfs         = 0;
+    ras.traceOfsLastLine = -1;
+    ras.traceIncr        = 0;
 
 
     /* lock renderpool cache */
