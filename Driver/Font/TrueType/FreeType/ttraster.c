@@ -315,11 +315,6 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
-    if ( aState == Unknown )
-    {
-      ras.error = Raster_Err_Invalid;
-      return FAILURE;
-    }
     ras.cProfile->flow = ( aState == Ascending ) ? TT_Flow_Up : TT_Flow_Down;
 
     ras.cProfile->start  = 0;
@@ -374,7 +369,6 @@ extern TEngine_Instance engineInstance;
 
       ras.top             += AlignProfileSize;
 
-      ras.cProfile->height = 0;
       ras.cProfile->offset = ras.top;
       oldProfile->next     = ras.cProfile;
       ++ras.num_Profs;
@@ -973,7 +967,7 @@ extern TEngine_Instance engineInstance;
 
         /* compute */
 
-        switch ( ras.state )
+        switch ( state_bez )
         {
         case Ascending:
           if ( Bezier_Up ( RAS_VARS ras.minY, ras.maxY ) )
@@ -1156,8 +1150,6 @@ extern TEngine_Instance engineInstance;
 
 
     ras.fProfile         = NULL;
-    ras.joint            = FALSE;
-    ras.fresh            = FALSE;
     ras.maxBuff          = ras.sizeBuff - AlignProfileSize;
     ras.numTurns         = 0;
     ras.cProfile         = (PProfile)ras.top;
@@ -2028,13 +2020,12 @@ extern TEngine_Instance engineInstance;
             x2 = xs;
           }
 
-          if ( x2-x1 <= PRECISION )
+          if ( x2-x1 <= PRECISION && ras.dropOutControl != 0)
           {
             e1 = FLOOR( x1 );
             e2 = CEILING( x2 );
 
-            if ( ras.dropOutControl != 0 &&
-                 (e1 > e2 || e2 == e1 + PRECISION) )
+            if ( e1 > e2 || e2 == e1 + PRECISION )
             {
               /* a drop out was detected */
 
@@ -2132,8 +2123,7 @@ Scan_DropOuts :
         e1 = FLOOR( x1 );
         e2 = CEILING( x2 );
 
-        if ( ras.dropOutControl != 0 &&
-             ( e1 > e2 || e2 == e1 + PRECISION ) )
+        if ( e1 > e2 || e2 == e1 + PRECISION )
         {
           ras.Proc_Sweep_Drop( RAS_VARS  y,
                                x1,
@@ -2166,18 +2156,14 @@ Scan_DropOuts :
 
   static TT_Error  Render_Single_Pass( RAS_ARGS Bool  flipped )
   {
-    Short  i, j, k;
-    TBand  band;
-    Int    band_top = 1;
+    Short     i, j, k;
+    TBand     band;
+    Int       band_top = 1;
+    PStorage  buffer;
 
 
-    /*
-     * Treat band_stack as a stack of pending bands.  When a band overflows,
-     * push the upper half first and the lower half last so that the lower
-     * half is processed first.  Bitmap rendering is order independent, but
-     * GEOS region output is not: it appends scanline records and must see
-     * bands in ascending y order.
-     */
+    buffer = ras.sizeBuff - ( RASTER_RENDER_POOL_SIZE >> 2 );
+
     while ( band_top > 0 )
     {
       band = ras.band_stack[--band_top];
@@ -2185,7 +2171,7 @@ Scan_DropOuts :
       ras.maxY = (Long)band.y_max * PRECISION;
       ras.minY = (Long)band.y_min * PRECISION;
 
-      ras.top = MemDeref( ras.buffer );
+      ras.top = buffer;
 
       ras.error = Raster_Err_None;
 
