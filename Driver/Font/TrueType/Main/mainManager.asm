@@ -111,7 +111,6 @@ global  bitmapHandle:hptr
 global  engineInstance:TrueTypeEngineInstance
 
 global smallListHandle: word
-global largeListHandle: word
 
 MetricsMod segment resource
 include		truetypeMetrics.asm
