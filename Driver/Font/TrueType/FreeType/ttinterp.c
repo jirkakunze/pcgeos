@@ -637,7 +637,7 @@
  *
  *****************************************************************/
 
-  static Long  Current_Ratio( EXEC_OP )
+  static Long _near Current_Ratio( EXEC_OP )
   {
     if ( CUR.metrics.ratio )
       return CUR.metrics.ratio;
@@ -669,7 +669,7 @@
  *
  *****************************************************************/
 
- static Bool  Calc_Length( EXEC_OP )
+ static Bool _near Calc_Length( EXEC_OP )
   {
     CUR.opcode = CUR.code[CUR.IP];
 
@@ -3231,34 +3231,38 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 /*                                                              */
 /****************************************************************/
 
-  static PDefRecord  Locate_FDef( EXEC_OPS Int n, Bool new_def )
+  static PDefRecord Locate_FDef( EXEC_OPS Int n, Bool new_def )
   {
     PDefRecord  def;
     UShort      hash;
     UShort      cnt;
 
-    /* The function table is interpreted as a simple hash table     */
-    /* with indexes computed modulo maxFDefs and the linear search  */
-    /* of free cells in the case of a collision.                    */
-    /* Except for some old Apple fonts, all functions in a TrueType */
-    /* font fit into 0..maxFDefs - 1 range and the lookup is        */
-    /* reduced to a single step.                                    */
 
-    /* Minor optimization. */
     if ( !new_def && ( n < 0 || n > CUR.maxFunc ) )
       return NULL;
 
+    if ( CUR.maxFDefs == 0 )
+      return NULL;
+
+    hash = (UShort)n;
+
+    if ( hash >= CUR.maxFDefs )
+      hash %= CUR.maxFDefs;
+
     for ( cnt = 0; cnt < CUR.maxFDefs; ++cnt )
     {
-      hash = ( (UShort)n + cnt ) % CUR.maxFDefs;
-      def  = &CUR.FDefs[ hash ];
+      def = &CUR.FDefs[hash];
+
       if ( def->Range == 0 )
         return new_def ? def : NULL;
+
       if ( def->Opc == n )
         return def;
+
+      if ( ++hash == CUR.maxFDefs )
+        hash = 0;
     }
 
-    /* The table is full and the entry has not been found. */
     return NULL;
   }
 
@@ -3345,23 +3349,22 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
       return;
     }
 
-    CUR.callTop--;
-
-    pRec = &CUR.callStack[CUR.callTop];
+    pRec = &CUR.callStack[CUR.callTop - 1];
 
     pRec->Cur_Count--;
 
     CUR.step_ins = FALSE;
 
     if ( pRec->Cur_Count > 0 )
-    {
-      CUR.callTop++;
       CUR.IP = pRec->Cur_Restart;
-    }
     else
+    {
+      CUR.callTop--;
+
       /* Loop through the current function */
       INS_Goto_CodeRange( pRec->Caller_Range,
                           pRec->Caller_IP );
+    }
 
     /* Exit the current call frame.                       */
 
@@ -5072,10 +5075,10 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
   };
 
 
-  static void  Shift( UShort               p1,
-                      UShort               p2,
-                      UShort               p,
-                      struct LOC_Ins_IUP*  LINK )
+  static void _near Shift( UShort               p1,
+                           UShort               p2,
+                           UShort               p,
+                           struct LOC_Ins_IUP*  LINK )
   {
     UShort      i;
     TT_F26Dot6  x;
@@ -5091,11 +5094,11 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
   }
 
 
-static void Interp( UShort               p1,
-                    UShort               p2,
-                    UShort               ref1,
-                    UShort               ref2,
-                    struct LOC_Ins_IUP*  LINK )
+static void _near Interp( UShort               p1,
+                          UShort               p2,
+                          UShort               ref1,
+                          UShort               ref2,
+                          struct LOC_Ins_IUP*  LINK )
 {
     UShort      i;
     TT_F26Dot6  x, x1, x2, d1, d2;
@@ -5245,15 +5248,30 @@ static void Interp( UShort               p1,
 /* CodeRange   : $5D,$71,$72                  */
 /* Stack       : uint32 (2 * uint32)... -->   */
 
-  static void  Ins_DELTAP( INS_ARG )
+  static void Ins_DELTAP( INS_ARG )
   {
     UShort  nump, k;
     UShort  A;
     ULong   C;
     Long    B;
+    Long    ppem;
 
 
-    nump = (UShort)args[0]; 
+    nump = (UShort)args[0];
+    ppem = CURRENT_Ppem();
+
+    C = (ULong)CUR.GS.delta_base;
+
+    switch ( CUR.opcode )
+    {
+    case 0x71:
+      C += 16;
+      break;
+
+    case 0x72:
+      C += 32;
+      break;
+    }
 
     for ( k = 1; k <= nump; ++k )
     {
@@ -5268,37 +5286,14 @@ static void Interp( UShort               p1,
       A = (UShort)CUR.stack[CUR.args + 1];
       B = CUR.stack[CUR.args];
 
-      /* XXX : because some popular fonts contain some invalid DeltaP */
-      /*       instructions, we simply ignore them when the stacked   */
-      /*       point reference is off limit, rather than returning an */
-      /*       error. As a delta instruction doesn't change a glyph   */
-      /*       in great ways, this shouldn't be a problem..           */
-
       if ( !BOUNDS( A, CUR.zp0.n_points ) )
       {
-        C = ((ULong)B & 0xF0) >> 4;
-
-        switch ( CUR.opcode )
-        {
-        case 0x5d:
-          break;
-
-        case 0x71:
-          C += 16;
-          break;
-
-        case 0x72:
-          C += 32;
-          break;
-        }
-
-        C += CUR.GS.delta_base;
-
-        if ( CURRENT_Ppem() == (Long)C )
+        if ( ppem == (Long)( C + (((ULong)B & 0xF0) >> 4) ) )
         {
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
             ++B;
+
           B = B * 64L / (1L << CUR.GS.delta_shift);
 
           FarCUR_Func_move( EXEC_ARGS &CUR.zp0, A, B );
@@ -5320,13 +5315,29 @@ static void Interp( UShort               p1,
 /* CodeRange   : $73,$74,$75                  */
 /* Stack       : uint32 (2 * uint32)... -->   */
 
-  static void  Ins_DELTAC( INS_ARG )
+  static void Ins_DELTAC( INS_ARG )
   {
     UShort nump = (UShort)args[0];
     UShort A, k;
     ULong  C;
     Long   B;
+    Long   ppem;
 
+
+    ppem = CURRENT_Ppem();
+
+    C = (ULong)CUR.GS.delta_base;
+
+    switch ( CUR.opcode )
+    {
+    case 0x74:
+      C += 16;
+      break;
+
+    case 0x75:
+      C += 32;
+      break;
+    }
 
     for ( k = 1; k <= nump; ++k )
     {
@@ -5353,26 +5364,12 @@ static void Interp( UShort               p1,
       }
       else
       {
-        C = ((ULong)B & 0xF0) >> 4;
-
-        switch ( CUR.opcode )
-        {
-        case 0x74:
-          C += 16;
-          break;
-
-        case 0x75:
-          C += 32;
-          break;
-        }
-
-        C += CUR.GS.delta_base;
-
-        if ( CURRENT_Ppem() == (Long)C )
+        if ( ppem == (Long)( C + (((ULong)B & 0xF0) >> 4) ) )
         {
           B = ((ULong)B & 0xF) - 8;
           if ( B >= 0 )
             ++B;
+
           B = (B << 6) / (1L << CUR.GS.delta_shift);
 
           MOVE_CVT( EXEC_ARGS A, B );
@@ -5779,20 +5776,18 @@ static void Interp( UShort               p1,
   TT_Error  RunIns2( PExecution_Context  exc )
 #endif
   {
-    UShort       A;
-    PDefRecord   WITH;
-    PCallRecord  WITH1;
-
-    UShort        ins_counter = 0;  /* executed instructions counter */
+    UShort  ins_counter = MAX_RUNNABLE_OPCODES;
 
 #ifdef TT_CONFIG_OPTION_STATIC_INTERPRETER
     cur = *exc;
 #endif
 
-    CUR.metrics.ratio = 0;
+    CUR.error = TT_Err_Ok;
 
     COMPUTE_Funcs();
     Compute_Round( EXEC_ARGS (Byte)exc->GS.round_state );
+
+    CUR.step_ins = TRUE;
 
     do
     {
@@ -5827,8 +5822,6 @@ static void Interp( UShort               p1,
         goto LErrorLabel_;
       }
 
-      CUR.step_ins = TRUE;
-      CUR.error    = TT_Err_Ok;
 
 #ifdef TT_CONFIG_OPTION_INTERPRETER_SWITCH
       {
@@ -6377,53 +6370,18 @@ static void Interp( UShort               p1,
       Instruct_Dispatch[CUR.opcode]( EXEC_ARGS &CUR.stack[CUR.args] );
 #endif
       if ( CUR.error != TT_Err_Ok )
-      {
-        switch ( (Int)(CUR.error) )
-        {
-        case TT_Err_Invalid_Opcode: /* looking for redefined instructions */
-          
-          for ( A = 0; A < CUR.numIDefs; ++A )
-          {
-            WITH = &CUR.IDefs[A];
-            if ( CUR.opcode == WITH->Opc )
-            {
-              if ( CUR.callTop >= CUR.callSize )
-              {
-                CUR.error = TT_Err_Invalid_Reference;
-                goto LErrorLabel_;
-              }
-
-              WITH1 = &CUR.callStack[CUR.callTop];
-
-              WITH1->Caller_Range = CUR.curRange;
-              WITH1->Caller_IP    = CUR.IP + 1;
-              WITH1->Cur_Count    = 1;
-              WITH1->Cur_Restart  = WITH->Start;
-
-              if ( INS_Goto_CodeRange( WITH->Range, WITH->Start ) == FAILURE )
-                goto LErrorLabel_;
-            }
-          }
-
-          CUR.error = TT_Err_Invalid_Opcode;
           goto LErrorLabel_;
-/*        break;   Unreachable code warning suppress.  Leave in case a later
-                   change to remind the editor to consider break; */
-
-        default:
-          goto LErrorLabel_;
-/*        break; */
-        }
-      }
 
       CUR.top = CUR.new_top;
 
       if ( CUR.step_ins )
         CUR.IP += CUR.length;
+      else
+        CUR.step_ins = TRUE;
 
-      /* increment instruction counter and check if we didn't   */
+      /* decrement instruction counter and check if we didn't   */
       /* run this program for too long ?? (e.g. infinite loops) */
-      if ( ++ins_counter > MAX_RUNNABLE_OPCODES )
+      if ( --ins_counter == 0 )
       {
         CUR.error = TT_Err_Execution_Too_Long;
         goto LErrorLabel_;
@@ -6439,16 +6397,13 @@ static void Interp( UShort               p1,
           goto LErrorLabel_;
         }
         else
-          goto LNo_Error_;
+          break;
       }
 #ifdef DEBUG_INTERPRETER
     } while ( !CUR.instruction_trap );
 #else
     } while ( TRUE );
 #endif
-
-  LNo_Error_:
-    CUR.error = TT_Err_Ok;
 
   LErrorLabel_:
   
@@ -6457,8 +6412,6 @@ static void Interp( UShort               p1,
 #endif
     
     return CUR.error;
-    
-  
   }
 
 
