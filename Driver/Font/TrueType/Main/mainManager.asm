@@ -108,7 +108,6 @@ global	GRREGIONPATHDRAWLINETO:far
 global	GRREGIONPATHDRAWCURVETO:far
 
 global  bitmapHandle:hptr
-global  bitmapSize:word
 global  engineInstance:TrueTypeEngineInstance
 
 global smallListHandle: word
