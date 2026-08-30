@@ -604,8 +604,6 @@
     Byte            opcode;    /* current opcode              */
     Int             length;    /* length of current opcode    */
 
-    Bool            step_ins;  /* true if the interpreter must */
-                               /* increment IP after ins. exec */
     UShort          cvtSize;
     PLong           cvt;
 

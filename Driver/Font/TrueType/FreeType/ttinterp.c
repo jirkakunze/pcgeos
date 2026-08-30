@@ -1866,20 +1866,20 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     if ( args[1] != 0 )       \
     {                         \
       CUR.IP      += args[0]; \
-      CUR.step_ins = FALSE;   \
+      CUR.length   = 0;       \
     }
 
 
 #define DO_JMPR             \
     CUR.IP      += args[0]; \
-    CUR.step_ins = FALSE;
+    CUR.length  = 0;
 
 
 #define DO_JROF               \
     if ( args[1] == 0 )       \
     {                         \
       CUR.IP      += args[0]; \
-      CUR.step_ins = FALSE;   \
+      CUR.length  = 0;        \
     }
 
 
@@ -3353,7 +3353,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
     pRec->Cur_Count--;
 
-    CUR.step_ins = FALSE;
+    CUR.length = 0;
 
     if ( pRec->Cur_Count > 0 )
       CUR.IP = pRec->Cur_Restart;
@@ -3415,7 +3415,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     INS_Goto_CodeRange( def->Range,
                         def->Start );
 
-    CUR.step_ins = FALSE;
+    CUR.length = 0;
   }
 
 #ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
@@ -3463,7 +3463,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     INS_Goto_CodeRange( def->Range,
                         def->Start );
 
-    CUR.step_ins = FALSE;
+    CUR.length = 0;
   }
 
 
@@ -3582,7 +3582,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     for ( K = 0; K < L; ++K )
       args[K] = GET_SHORT_INS();
 
-    CUR.step_ins = FALSE;
+    CUR.length = 0;
     CUR.new_top += L;
   }
 
@@ -3636,7 +3636,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     for ( K = 0; K < L; ++K )
       args[K] = GET_SHORT_INS();
 
-    CUR.step_ins = FALSE;
+    CUR.length = 0;
   }
 
 #ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
@@ -5445,7 +5445,7 @@ static void _near Interp( UShort               p1,
         INS_Goto_CodeRange( def->Range,
                             def->Start );
     
-        CUR.step_ins = FALSE;
+        CUR.length = 0;
         return;
       }
     }
@@ -5786,8 +5786,6 @@ static void _near Interp( UShort               p1,
 
     COMPUTE_Funcs();
     Compute_Round( EXEC_ARGS (Byte)exc->GS.round_state );
-
-    CUR.step_ins = TRUE;
 
     do
     {
@@ -6373,11 +6371,7 @@ static void _near Interp( UShort               p1,
           goto LErrorLabel_;
 
       CUR.top = CUR.new_top;
-
-      if ( CUR.step_ins )
-        CUR.IP += CUR.length;
-      else
-        CUR.step_ins = TRUE;
+      CUR.IP += CUR.length;
 
       /* decrement instruction counter and check if we didn't   */
       /* run this program for too long ?? (e.g. infinite loops) */
