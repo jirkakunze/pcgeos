@@ -55,11 +55,10 @@ NOTES:
     	retrieved directly when the block is freed.
 	The format of these blocks is as follows:
 
-		word	numberOfEntriesInList	;This includes any empty slots
-		word	entry1
-		word	entry2
-		word	entry3
-			.
+	  word	numberOfEntriesInList	;This includes any empty slots
+	  word	entry1
+	  word	entry2
+	  word	entry3
 			.
 			.
 
@@ -546,9 +545,6 @@ PSEUDO CODE/STRATEGY:
 
 KNOWN BUGS/SIDE EFFECTS/IDEAS:
 	Accepts p == NULL or *p == NULL gracefully.
-	*p is zeroed only on the small-block path (exitZero); the large-
-	block path falls through to exit without zeroing *p -- this
-	matches the original behaviour.
 
 REVISION HISTORY:
 	Name	Date		Description

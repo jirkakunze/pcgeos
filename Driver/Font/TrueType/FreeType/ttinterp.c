@@ -888,11 +888,6 @@
     return distance;
   }
 
-  static TT_F26Dot6 _far FarRound_None( EXEC_OPS TT_F26Dot6  distance )
-  {
-    return Round_None( EXEC_ARGS distance );
-  }
-
 
 /*******************************************************************
  *
@@ -2064,8 +2059,8 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     args[0] = FarCUR_Func_round( EXEC_ARGS args[0] );
 
 
-#define DO_NROUND                                                         \
-    args[0] = FarRound_None( EXEC_ARGS args[0] );
+/* NROUND leaves the value unchanged. */
+#define DO_NROUND
 
 
 #define DO_MAX               \
@@ -3531,7 +3526,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 /****************************************************************/
 
 #ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
-#pragma code_seg(InterpInfreq)
+#pragma code_seg(InterpEntry)
 #endif
 
 /*******************************************/
@@ -3539,7 +3534,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 /* CodeRange : $40                         */
 /* Stack     : --> uint32...               */
 
-  static void  Ins_NPUSHB( INS_ARG )
+  static void _near Ins_NPUSHB( INS_ARG )
   {
     UShort  L, K;
 
@@ -3559,12 +3554,16 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
   }
 
 
+#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
+#pragma code_seg(InterpEntry)
+#endif
+
 /*******************************************/
 /* NPUSHW[]  : PUSH N Words                */
 /* CodeRange : $41                         */
 /* Stack     : --> int32...                */
 
-  static void  Ins_NPUSHW( INS_ARG )
+  static void _near Ins_NPUSHW( INS_ARG )
   {
     UShort  L, K;
 
@@ -3586,9 +3585,6 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     CUR.new_top += L;
   }
 
-#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
-#pragma code_seg(InterpEntry)
-#endif
 
 /*******************************************/
 /* PUSHB[abc]: PUSH Bytes                  */
