@@ -1487,14 +1487,6 @@ extern TEngine_Instance engineInstance;
     }
   }
 
-  static void _near  Vertical_Region_Sweep_Drop( RAS_ARGS Short       y,
-                                                          TT_F26Dot6  x1,
-                                                          TT_F26Dot6  x2,
-                                                          PProfile    left,
-                                                          PProfile    right )
-  {
-    (void)raster, (void)y, (void)x1, (void)x2, (void)left, (void)right;
-  } 
 
   static void _near  Vertical_Region_Sweep_Step( RAS_ARGS Short y )
   {
@@ -2312,10 +2304,10 @@ EC( ECCheckBounds( (void*)map ) );
     /* disable drop-out control */
     ras.dropOutControl = 0;
 
-    /* Vertical Sweep */
+    /* Region rendering disables drop-out control, so Proc_Sweep_Drop */
+    /* is never called and does not need to be initialized here.      */
     ras.Proc_Sweep_Init   = Null_Sweep_Init;
     ras.Proc_Sweep_Span   = Vertical_Region_Sweep_Span;
-    ras.Proc_Sweep_Drop   = Vertical_Region_Sweep_Drop;
     ras.Proc_Sweep_Step   = Vertical_Region_Sweep_Step;
 
     ras.band_stack[0].y_min = 0;
