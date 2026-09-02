@@ -455,11 +455,17 @@ ConvertKernPairs( TRUETYPE_VARS, FontBuf* fontBuf )
         TT_Kern_0_Pair*   pairs;
         LookupEntry*      indices;
         word              kernCount = 0;
-        const word        minKernValue = UNITS_PER_EM / KERN_VALUE_DIVIDENT;
         char              left, right;
+        KernPair*         kernPair;
+        BBFixed*          kernValue;
 
-        KernPair* kernPair = (KernPair*)(((byte*)fontBuf) + fontBuf->FB_kernPairs);
-        BBFixed* kernValue = (BBFixed*)(((byte*)fontBuf) + fontBuf->FB_kernValues);
+
+        /* Nothing to convert if no kerning pairs */
+        if( fontBuf->FB_kernCount == 0 )
+                return;
+
+        kernPair = (KernPair*)(((byte*)fontBuf) + fontBuf->FB_kernPairs);
+        kernValue = (BBFixed*)(((byte*)fontBuf) + fontBuf->FB_kernValues);
 
 EC(     ECCheckBounds((void*)trueTypeVars) );
 EC(     ECCheckBounds((void*)kernPair) );
@@ -503,7 +509,7 @@ EC(             ECCheckBounds(pairs) );
                         WWFixedAsDWord scaledKernValue;
 
                         /* discard pairs with small kerning values */
-                        if( ABS(pairs[i].value) <= minKernValue )
+                        if( ABS(pairs[i].value) <= UNITS_PER_EM / KERN_VALUE_DIVIDENT )
                                 continue;
 
                         left  = GetGEOSCharForIndex( indices, pairs[i].left);
