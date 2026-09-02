@@ -132,49 +132,66 @@
   TT_Long  TT_MulDiv( TT_Long  a, TT_Long  b, TT_Long  c )
   {
   #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
+
     __asm {
-        mov     eax, a          ; edx:eax = a * b
-        imul    b               ; signed multiplication (64-bit result)
+      ; Preserve existing division-by-zero semantics.
+      mov     ebx, c
+      test    ebx, ebx
+      jz      divide_by_zero
 
-        ; check for division by zero
-        mov     ebx, c
-        test    ebx, ebx
-        jz      divide_by_zero
+      ; a == 0 -> 0
+      mov     eax, a
+      test    eax, eax
+      jz      done
 
-        ; prepare rounding value: abs(c) / 2
-        mov     ecx, ebx
-        sar     ecx, 31         ; Create sign mask (0xFFFFFFFF if c < 0, else 0)
-        xor     ebx, ecx
-        sub     ebx, ecx        ; ebx = abs(c)
-        shr     ebx, 1          ; ebx = abs(c) / 2
+      ; Load b once for the remaining fast paths and multiplication.
+      mov     ecx, b
 
-        ; apply rounding based on the sign of the product (in edx)
-        test    edx, edx
-        js      is_negative     ; product is negative (bit 31 of edx set)
+      ; b == 0 -> 0
+      test    ecx, ecx
+      jz      result_zero
 
-        ; product is positive: add rounding offset
-        add     eax, ebx
-        adc     edx, 0
-        jmp     do_div
+      ; b == c -> a
+      cmp     ecx, ebx
+      je      done
+
+      ; edx:eax = a * b
+      imul    ecx
+
+      ; prepare rounding value: abs(c) / 2
+      mov     ecx, ebx
+      sar     ecx, 31
+      xor     ebx, ecx
+      sub     ebx, ecx
+      shr     ebx, 1
+
+      ; apply rounding based on the sign of the product
+      test    edx, edx
+      js      is_negative
+
+      add     eax, ebx
+      adc     edx, 0
+      jmp     do_div
 
     is_negative:
-        ; product is negative: subtract rounding offset (round away from zero)
-        sub     eax, ebx
-        sbb     edx, 0
+      sub     eax, ebx
+      sbb     edx, 0
 
     do_div:
-        ; divide: edx:eax / c
-        idiv    c               ; signed division: result in eax
-        jmp     done
+      idiv    c
+      jmp     done
+
+    result_zero:
+      xor     eax, eax
+      jmp     done
 
     divide_by_zero:
-        ; handle division by zero (returning max 32-bit signed integer)
-        mov     eax, 7FFFFFFFh
+      mov     eax, 7FFFFFFFh
 
     done:
-        ; result into dx:ax for 16:16 return format
-        mov     edx, eax
-        shr     edx, 16
+      ; result into DX:AX
+      mov     edx, eax
+      shr     edx, 16
     }
   #else
     long   s;
@@ -225,23 +242,56 @@
   TT_Long   TT_MulFix( TT_Long  a, TT_Long  b )
   {
   #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
-    __asm {
-      ; signed multiplication
-      mov     eax, a
-      imul    b
+     __asm {
+        ; Load a.  Keep it in EAX because EAX is also the
+        ; result register for the general multiplication.
+        mov     eax, a
 
-      ; round to nearest
-      bt      edx, 31
-      cmc
-      adc     eax, 0x7fff
-      adc     edx, 0
+        ; a == 0 -> 0
+        test    eax, eax
+        jz      mulfix_done
 
-      ; fixed point scaling
-      shrd    eax, edx, 16
+        ; a == 1.0 -> b
+        cmp     eax, 0x10000
+        je      mulfix_return_b
 
-      ; return value alignment
-      mov     edx, eax 
-      shr     edx, 16
+        ; Load b once.  ECX can later be used directly by IMUL.
+        mov     ecx, b
+
+        ; b == 0 -> 0
+        test    ecx, ecx
+        jz      mulfix_zero
+
+        ; b == 1.0 -> a
+        cmp     ecx, 0x10000
+        je      mulfix_done
+
+        ; signed multiplication
+        ; EDX:EAX = a * b
+        imul    ecx
+
+        ; round to nearest, preserving the existing
+        ; symmetric handling of negative values
+        bt      edx, 31
+        cmc
+        adc     eax, 0x7fff
+        adc     edx, 0
+
+        ; fixed point scaling
+        shrd    eax, edx, 16
+        jmp     mulfix_done
+
+    mulfix_return_b:
+        mov     eax, b
+        jmp     mulfix_done
+
+    mulfix_zero:
+        xor     eax, eax
+
+    mulfix_done:
+        ; Return Long in DX:AX
+        mov     edx, eax
+        shr     edx, 16
     }
   #else
     long   s;
