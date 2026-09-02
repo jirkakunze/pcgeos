@@ -642,16 +642,10 @@
     if ( CUR.metrics.ratio )
       return CUR.metrics.ratio;
 
-    if ( CUR.GS.projVector.y == 0 )
+    if ( CUR.GS.projVector.x == 0 || CUR.GS.projVector.y == 0 )
       CUR.metrics.ratio = 1L << 16;
-
-    else if ( CUR.GS.projVector.x == 0 )
-      CUR.metrics.ratio = 1L << 16;
-
     else
       CUR.metrics.ratio = Norm( CUR.GS.projVector.x, CUR.GS.projVector.y );
-
-    return CUR.metrics.ratio;
   }
 
 
