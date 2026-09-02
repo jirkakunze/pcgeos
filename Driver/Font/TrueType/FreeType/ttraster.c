@@ -821,51 +821,36 @@ extern TEngine_Instance engineInstance;
 
   static Bool _near  Line_To( RAS_ARGS Long  x, Long  y )
   {
-    /* First, detect a change of direction */
+    TStates  newState;
 
-    switch ( ras.state )
+
+    /* Horizontal segments don't change the profile and don't */
+    /* contribute any scanline intersections.                 */
+    if ( y != ras.lastY )
     {
-    case Unknown:
-      if ( y > ras.lastY )
+      newState = y > ras.lastY ? Ascending : Descending;
+
+      /* Detect a change of direction. */
+      if ( ras.state != newState )
       {
-        if ( New_Profile( RAS_VARS  Ascending ) ) return FAILURE;
-      } 
-      else if ( y < ras.lastY )
-      {
-          if ( New_Profile( RAS_VARS  Descending ) ) return FAILURE;
+        if ( ras.state != Unknown && End_Profile( RAS_VAR ) )
+          return FAILURE;
+
+        if ( New_Profile( RAS_VARS newState ) )
+          return FAILURE;
       }
-      break;
 
-    case Ascending:
-      if ( y < ras.lastY )
+      /* Compute the line according to its direction. */
+      if ( newState == Ascending )
       {
-        if ( End_Profile( RAS_VAR ) ||
-             New_Profile( RAS_VARS  Descending ) ) return FAILURE;
+        if ( Line_Up( RAS_VARS ras.lastX, ras.lastY, x, y, ras.minY, ras.maxY ) )
+          return FAILURE;
       }
-      break;
-
-    case Descending:
-      if ( y > ras.lastY )
+      else
       {
-        if ( End_Profile( RAS_VAR ) ||
-             New_Profile( RAS_VARS  Ascending ) ) return FAILURE;
+        if ( Line_Down( RAS_VARS ras.lastX, ras.lastY, x, y, ras.minY, ras.maxY ) )
+          return FAILURE;
       }
-      break;
-    }
-
-    /* Then compute the lines */
-
-    if ( ras.state == Ascending )
-    {
-      if ( Line_Up ( RAS_VARS  ras.lastX, ras.lastY,
-                     x, y, ras.minY, ras.maxY ) )
-        return FAILURE;
-    }
-    else if ( ras.state == Descending )
-    {
-      if ( Line_Down( RAS_VARS ras.lastX, ras.lastY,
-                      x, y, ras.minY, ras.maxY ) )
-        return FAILURE;
     }
 
     ras.lastX = x;
