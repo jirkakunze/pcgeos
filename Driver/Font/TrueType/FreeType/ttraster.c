@@ -2133,17 +2133,8 @@ Scan_DropOuts :
         i = band.y_min;
         j = band.y_max;
 
-        if ( i >= j )
-        {
-          ras.error = Raster_Err_Overflow;
+        if ( i >= j || band_top > MaxBand - 2 )
           return ras.error;
-        }
-
-        if ( band_top > MaxBand - 2 )
-        {
-          ras.error = Raster_Err_Overflow;
-          return ras.error;
-        }
 
         k = ( i + j ) >> 1;
 
