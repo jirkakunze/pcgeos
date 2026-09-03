@@ -1163,12 +1163,6 @@ extern TEngine_Instance engineInstance;
     if (Finalize_Profile_Table( RAS_VAR ))
       return FAILURE;
 
-    if ( ras.top >= ras.maxBuff )
-    {
-      ras.error = Raster_Err_Overflow;
-      return FAILURE;
-    }
-
     return SUCCESS;
   }
 
