@@ -1910,8 +1910,7 @@ extern TEngine_Instance engineInstance;
 
     y = min_Y;
 
-    if ( ras.numTurns > 0 &&
-         ras.sizeBuff[-ras.numTurns] == min_Y )
+    if ( ras.sizeBuff[-ras.numTurns] == min_Y )
       --ras.numTurns;
 
     while ( ras.numTurns > 0 )
