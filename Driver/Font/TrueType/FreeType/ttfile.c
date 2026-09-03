@@ -43,8 +43,6 @@
 /* For now, we don't define additional error messages in the core library */
 /* to report open-on demand errors. Define these error as standard ones   */
 
-#define TT_Err_Could_Not_ReOpen_File  TT_Err_Could_Not_Open_File
-#define TT_Err_Could_Not_ReSeek_File  TT_Err_Could_Not_Open_File
 
   /* This definition is mandatory for each file component! */
   EXPORT_FUNC
@@ -86,7 +84,6 @@
 
 #define STREAM2REC( x )  ( (TStream_Rec*)HANDLE_Val( x ) )
 
-  static  TT_Error  Stream_Activate  ( PStream_Rec  stream );
 
 
   /*******************************************************************/
@@ -104,8 +101,6 @@
 
 #define STREAM_VARS  stream,
 #define STREAM_VAR   stream
-
-
 
 
 
@@ -247,36 +242,6 @@
   /*******************************************************************/
   /*******************************************************************/
 
-/*******************************************************************
- *
- *  Function    :  Stream_Activate
- *
- *  Description :  activates a stream, this will either:
- *                   - open a new file handle if the stream is closed
- *                   - move the stream to the head of the linked list
- *
- *  Input  :  stream   the stream to activate
- *
- *  Output :  error condition.
- *
- *  Note   :  This function is also called with fresh new streams
- *            created by TT_Open_Stream().  They have their 'size'
- *            field set to -1.
- *
- ******************************************************************/
-
-  static  TT_Error  Stream_Activate( PStream_Rec  stream )
-  {
-    if ( !stream->file )
-      return TT_Err_Could_Not_ReOpen_File;
-
-    /* A newly created stream has a size field of -1 */
-    if ( stream->size < 0 )
-      stream->size = FileSize( stream->file );
-
-    return TT_Err_Ok;
-  }
-
 
 /*******************************************************************
  *
@@ -294,38 +259,40 @@
  *
  ******************************************************************/
 
-  LOCAL_FUNC
-  TT_Error  TT_Open_Stream( const FileHandle  file,
-                            TT_Stream*        stream )
-  {
-    TT_Error     error;
-    PStream_Rec  stream_rec;
+LOCAL_FUNC
+TT_Error TT_Open_Stream( const FileHandle file,
+                               TT_Stream* stream )
+{
+  TT_Error     error;
+  PStream_Rec  stream_rec;
 
-    CHECK_FILE( file );
+  CHECK_FILE( file );
 
-    if ( ALLOC( *stream, sizeof ( TStream_Rec ) ) )
-      return error;
-
-    stream_rec = STREAM2REC( *stream );
-
-    stream_rec->file     = file;
-    stream_rec->size     = -1L;
-
-    error = Stream_Activate( stream_rec );
-    if ( error )
-      goto Fail;
-
-#ifndef TT_CONFIG_OPTION_THREAD_SAFE
-    CUR_Stream = stream_rec;
-#endif
-
-    return TT_Err_Ok;
-
-  Fail:
-    FREE( stream_rec );
+  if ( ALLOC( *stream, sizeof ( TStream_Rec ) ) )
     return error;
+
+  stream_rec = STREAM2REC( *stream );
+
+  stream_rec->file = file;
+
+  if ( !stream_rec->file )
+  {
+    error = TT_Err_Could_Not_Open_File;
+    goto Fail;
   }
 
+  stream_rec->size = FileSize( file );
+
+#ifndef TT_CONFIG_OPTION_THREAD_SAFE
+  CUR_Stream = stream_rec;
+#endif
+
+  return TT_Err_Ok;
+
+Fail:
+  FREE( stream_rec );
+  return error;
+}
 
 /*******************************************************************
  *
