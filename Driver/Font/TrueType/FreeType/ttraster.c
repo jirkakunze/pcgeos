@@ -392,40 +392,36 @@ extern TEngine_Instance engineInstance;
   static Bool _near  Insert_Y_Turn( RAS_ARGS  Int  y )
   {
     PStorage  y_turns;
-    Int       y2, n;
+    Int       n;
 
-    n       = ras.numTurns-1;
+    n       = ras.numTurns - 1;
     y_turns = ras.sizeBuff - ras.numTurns;
 
     /* look for first y value that is <= */
     while ( n >= 0 && y < y_turns[n] )
       --n;
 
-    /* if it is <, simply insert it, ignore if == */
-    if ( n >= 0 && y > y_turns[n] )
-      while ( n >= 0 )
-      {
-        y2 = y_turns[n];
-        y_turns[n] = y;
-        y = y2;
-        --n;
-      }
+    /* ignore duplicate y values */
+    if ( n >= 0 && y == y_turns[n] )
+      return SUCCESS;
 
-    if ( n < 0 )
+    if ( ras.maxBuff <= ras.top + 1 )
     {
-      if (ras.maxBuff <= ras.top + 1)
-      {
-        ras.error = Raster_Err_Overflow;
-        return FAILURE;
-      }
-      --ras.maxBuff;
-      ++ras.numTurns;
-      ras.sizeBuff[-ras.numTurns] = y;
+      ras.error = Raster_Err_Overflow;
+      return FAILURE;
     }
 
-    return SUCCESS;
-  }
+    /* Make room for the new turn. The turn table grows downwards */
+    /* from the end of the render pool.                           */
+  if ( n >= 0 )
+    MEM_Move( y_turns - 1, y_turns, (n + 1) * sizeof ( Storage ) );
 
+  --ras.maxBuff;
+  ++ras.numTurns;
+  y_turns[n] = y;
+
+  return SUCCESS;
+}
 
 /****************************************************************************/
 /*                                                                          */
@@ -590,10 +586,10 @@ extern TEngine_Instance engineInstance;
       ++e1;
     }
     else if ( ras.joint )
-      {
-        ras.top--;
-        ras.joint = FALSE;
-      }
+    {
+      ras.top--;
+      ras.joint = FALSE;
+    }
 
     ras.joint = ( f2 == 0 );
 
