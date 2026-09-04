@@ -299,6 +299,7 @@
           y += GET_Short();
 
       vec[j].y = y;
+      flag[j] = f & TT_Flag_On_Curve;
     }
 
     FORGET_Frame();
@@ -315,9 +316,6 @@
     vec[n_points+1].y = 0;
 
     /* clear the touch flags */
-
-    for ( j = 0; j < n_points; ++j )
-      exec->pts.touch[j] &= TT_Flag_On_Curve;
 
     exec->pts.touch[n_points    ] = 0;
     exec->pts.touch[n_points + 1] = 0;
