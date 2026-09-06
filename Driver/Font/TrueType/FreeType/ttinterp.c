@@ -646,6 +646,8 @@
       CUR.metrics.ratio = 1L << 16;
     else
       CUR.metrics.ratio = Norm( CUR.GS.projVector.x, CUR.GS.projVector.y );
+
+    return CUR.metrics.ratio;
   }
 
 
