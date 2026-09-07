@@ -642,10 +642,9 @@
     if ( CUR.metrics.ratio )
       return CUR.metrics.ratio;
 
-    if ( CUR.GS.projVector.x == 0 || CUR.GS.projVector.y == 0 )
-      CUR.metrics.ratio = 1L << 16;
-    else
-      CUR.metrics.ratio = Norm( CUR.GS.projVector.x, CUR.GS.projVector.y );
+    /* PC/GEOS scales glyphs isotropically before hinting, so the */
+    /* projection direction does not affect the ppem ratio.       */
+    CUR.metrics.ratio = 1L << 16;
 
     return CUR.metrics.ratio;
   }
