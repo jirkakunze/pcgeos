@@ -1493,35 +1493,31 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     if ( Vx < 0 ) { Vx = -Vx; s1 = TRUE; }
     if ( Vy < 0 ) { Vy = -Vy; s2 = TRUE; }
 
-    /* Opt 2: Nullvektor-Check vorgezogen, verhindert Division durch 0 */
     if ( (Vx | Vy) == 0 ) return;
 
-    /* Opt 2: Beide Zweige vereint */
     if ( Vx < 0x10000L && Vy < 0x10000L )
     {
         Vx <<= 8;
         Vy <<= 8;
     }
 
-    /* Opt 1: Kein Doppel-Shift mehr */
     W  = Norm( Vx, Vy );
     Vx = (TT_F26Dot6)TT_MulDiv( Vx, 0x4000L, W );
     Vy = (TT_F26Dot6)TT_MulDiv( Vy, 0x4000L, W );
 
     W = Vx * Vx + Vy * Vy;
 
-    while ( W < 0x1000000L )
+    while ( W < 0x10000000L )
     {
         if ( Vx < Vy ) { W += (Vx << 1) + 1; ++Vx; }
         else           { W += (Vy << 1) + 1; ++Vy; }
     }
-    while ( W >= 0x1004000L )
+    while ( W >= 0x10004000L )
     {
         if ( Vx < Vy ) { W -= (Vx << 1) - 1; --Vx; }
         else           { W -= (Vy << 1) - 1; --Vy; }
     }
 
-    /* Opt 4: Vorzeichen ohne verschachtelte ternäre Ausdrücke */
     if ( s1 ) Vx = -Vx;
     if ( s2 ) Vy = -Vy;
     R->x = (TT_F2Dot14)Vx;
