@@ -1558,6 +1558,13 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
     A = p1->x - p2->x;
     B = p1->y - p2->y;
 
+    /* A zero-length line defaults to the x-axis. */
+    if ( A == 0 && B == 0 )
+    {
+      A    = 0x4000;
+      aOpc = 0;
+    }
+
     if ( (aOpc & 1) != 0 )
     {
       C =  B;   /* CounterClockwise rotation */
@@ -3806,6 +3813,11 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
       A = -C;
     }
 
+    if ( A == 0 && B == 0 )
+    {
+      A = 0x4000;
+      B = 0;
+    }
     NORMalize( A, B, &CUR.GS.dualVector );
 
     {
@@ -3824,6 +3836,11 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
       A = -C;
     }
 
+    if ( A == 0 && B == 0 )
+    {
+      A = 0x4000;
+      B = 0;
+    }
     NORMalize( A, B, &CUR.GS.projVector );
 
     COMPUTE_Funcs();
