@@ -4608,7 +4608,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
     /* single width cutin test */
 
-    if ( ABS( org_dist ) < CUR.GS.single_width_cutin )
+    if ( ABS( org_dist - CUR.GS.single_width_value ) < CUR.GS.single_width_cutin )
     {
       if ( org_dist >= 0 )
         org_dist = CUR.GS.single_width_value;
@@ -4693,7 +4693,7 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
 
     /* single width test */
 
-    if ( ABS( cvt_dist ) < CUR.GS.single_width_cutin )
+    if ( ABS( cvt_dist - CUR.GS.single_width_value ) < CUR.GS.single_width_cutin )
     {
       if ( cvt_dist >= 0 )
         cvt_dist =  CUR.GS.single_width_value;
