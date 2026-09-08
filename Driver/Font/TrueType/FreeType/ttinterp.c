@@ -792,11 +792,15 @@
  *****************************************************************/
 
   static void _near Direct_Move( EXEC_OPS PGlyph_Zone zone,
-                                     UShort      point,
-                                     TT_F26Dot6  distance )
+                                          UShort      point,
+                                          TT_F26Dot6  distance )
   {
     TT_F26Dot6 v;
 
+
+    /* No valid movement for nearly orthogonal vectors. */
+    if ( CUR.F_dot_P == 0 )
+      return;
 
     v = CUR.GS.freeVector.x;
 
@@ -4187,6 +4191,13 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     *refp = p;
 
     d = FarCUR_Func_project( EXEC_ARGS zp.cur + p, zp.org + p );
+
+    if ( CUR.F_dot_P == 0 )
+    {
+      *x = 0;
+      *y = 0;
+      return SUCCESS;
+    }
 
     *x = TT_MulDiv(d, (Long)CUR.GS.freeVector.x * 0x10000L, CUR.F_dot_P );
     *y = TT_MulDiv(d, (Long)CUR.GS.freeVector.y * 0x10000L, CUR.F_dot_P );
