@@ -1124,7 +1124,8 @@ EC( ECCheckBounds( exec ) );
     }
 #endif
 
-    glyph->outline.dropout_mode = (Char)exec->GS.scan_type;
+    glyph->outline.dropout_mode = exec->GS.scan_control
+                                  ? (Char)exec->GS.scan_type : 0;
 
     error = TT_Err_Ok;
 

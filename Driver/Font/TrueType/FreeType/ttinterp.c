@@ -4009,8 +4009,29 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
   static void  Ins_SCANCTRL( INS_ARG )
   {
-    (void)args;
-    (void)exc;
+    Int  A = (Int)( args[0] & 0xFF );
+
+
+    /* PC/GEOS applies rotation and stretching after hinting. */
+    /* Only the ppem-related SCANCTRL conditions apply here.  */
+
+    if ( A == 0xFF )
+    {
+      CUR.GS.scan_control = TRUE;
+      return;
+    }
+
+    if ( A == 0 )
+    {
+      CUR.GS.scan_control = FALSE;
+      return;
+    }
+
+    if ( ( args[0] & 0x100 ) != 0 && CUR.metrics.ppem <= A )
+      CUR.GS.scan_control = TRUE;
+
+    if ( ( args[0] & 0x800 ) != 0 && CUR.metrics.ppem > A )
+      CUR.GS.scan_control = FALSE;
 }
 
 
@@ -4021,15 +4042,18 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
   static void  Ins_SCANTYPE( INS_ARG )
   {
-    /* For compatibility with future enhancements, */
-    /* we must ignore new modes                    */
+    /* Map the TrueType modes to the rasterizer's internal modes. */
+    /* Raster mode 0 disables dropout control, while TrueType     */
+    /* mode 0 selects simple dropout control including stubs.     */
 
-    if ( args[0] >= 0 && args[0] <= 5 )
+    if ( args[0] >= 0 && args[0] <= 7 )
     {
-      if ( args[0] == 3 )
-        args[0] = 2;
+      if ( args[0] & 2 )
+        args[0] = 0;
+      else if ( args[0] < 2 )
+        args[0]++;
 
-      CUR.GS.scan_type = (Int)args[0];
+    CUR.GS.scan_type = (Int)args[0];
     }
   }
 
