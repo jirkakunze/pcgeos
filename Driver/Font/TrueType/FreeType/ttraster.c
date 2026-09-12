@@ -606,11 +606,26 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
+    /* Calculate quotient and remainder using a positive delta. */
+    /* A negative remainder would prevent the error accumulator */
+    /* from correcting lines with a negative slope.             */
+    Ax = 1;
+
+    if (Dx < 0)
+    {
+      Dx = -Dx;
+      Ax = -1;
+    }
+
     Ix = (PRECISION * Dx) / Dy;
     Rx = (PRECISION * Dx) % Dy;
-    Dx = (Dx > 0) ? 1 : -1;
 
-    Ax  = -Dy;
+    if (Ax < 0)
+      Ix = -Ix;
+
+    Dx = Ax;
+    Ax = -Dy;
+
     top = ras.top;
 
     while ( size-- > 0 )
