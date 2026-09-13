@@ -184,8 +184,8 @@
 
 #define READ_CVT( index )          (CUR.cvt[(index)])
 
-#define CURRENT_Ratio()  Current_Ratio( EXEC_ARG )
-#define CURRENT_Ppem()   Current_Ppem( EXEC_ARG )
+/*#define CURRENT_Ratio()  Current_Ratio( EXEC_ARG )
+#define CURRENT_Ppem()   Current_Ppem( EXEC_ARG )*/
 
 #define CALC_Length()  Calc_Length( EXEC_ARG )
 
@@ -203,64 +203,6 @@
 
 #define BOUNDS( x, n )    ( (unsigned short)(x) >= (unsigned short)(n) )
 
-#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
-#pragma code_seg(InterpEntry)
-#endif
-
-  /* Implementation copy to enable fast _near call */
-
-  static TT_Long  _near TT_MulFixLocal( TT_Long  a, TT_Long  b )
-  {
-  #ifdef TT_CONFIG_OPTION_USE_ASSEMBLER_IMPLEMENTATION
-    __asm {
-        ; signed multiplication
-        mov     eax, a
-        imul    b
-
-        ; round to nearest
-        bt      edx, 31
-        cmc
-        adc     eax, 0x7fff
-        adc     edx, 0
-
-        ; fixed point scaling
-        shrd    eax, edx, 16
-
-        ; return value alignment
-        mov     edx, eax 
-        shr     edx, 16
-    }
-  #else
-    long   s;
-
-    if ( a == 0 || b == 0x10000 )
-      return a;
-
-    s  = a; a = ABS( a );
-    s ^= b; b = ABS( b );
-
-    if ( a <= 1024 && b <= 2097151 )
-    {
-      a = ( a*b + 0x8000 ) >> 16;
-    }
-    else
-    {
-      TT_Int64  temp, temp2;
-
-      MulTo64( a, b, &temp );
-      temp2.hi = 0;
-      temp2.lo = 0x8000;
-      Add64( &temp, &temp2, &temp );
-      a = Div64by32( &temp, 0x10000 );
-    }
-
-    return ( s < 0 ) ? -a : a;
-  #endif
-  }
-
-#ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
-#pragma code_seg()
-#endif
 
 /*********************************************************************/
 /*                                                                   */
@@ -622,38 +564,6 @@
 #ifdef TT_CONFIG_GEOS_REAL_MODE_SEGMENTING
 #pragma code_seg(InterpEntry)
 #endif
-
-/*******************************************************************
- *
- *  Function    :  Current_Ratio
- *
- *  Description :  Return the current aspect ratio scaling factor
- *                 depending on the projection vector's state and
- *                 device resolutions.
- *
- *  Input  :  None
- *
- *  Output :  Aspect ratio in 16.16 format, always <= 1.0 .
- *
- *****************************************************************/
-
-  static Long _near Current_Ratio( EXEC_OP )
-  {
-    if ( CUR.metrics.ratio )
-      return CUR.metrics.ratio;
-
-    /* PC/GEOS scales glyphs isotropically before hinting, so the */
-    /* projection direction does not affect the ppem ratio.       */
-    CUR.metrics.ratio = 1L << 16;
-
-    return CUR.metrics.ratio;
-  }
-
-
-  static Long  Current_Ppem( EXEC_OP )
-  {
-    return TT_MulFixLocal( CUR.metrics.ppem, CURRENT_Ratio() );
-  }
 
 
 /******************************************************************
@@ -1473,7 +1383,7 @@
       CUR.F_dot_P = 0x40000000L;
 
     /* Disable cached aspect ratio */
-    CUR.metrics.ratio = 0;
+    //CUR.metrics.ratio = 0;
   }
 
 /*******************************************************************
@@ -1816,7 +1726,7 @@ static void Normalize( TT_F26Dot6 Vx, TT_F26Dot6 Vy, TT_UnitVector* R )
 
 
 #define DO_MPPEM  \
-    args[0] = CURRENT_Ppem();
+      args[0] = CUR.metrics.ppem;
 
 
 #define DO_MPS  \
@@ -5297,7 +5207,7 @@ static void _near Interp( UShort               p1,
 
 
     nump = (UShort)args[0];
-    ppem = CURRENT_Ppem();
+    ppem = CUR.metrics.ppem;
 
     C = (ULong)CUR.GS.delta_base;
 
@@ -5363,7 +5273,7 @@ static void _near Interp( UShort               p1,
     Long   ppem;
 
 
-    ppem = CURRENT_Ppem();
+    ppem = CUR.metrics.ppem;
 
     C = (ULong)CUR.GS.delta_base;
 

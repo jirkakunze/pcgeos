@@ -674,7 +674,6 @@ EC( ECCheckBounds( exec ) );
       metrics->pointSize    = 0;
       metrics->scale1       = 0;
       metrics->scale2       = 1;
-      metrics->ratio        = 1L << 16;
     }
 
 #ifdef DEBUG_INTERPRETER

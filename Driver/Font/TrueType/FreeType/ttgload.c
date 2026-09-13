@@ -723,7 +723,6 @@ EC( ECCheckBounds( exec ) );
           if (load_flags & TTLOAD_SCALE_GLYPH)
             subglyph->pp2.x = Scale( &exec->metrics, subglyph->pp2.x );
 
-          exec->glyphSize = 0;
           phase = Load_End;
           GEO_UNLOCK( face->glyphLocationBlock );
           break;
