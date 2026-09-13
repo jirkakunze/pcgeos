@@ -1180,31 +1180,6 @@ extern TEngine_Instance engineInstance;
 
 /************************************************/
 /*                                              */
-/*  InsNew :                                    */
-/*                                              */
-/*    Inserts a new Profile in a linked list.   */
-/*                                              */
-/************************************************/
-
-  static void _near  InsNew( PProfileList  list,
-                             PProfile      profile )
-  {
-    PProfile* insert_point = list;
-    PProfile  current      = *insert_point;
-
-
-    while (current && current->X < profile->X) {
-        insert_point = &current->link;
-        current = *insert_point;
-    }
-
-    profile->link = current;
-    *insert_point = profile;
-  }
-
-
-/************************************************/
-/*                                              */
 /*  Update :                                    */
 /*                                              */
 /*    Update all X offsets of a drawing list    */
@@ -1895,7 +1870,7 @@ extern TEngine_Instance engineInstance;
       if ( max_Y < top    ) max_Y = top;
 #endif
 
-      P->X = 0;
+      //P->X = 0;
       P->link = wait;
       wait    = P;
 
@@ -1941,8 +1916,17 @@ extern TEngine_Instance engineInstance;
 
             switch ( P->flow )
             {
-              case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
-              case TT_Flow_Down:  InsNew( &draw_right, P ); break;
+              /*case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
+              case TT_Flow_Down:  InsNew( &draw_right, P ); break;*/
+              case TT_Flow_Up:
+    P->link   = draw_left;
+    draw_left = P;
+    break;
+
+  case TT_Flow_Down:
+    P->link    = draw_right;
+    draw_right = P;
+    break;
             }
           }
           else
@@ -2113,7 +2097,7 @@ Scan_DropOuts :
 /*                                                                          */
 /****************************************************************************/
 
-  static TT_Error  Render_Single_Pass( RAS_ARGS Bool  flipped )
+  static TT_Error _near Render_Single_Pass( RAS_ARGS Bool  flipped )
   {
     Short     i, j, k;
     TBand     band;
@@ -2172,7 +2156,7 @@ Scan_DropOuts :
   }
 
   
-  static void Initialize_Raster_Instance( RAS_ARGS TT_Outline*  glyph )
+  static void _near Initialize_Raster_Instance( RAS_ARGS TT_Outline*  glyph )
   {
     ras.outs      = glyph->contours;
     ras.flags     = glyph->flags;
