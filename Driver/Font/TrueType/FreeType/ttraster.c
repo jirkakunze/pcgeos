@@ -1830,11 +1830,9 @@ extern TEngine_Instance engineInstance;
 
   static Bool _near  Draw_Sweep( RAS_ARG )
   {
-    Short  y, y_change;
-
+    Short     y, y_change;
     PProfile  P, Q, P_Left, P_Right;
-
-    Short  min_Y, bottom, dropouts;
+    Short     min_Y, dropouts;
 
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
     Short  max_Y, top;
@@ -1854,23 +1852,19 @@ extern TEngine_Instance engineInstance;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
     max_Y = (short)TRUNC( ras.minY );
 #endif
-    min_Y = (short)TRUNC( ras.maxY );
 
     while ( P )
     {
       Q = P->link;
 
-      bottom = P->start;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
       top    = P->start + P->height-1;
 #endif
 
-      if ( min_Y > bottom ) min_Y = bottom;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
       if ( max_Y < top    ) max_Y = top;
 #endif
 
-      //P->X = 0;
       P->link = wait;
       wait    = P;
 
@@ -1884,6 +1878,10 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
+    /* The Y-turn table is sorted in ascending order. */
+
+    min_Y = (Short)ras.sizeBuff[-ras.numTurns--];
+
     /* Now inits the sweep */
 
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
@@ -1895,9 +1893,6 @@ extern TEngine_Instance engineInstance;
     /* Let's go */
 
     y = min_Y;
-
-    if ( ras.sizeBuff[-ras.numTurns] == min_Y )
-      --ras.numTurns;
 
     while ( ras.numTurns > 0 )
     {
@@ -1916,17 +1911,15 @@ extern TEngine_Instance engineInstance;
 
             switch ( P->flow )
             {
-              /*case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
-              case TT_Flow_Down:  InsNew( &draw_right, P ); break;*/
               case TT_Flow_Up:
-    P->link   = draw_left;
-    draw_left = P;
-    break;
+                P->link   = draw_left;
+                draw_left = P;
+                break;
 
-  case TT_Flow_Down:
-    P->link    = draw_right;
-    draw_right = P;
-    break;
+              case TT_Flow_Down:
+                P->link    = draw_right;
+                draw_right = P;
+                break;
             }
           }
           else

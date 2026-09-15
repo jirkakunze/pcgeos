@@ -957,12 +957,9 @@ EC( ECCheckBounds( exec ) );
           /* apply scale */
 
           if ( subglyph2->is_scaled )
-          {
-            TT_Matrix* matrix = (TT_Matrix*) &subglyph->transform;
-
-            TransVecList( subglyph2->zone.cur, num_points, matrix );
-            TransVecList( subglyph2->zone.org, num_points, matrix );
-          }
+            TransVecList( subglyph2->zone.cur,
+                          num_points,
+                          (TT_Matrix*)&subglyph->transform );
 
           /* adjust counts */
 
