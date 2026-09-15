@@ -185,7 +185,11 @@
     maxProfile->maxCompositePoints    = GET_UShort();
     maxProfile->maxCompositeContours  = GET_UShort();
 
-    maxProfile->maxZones              = GET_UShort();
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
+    maxProfile->maxZones = GET_UShort();
+#else
+    SKIP( 2 );
+#endif
     maxProfile->maxTwilightPoints     = GET_UShort();
 
     maxProfile->maxStorage            = GET_UShort();

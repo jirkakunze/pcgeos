@@ -90,7 +90,9 @@
               maxContours,
               maxCompositePoints,
               maxCompositeContours,
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
               maxZones,
+#endif
               maxTwilightPoints,
               maxStorage,
               maxFunctionDefs,
