@@ -660,7 +660,12 @@
     names = &face->nameTable;
 
     /* Load the initial names data. */
-    names->format         = GET_UShort();
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
+    names->format = GET_UShort();
+#else
+    SKIP( 2 );
+#endif
+
     names->numNameRecords = GET_UShort();
     names->storageOffset  = GET_UShort();
 
@@ -760,7 +765,9 @@
     FREE( names->storage );
 
     names->numNameRecords = 0;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     names->format         = 0;
+#endif
     names->storageOffset  = 0;
   }
 

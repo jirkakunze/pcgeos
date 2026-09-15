@@ -180,7 +180,9 @@
 
   struct  TName_Table_
   {
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     UShort     format;
+#endif
     UShort     numNameRecords;
     UShort     storageOffset;
     TNameRec*  names;
