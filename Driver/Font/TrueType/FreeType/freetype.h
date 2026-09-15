@@ -546,8 +546,9 @@
     TT_Header*             header;        /* TrueType header table          */
     TT_Horizontal_Header*  horizontal;    /* TrueType horizontal header     */
     TT_OS2*                os2;           /* TrueType OS/2 table            */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS    
     TT_Postscript*         postscript;    /* TrueType Postscript table      */
-
+#endif
 #ifdef TT_CONFIG_OPTION_PROCESS_HDMX
     TT_Hdmx*               hdmx;          /* TrueType hor. dev. metr. table */
 #endif

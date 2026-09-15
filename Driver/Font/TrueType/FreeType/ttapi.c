@@ -231,11 +231,12 @@ EC( ECCheckBounds( _face ) );
 #endif
 
     properties->os2          = &_face->os2;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     properties->postscript   = &_face->postscript;
-
-  #ifdef TT_CONFIG_OPTION_PROCESS_HDMX
+#endif
+#ifdef TT_CONFIG_OPTION_PROCESS_HDMX
     properties->hdmx         = &_face->hdmx;
-  #endif
+#endif
   }
 
 
