@@ -207,7 +207,7 @@ Fail:
 
   EXPORT_FUNC
   void  TT_Get_Face_Properties( TT_Face              face,
-                                    TT_Face_Properties*  properties )
+                                TT_Face_Properties*  properties )
   {
     PFace _face = HANDLE_Face( face );
 
@@ -216,7 +216,9 @@ EC( ECCheckBounds( _face ) );
 
     properties->num_Glyphs   = _face->numGlyphs;
     properties->max_Points   = _face->maxPoints;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     properties->max_Contours = _face->maxContours;
+#endif
     properties->num_CharMaps = _face->numCMaps;
     properties->num_Names    = _face->nameTable.numNameRecords;
 

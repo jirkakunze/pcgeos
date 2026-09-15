@@ -538,8 +538,9 @@
   {
     TT_UShort  num_Glyphs;      /* number of glyphs in face              */
     TT_UShort  max_Points;      /* maximum number of points in a glyph   */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS 
     TT_UShort  max_Contours;    /* maximum number of contours in a glyph */
-
+#endif
     TT_UShort  num_CharMaps;    /* number of charmaps in the face     */
     TT_UShort  num_Names;       /* number of name records in the face */
 
