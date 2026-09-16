@@ -452,11 +452,17 @@ EC(     ECCheckFileHandle( truetypeFile ) );
 	}
         else
         {
-                FontsAvailEntry*      availEntries = LMemDeref( ConstructOptr(fontInfoBlock, sizeof(LMemBlockHeader)) );
-		OutlineDataEntry*     outlineData = (OutlineDataEntry*) (((byte*)fontInfo) + fontInfo->FI_outlineTab);
-                OutlineDataEntry*     outlineDataEnd = (OutlineDataEntry*) (((byte*)fontInfo) + fontInfo->FI_outlineEnd);
+                FontsAvailEntry*  availEntries;
+                OutlineDataEntry* outlineData;
+                OutlineDataEntry* outlineDataEnd;
+
+                availEntries = LMemDeref(ConstructOptr(fontInfoBlock, sizeof(LMemBlockHeader)));
 
                 fontInfoChunk = availEntries[availIndex].FAE_infoHandle;
+                fontInfo = LMemDerefHandles(fontInfoBlock, fontInfoChunk);
+
+                outlineData = (OutlineDataEntry*)(((byte*)fontInfo) + fontInfo->FI_outlineTab);
+                outlineDataEnd = (OutlineDataEntry*)(((byte*)fontInfo) + fontInfo->FI_outlineEnd);
 		while( outlineData < outlineDataEnd)
 		{
                         if( ( mapTextStyle( &styleName ) == outlineData->ODE_style ) &&
