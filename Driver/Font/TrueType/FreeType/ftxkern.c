@@ -295,7 +295,9 @@ EC( ECCheckBounds( pairs ) );
     /* Now load the kerning directory. We're called from the face */
     /* constructor.  We thus need not use the stream.             */
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     kern->version = 0;
+#endif
     kern->nTables = 0;
     kern->tables  = NULL;
 
@@ -307,7 +309,11 @@ EC( ECCheckBounds( pairs ) );
          ACCESS_Frame( 4 ) )
       return error;
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     kern->version = GET_UShort();
+#else
+    SKIP( 2 );
+#endif
     num_tables    = GET_UShort();
 
     FORGET_Frame();

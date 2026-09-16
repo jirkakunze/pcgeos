@@ -138,7 +138,9 @@ extern "C" {
 
   struct  TT_Kerning_
   {
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     TT_UShort          version;  /* kern table version number. starts at 0 */
+#endif
     TT_UShort          nTables;  /* number of tables                       */
 
     TT_Kern_Subtable*  tables;   /* the kerning sub-tables                 */
