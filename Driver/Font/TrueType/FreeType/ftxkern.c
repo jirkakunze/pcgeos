@@ -401,42 +401,18 @@ EC( ECCheckBounds( pairs ) );
       {
         switch ( sub->format )
         {
-        case 0:
-          GEO_FREE( sub->t.kern0.pairsBlock );
-          sub->t.kern0.nPairs        = 0;
-#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
-          sub->t.kern0.searchRange   = 0;
-          sub->t.kern0.entrySelector = 0;
-          sub->t.kern0.rangeShift    = 0;
-#endif
-          break;
+          case 0:
+            GEO_FREE( sub->t.kern0.pairsBlock );
+            break;
 
 #ifdef TT_CONFIG_OPTION_SUPPORT_KERN2
-        case 2:
-          FREE( sub->t.kern2.leftClass.classes );
-          sub->t.kern2.leftClass.firstGlyph = 0;
-          sub->t.kern2.leftClass.nGlyphs    = 0;
-
-          FREE( sub->t.kern2.rightClass.classes );
-          sub->t.kern2.rightClass.firstGlyph = 0;
-          sub->t.kern2.rightClass.nGlyphs    = 0;
-
-          FREE( sub->t.kern2.array );
-          sub->t.kern2.rowWidth = 0;
-          break;
+          case 2:
+            FREE( sub->t.kern2.leftClass.classes );
+            FREE( sub->t.kern2.rightClass.classes );
+            FREE( sub->t.kern2.array );
+            break;
 #endif
         }
-
-        sub->loaded   = FALSE;
-#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
-        sub->version  = 0;
-#endif
-        sub->offset   = 0;
-        sub->length   = 0;
-#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
-        sub->coverage = 0;
-#endif
-        sub->format   = 0;
       }
       ++sub;
     }
