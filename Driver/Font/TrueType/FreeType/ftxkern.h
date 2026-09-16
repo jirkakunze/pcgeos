@@ -123,7 +123,9 @@ extern "C" {
 #endif
     TT_Long    offset;   /* file offset of table                      */
     TT_UShort  length;   /* length of table, _excluding_ header       */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     TT_Byte    coverage; /* lower 8 bit of the coverage table entry   */
+#endif
     TT_Byte    format;   /* the subtable format, as found in the      */
                          /* higher 8 bits of the coverage table entry */
     union

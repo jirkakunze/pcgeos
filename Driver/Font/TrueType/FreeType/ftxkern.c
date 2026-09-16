@@ -342,7 +342,11 @@ EC( ECCheckBounds( pairs ) );
 #endif
       sub->length   = GET_UShort() - 6;  /* substract header length */
       sub->format   = GET_Byte();
-      sub->coverage = GET_Byte();
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
+    sub->coverage = GET_Byte();
+#else
+    SKIP( 1 );
+#endif
 
       FORGET_Frame();
 
@@ -429,7 +433,9 @@ EC( ECCheckBounds( pairs ) );
 #endif
         sub->offset   = 0;
         sub->length   = 0;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
         sub->coverage = 0;
+#endif
         sub->format   = 0;
       }
       ++sub;
