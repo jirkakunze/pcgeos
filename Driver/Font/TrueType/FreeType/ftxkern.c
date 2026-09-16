@@ -335,7 +335,11 @@ EC( ECCheckBounds( pairs ) );
         return error;
 
       sub->loaded   = FALSE;             /* redundant, but good to see */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
       sub->version  = GET_UShort();
+#else
+      SKIP( 2 );
+#endif
       sub->length   = GET_UShort() - 6;  /* substract header length */
       sub->format   = GET_Byte();
       sub->coverage = GET_Byte();
@@ -420,7 +424,9 @@ EC( ECCheckBounds( pairs ) );
         }
 
         sub->loaded   = FALSE;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
         sub->version  = 0;
+#endif
         sub->offset   = 0;
         sub->length   = 0;
         sub->coverage = 0;

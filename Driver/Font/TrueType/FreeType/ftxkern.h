@@ -118,7 +118,9 @@ extern "C" {
   {
     TT_Bool    loaded;   /* boolean; indicates whether the table is   */
                          /* loaded                                    */
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     TT_UShort  version;  /* table version number                      */
+#endif
     TT_Long    offset;   /* file offset of table                      */
     TT_UShort  length;   /* length of table, _excluding_ header       */
     TT_Byte    coverage; /* lower 8 bit of the coverage table entry   */
