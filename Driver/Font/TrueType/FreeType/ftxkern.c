@@ -284,6 +284,7 @@ EC( ECCheckBounds( pairs ) );
     DEFINE_LOAD_LOCALS( face->stream );
 
     UShort             num_tables;
+    UShort             length;
     Short              table;
     TT_Kern_Subtable*  sub;
 
@@ -340,8 +341,8 @@ EC( ECCheckBounds( pairs ) );
 #else
       SKIP( 2 );
 #endif
-      sub->length   = GET_UShort() - 6;  /* substract header length */
-      sub->format   = GET_Byte();
+      length      = GET_UShort() - 6;    /* substract header length */
+      sub->format = GET_Byte();
 #ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     sub->coverage = GET_Byte();
 #else
@@ -354,7 +355,7 @@ EC( ECCheckBounds( pairs ) );
 
       /* now skip to the next table */
 
-      if ( FILE_Skip( sub->length ) )
+      if ( FILE_Skip( length ) )
         return error;
 
       ++sub;
