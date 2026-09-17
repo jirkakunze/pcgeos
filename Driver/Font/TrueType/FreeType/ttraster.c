@@ -2132,14 +2132,8 @@ Scan_DropOuts :
         ++band_top;
       }
       else
-      {
         if ( ras.fProfile )
-        {
           if ( Draw_Sweep( RAS_VAR ) ) return ras.error;
-        }
-        else
-          ras.Proc_Sweep_Init( RAS_VAR, 0 );
-      }
     }
 
     return TT_Err_Ok;
