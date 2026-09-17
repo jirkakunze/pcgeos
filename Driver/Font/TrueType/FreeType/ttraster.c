@@ -1281,7 +1281,7 @@ extern TEngine_Instance engineInstance;
     if ( x2-x1-PRECISION <= 1 )
       e2 = e1;
     else
-      e2 = TRUNC( FLOOR( x2 ) );
+      e2 = TRUNC( x2 );
 
     if ( e2 >= 0 && e1 < ras.bWidth )
     {
@@ -1432,7 +1432,7 @@ extern TEngine_Instance engineInstance;
                                                           TT_F26Dot6  x2 )
   {
     Short   e1     = TRUNC( CEILING( x1 ) );
-    Short   e2     = TRUNC( FLOOR( x2 ) );
+    Short   e2     = TRUNC( x2 );
     PShort  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
 
 
