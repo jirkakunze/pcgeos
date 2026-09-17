@@ -372,8 +372,6 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
-    ras.joint = FALSE;
-
     return SUCCESS;
   }
 
@@ -588,7 +586,6 @@ extern TEngine_Instance engineInstance;
     else if ( ras.joint )
     {
       ras.top--;
-      ras.joint = FALSE;
     }
 
     ras.joint = ( f2 == 0 );
