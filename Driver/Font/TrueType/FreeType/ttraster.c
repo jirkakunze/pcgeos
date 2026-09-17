@@ -1427,17 +1427,16 @@ extern TEngine_Instance engineInstance;
     (void)raster, (void)min;
   }
 
-  static void _near  Vertical_Region_Sweep_Span( RAS_ARGS Short       y,
-                                                          TT_F26Dot6  x1,
-                                                          TT_F26Dot6  x2 )
+  static void _near  Vertical_Region_Sweep_Span( RAS_ARGS Short  y,
+                                                     TT_F26Dot6  x1,
+                                                     TT_F26Dot6  x2 )
   {
     Short   e1     = TRUNC( CEILING( x1 ) );
     Short   e2     = TRUNC( x2 );
     PShort  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
 
 
-    if ( ras.traceIncr == 0 )
-      target[ras.traceIncr++] = y;
+    (void)y;
 
     if ( e2 >= 0 && e1 < ras.bWidth )   
     {
@@ -1456,14 +1455,9 @@ extern TEngine_Instance engineInstance;
     PShort  targetLastLine = ( (PShort)ras.bTarget ) + ras.traceOfsLastLine;
 
 
-    /* special case: the current line was empty */
-
-    if ( ras.traceIncr == 0 )
-      target[ras.traceIncr++] = y;
-      
-
     /* finish current line */
 
+    target[0] = y;
     target[ras.traceIncr++] = (Short)EOREGREC;
 
 
@@ -1473,7 +1467,7 @@ extern TEngine_Instance engineInstance;
          ( MEM_Cmp( targetLastLine + 1, target + 1, ( ras.traceIncr - 1 ) * sizeof( Short ) ) == 0 ) )
     {
       *targetLastLine = *target;
-      ras.traceIncr   = 0;
+      ras.traceIncr   = 1;
       return;
     }   
 
@@ -1482,16 +1476,16 @@ extern TEngine_Instance engineInstance;
 
     ras.traceOfsLastLine = ras.traceOfs;
     ras.traceOfs         += ras.traceIncr;
-    ras.traceIncr        = 0;
+    ras.traceIncr        = 1;
   }
 
   static void _near  Region_Sweep_Finish( RAS_ARG )
   {
-    Short*  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
+    PShort  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
 
 
-    target[ras.traceIncr++] = (Short)EOREGREC;
-    ras.target.size = ( ras.traceOfs + ras.traceIncr ) * sizeof( Short );
+    target[0] = (Short)EOREGREC;
+    ras.target.size = ( ras.traceOfs + 1 ) * sizeof( Short );
   }
 
 #endif  /* __GEOS__ */
@@ -2265,7 +2259,7 @@ EC( ECCheckBounds( (void*)map ) );
     ras.bTarget          = (PByte)ras.target.bitmap;
     ras.traceOfs         = 0;
     ras.traceOfsLastLine = -1;
-    ras.traceIncr        = 0;
+    ras.traceIncr        = 1;
 
 
     /* lock renderpool cache */
