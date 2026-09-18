@@ -1207,46 +1207,38 @@ extern TEngine_Instance engineInstance;
 
   static void _near  Sort( PProfileList  list )
   {
-    PProfile  *old, current, next;
+    PProfile  *insert, current, next;
 
-
-    /* First, set the new X coordinate of each profile */
+    /* Update each profile exactly once before sorting. */
     Update( *list );
 
-    /* Then sort them */
-    old     = list;
-    current = *old;
-
+    current = *list;
     if ( !current )
       return;
 
-    next = current->link;
-
-    while ( next )
+    while ( (next = current->link) != NULL )
     {
       if ( current->X <= next->X )
       {
-        old     = &current->link;
-        current = *old;
-
-        if ( !current )
-          return;
+        current = next;
       }
       else
       {
-        *old          = next;
+        /* Remove the misplaced profile from behind current. */
         current->link = next->link;
-        next->link    = current;
 
-        old     = list;
-        current = *old;
+        /* current->X > next->X guarantees a stopping point. */
+        insert = list;
+        while ( (*insert)->X <= next->X )
+          insert = &(*insert)->link;
+
+        next->link = *insert;
+        *insert    = next;
       }
-
-      next = current->link;
     }
   }
 
-
+  
 /***********************************************************************/
 /*                                                                     */
 /*  Vertical Sweep Procedure Set :                                     */
