@@ -4124,14 +4124,14 @@ static TT_F26Dot6 _far FarCUR_Func_project( EXEC_OPS TT_Vector*  v1, TT_Vector* 
     *zone = zp;
     *refp = p;
 
-    d = FarCUR_Func_project( EXEC_ARGS zp.cur + p, zp.org + p );
-
     if ( CUR.F_dot_P == 0 )
     {
       *x = 0;
       *y = 0;
       return SUCCESS;
     }
+
+    d = FarCUR_Func_project( EXEC_ARGS zp.cur + p, zp.org + p );
 
     *x = TT_MulDiv(d, (Long)CUR.GS.freeVector.x * 0x10000L, CUR.F_dot_P );
     *y = TT_MulDiv(d, (Long)CUR.GS.freeVector.y * 0x10000L, CUR.F_dot_P );
