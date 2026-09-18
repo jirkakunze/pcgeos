@@ -604,6 +604,13 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
+    /* A single scanline needs no stepping calculations. */
+    if ( size == 1 )
+    {
+      *ras.top++ = x1;
+      return SUCCESS;
+    }
+
     /* Calculate quotient and remainder using a positive delta. */
     /* A negative remainder would prevent the error accumulator */
     /* from correcting lines with a negative slope.             */
@@ -1472,14 +1479,6 @@ extern TEngine_Instance engineInstance;
     ras.traceIncr        = 1;
   }
 
-  static void _near  Region_Sweep_Finish( RAS_ARG )
-  {
-    PShort  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
-
-
-    target[0] = (Short)EOREGREC;
-  }
-
 #endif  /* __GEOS__ */
 
 
@@ -2258,7 +2257,7 @@ EC( ECCheckBounds( (void*)map ) );
     if ( (error = Render_Single_Pass( RAS_VARS 0 )) != 0 )
       goto Fin;
 
-    Region_Sweep_Finish( RAS_VAR );
+    ((PShort)ras.bTarget)[ras.traceOfs] = (Short)EOREGREC;
     map->size = ( ras.traceOfs + 1 ) * sizeof( Short );
 
   Fin:
