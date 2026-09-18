@@ -1466,7 +1466,7 @@ extern TEngine_Instance engineInstance;
     if ( ( ras.traceOfsLastLine > -1 ) &&
          ( MEM_Cmp( targetLastLine + 1, target + 1, ( ras.traceIncr - 1 ) * sizeof( Short ) ) == 0 ) )
     {
-      *targetLastLine = *target;
+      *targetLastLine = y;
       ras.traceIncr   = 1;
       return;
     }   
