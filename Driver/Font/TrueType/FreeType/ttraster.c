@@ -249,7 +249,8 @@ extern TEngine_Instance engineInstance;
                                     /* of impact                         */
     TStates   state;                /* rendering state */
 
-    TT_Raster_Map  target;          /* description of target bit/pixmap */
+    Int       bRows;                /* target bitmap height */
+    Int       bCols;                /* target bitmap bytes per row */
 
     Short     traceOfs;             /* current offset in target bitmap */
     Short     traceOfsLastLine;     /* offset in traget region before line step */
@@ -1238,7 +1239,7 @@ extern TEngine_Instance engineInstance;
     }
   }
 
-  
+
 /***********************************************************************/
 /*                                                                     */
 /*  Vertical Sweep Procedure Set :                                     */
@@ -1250,8 +1251,8 @@ extern TEngine_Instance engineInstance;
 
   static void _near  Vertical_Sweep_Init( RAS_ARGS Short*  min )
   {
-    ras.traceOfs  = ( ras.target.rows - 1 - *min ) * ras.target.cols;
-    ras.traceIncr = -ras.target.cols;
+    ras.traceOfs  = ( ras.bRows - 1 - *min ) * ras.bCols;
+    ras.traceIncr = -ras.bCols;
   }
 
 
@@ -1477,7 +1478,6 @@ extern TEngine_Instance engineInstance;
 
 
     target[0] = (Short)EOREGREC;
-    ras.target.size = ( ras.traceOfs + 1 ) * sizeof( Short );
   }
 
 #endif  /* __GEOS__ */
@@ -1510,10 +1510,10 @@ extern TEngine_Instance engineInstance;
       {
         e1 = TRUNC( e1 );
 
-        if ( e1 >= 0 && e1 < ras.target.rows )
+        if ( e1 >= 0 && e1 < ras.bRows )
         {
           bits = ras.bTarget + (y >> 3);
-          bits[(ras.target.rows-1 - e1) * ras.target.cols] |= ((Byte)(0x80 >> (y  & 7)));
+          bits[(ras.bRows-1 - e1) * ras.bCols] |= ((Byte)(0x80 >> (y  & 7)));
         }
       }
     }
@@ -1571,10 +1571,10 @@ extern TEngine_Instance engineInstance;
 
           bits = ras.bTarget + (y >> 3);
 
-          bits += (ras.target.rows-1-e1) * ras.target.cols;
+          bits += (ras.bRows-1-e1) * ras.bCols;
 
-          if ( e1 >= 0              &&
-               e1 < ras.target.rows &&
+          if ( e1 >= 0        &&
+               e1 < ras.bRows &&
                *bits & ((Byte)(0x80 >> (y &  7))) )
             return;
 
@@ -1597,8 +1597,8 @@ extern TEngine_Instance engineInstance;
 
     e1 = TRUNC( e1 );
 
-    if ( e1 >= 0 && e1 < ras.target.rows )
-        bits[(ras.target.rows-1-e1) * ras.target.cols] |= (Byte)(0x80 >> (y  & 7));
+    if ( e1 >= 0 && e1 < ras.bRows )
+        bits[(ras.bRows-1-e1) * ras.bCols] |= (Byte)(0x80 >> (y  & 7));
   }
 
 
@@ -2162,8 +2162,6 @@ EC( ECCheckMemHandle( ras.buffer ) );
 EC( ECCheckBounds( (void*)target_map ) );
 
 
-    ras.target = *target_map;
-
     Initialize_Raster_Instance( RAS_VARS glyph );
 
     /* Vertical Sweep */
@@ -2173,10 +2171,12 @@ EC( ECCheckBounds( (void*)target_map ) );
     ras.Proc_Sweep_Step   = Vertical_Sweep_Step;
 
     ras.band_stack[0].y_min = 0;
-    ras.band_stack[0].y_max = ras.target.rows - 1;
+    ras.band_stack[0].y_max = target_map->rows - 1;
 
-    ras.bWidth  = ras.target.width;
-    ras.bTarget = (Byte*)ras.target.bitmap;
+    ras.bRows   = target_map->rows;
+    ras.bCols   = target_map->cols;
+    ras.bWidth  = target_map->width;
+    ras.bTarget = (PByte)target_map->bitmap;
 
     /* lock renderpool cache */
     LOCK_RENDER_POOL;
@@ -2194,7 +2194,7 @@ EC( ECCheckBounds( (void*)target_map ) );
       ras.Proc_Sweep_Step   = Horizontal_Sweep_Step;
 
       ras.band_stack[0].y_min = 0;
-      ras.band_stack[0].y_max = ras.target.width - 1;
+      ras.band_stack[0].y_max = ras.bWidth - 1;
 
       error = Render_Single_Pass( RAS_VARS  1 );
     }
@@ -2231,8 +2231,6 @@ EC( ECCheckMemHandle( ras.buffer ) );
 EC( ECCheckBounds( (void*)map ) );
 
 
-    ras.target = *map;
-
     Initialize_Raster_Instance( RAS_VARS glyph );
 
     /* disable drop-out control */
@@ -2245,10 +2243,10 @@ EC( ECCheckBounds( (void*)map ) );
     ras.Proc_Sweep_Step   = Vertical_Region_Sweep_Step;
 
     ras.band_stack[0].y_min = 0;
-    ras.band_stack[0].y_max = ras.target.rows - 1;
+    ras.band_stack[0].y_max = map->rows - 1;
+    ras.bWidth              = map->cols;
+    ras.bTarget             = (PByte)map->bitmap;
 
-    ras.bWidth           = ras.target.cols;
-    ras.bTarget          = (PByte)ras.target.bitmap;
     ras.traceOfs         = 0;
     ras.traceOfsLastLine = -1;
     ras.traceIncr        = 1;
@@ -2261,7 +2259,7 @@ EC( ECCheckBounds( (void*)map ) );
       goto Fin;
 
     Region_Sweep_Finish( RAS_VAR );
-    map->size = ras.target.size;
+    map->size = ( ras.traceOfs + 1 ) * sizeof( Short );
 
   Fin:
     UNLOCK_RENDER_POOL;
