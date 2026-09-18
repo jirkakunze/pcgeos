@@ -468,7 +468,7 @@ word  GetGEOSCharForIndex( const LookupEntry* lookupTable, const word index )
 
         while( left <= right )
         {
-                int mid = left + ( (right - left) >> 1 );
+                int mid = (right + left) >> 1;
                 if( lookupTable[mid].ttindex == index )
                         return lookupTable[mid].geoscode; 
                 else if( lookupTable[mid].ttindex < index )
