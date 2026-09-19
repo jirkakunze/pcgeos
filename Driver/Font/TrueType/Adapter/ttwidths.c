@@ -894,8 +894,8 @@ static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf )
         fontBuf->FB_underPos.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
         fontBuf->FB_underPos.WBF_frac = 0; 
 
-        ttfElement = DEFAULT_UNDER_THICK( UNITS_PER_EM );
-        fontBuf->FB_underThickness.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        ttfElement = SCALE_WORD( DEFAULT_UNDER_THICK( UNITS_PER_EM ), scaleHeight );
+        fontBuf->FB_underThickness.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );  
         fontBuf->FB_underThickness.WBF_frac = 0;
 
         ttfElement = SCALE_WORD( DEFAULT_STRIKE_POSITION( ascender ), scaleHeight );
