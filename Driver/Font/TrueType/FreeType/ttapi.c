@@ -1057,10 +1057,10 @@ EC( ECCheckBounds( bbox ) );
       {
         x = vec->x;
         if ( x < bbox->xMin ) bbox->xMin = x;
-        if ( x > bbox->xMax ) bbox->xMax = x;
+        else if ( x > bbox->xMax ) bbox->xMax = x;
         y = vec->y;
         if ( y < bbox->yMin ) bbox->yMin = y;
-        if ( y > bbox->yMax ) bbox->yMax = y;
+        else if ( y > bbox->yMax ) bbox->yMax = y;
         ++vec;
       }
     }
