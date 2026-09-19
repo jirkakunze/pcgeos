@@ -390,16 +390,16 @@ EC(     ECCheckBounds( (void*)outline ) );
                 if ( last < first )
                         return;
 
-                limit     = outline->points + last;
-                v_start   = outline->points[first];
-                v_last    = outline->points[last];
-
-                point = outline->points + first;
-                tags  = outline->flags  + first;
-
+                limit   = outline->points + last;
+                v_start = outline->points[first];
+                point   = outline->points + first;
+                tags    = outline->flags  + first;
+                
                 /* check first point to determine origin */
                 if ( !(*tags & CURVE_TAG_ON ) )
                 {
+                        v_last = outline->points[last];
+
                         /* first point is conic control. Yes, this happens. */
                         if ( outline->flags[last] & CURVE_TAG_ON )
                         {
