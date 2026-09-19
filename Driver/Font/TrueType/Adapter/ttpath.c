@@ -802,6 +802,7 @@ static void InitDriversTransformMatrix( TRUETYPE_VARS,
                                         Byte              weight )
 {
         WWFixedAsDWord scaleFactor;
+        WWFixedAsDWord baseline;
 
 
 EC(     ECCheckBounds( (void*)transMatrix ) );
@@ -811,21 +812,26 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         /* calculate scale factor for pointsize */
         scaleFactor = GrUDivWWFixed( pointSize, MakeWWFixed( UNITS_PER_EM ) );
 
-        /* initilize drivers tranformation matrix */
+        /* scale baseline independently from the glyph matrix */
+        baseline = GrMulWWFixed( MakeWWFixed( FACE_PROPERTIES.os2->usWinAscent ), scaleFactor );
+
+        /* initialize drivers transformation matrix */
         transMatrix->TM_matrix.xx = scaleFactor;
         transMatrix->TM_matrix.xy = 0L;
         transMatrix->TM_matrix.yx = 0L;
         transMatrix->TM_matrix.yy = scaleFactor;
-        transMatrix->TM_heightX   = 0;
-        transMatrix->TM_heightY   = FACE_PROPERTIES.os2->usWinAscent;
-        transMatrix->TM_scriptX   = 0;
-        transMatrix->TM_scriptY   = 0;
 
-        /* fake bold style       */
+        transMatrix->TM_heightX = 0;
+        transMatrix->TM_heightY = INTEGER_OF_WWFIXEDASDWORD( baseline );
+
+        transMatrix->TM_scriptX = 0;
+        transMatrix->TM_scriptY = 0;
+
+        /* fake bold style */
         if( stylesToImplement & TS_BOLD )
                 transMatrix->TM_matrix.xx = GrMulWWFixed( BOLD_FACTOR, transMatrix->TM_matrix.xx );
 
-        /* fake italic style       */
+        /* fake italic style */
         if( stylesToImplement & TS_ITALIC )
                 transMatrix->TM_matrix.yx = NEGATVE_ITALIC_FACTOR;
 
@@ -836,28 +842,17 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
         if( weight != FW_NORMAL )
                 transMatrix->TM_matrix.xx = MUL_100_WWFIXED( transMatrix->TM_matrix.xx, weight );
 
-        /* fake script style      */
+        /* fake script style */
         if( stylesToImplement & ( TS_SUBSCRIPT | TS_SUPERSCRIPT ) )
-        {      
-                WWFixedAsDWord scriptBaseline = GrMulWWFixed( MakeWWFixed( FACE_PROPERTIES.os2->usWinAscent ), scaleFactor ); 
-
-
+        {
                 transMatrix->TM_matrix.xx = GrMulWWFixed( transMatrix->TM_matrix.xx, SCRIPT_FACTOR );
                 transMatrix->TM_matrix.yy = GrMulWWFixed( transMatrix->TM_matrix.yy, SCRIPT_FACTOR );
 
                 if( stylesToImplement & TS_SUBSCRIPT )
-                {
-                        //TODO: Is rounding necessary here?
-                        transMatrix->TM_scriptY = GrMulWWFixed( scriptBaseline, SUBSCRIPT_OFFSET ) >> 16;
-                }
+                        transMatrix->TM_scriptY = GrMulWWFixed( baseline, SUBSCRIPT_OFFSET ) >> 16;
                 else
-                {
-                        //TODO: Is rounding necessary here?
-                        transMatrix->TM_scriptY = ( GrMulWWFixed( scriptBaseline, SUPERSCRIPT_OFFSET ) - 
-                                                GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( FACE_PROPERTIES.os2->usWinAscent ), scaleFactor ) >> 16 );
-                }
+                        transMatrix->TM_scriptY = ( GrMulWWFixed( baseline, SUPERSCRIPT_OFFSET ) - baseline ) >> 16;
         }
-
 }
 
 
@@ -881,16 +876,29 @@ EC(     ECCheckBounds( (void*)trueTypeVars ) );
  *      26/04/24  JK        Initial Revision
  *******************************************************************/
 
-static void CalcDriversTransformMatrix( TransformMatrix* transformMatrix, GStateHandle gstate, WindowHandle win )
+static void CalcDriversTransformMatrix( TransformMatrix* transformMatrix,
+                                        GStateHandle      gstate,
+                                        WindowHandle      win )
 {
         TransMatrix     windowMatrix;
         TransMatrix     graphicMatrix;
-        WWFixedAsDWord  temp_e11, temp_e12, temp_e21, temp_e22;
+        WWFixedAsDWord  temp_e11;
+        WWFixedAsDWord  temp_e12;
+        WWFixedAsDWord  temp_e21;
+        WWFixedAsDWord  temp_e22;
+        WWFixedAsDWord  positionScaleX;
+        WWFixedAsDWord  positionScaleY;
+        sword           heightY;
+        sword           scriptY;
 
 
 EC(     ECCheckBounds( transformMatrix ) );
-EC(     ECCheckGStateHandle( gstate) );
+EC(     ECCheckGStateHandle( gstate ) );
 
+
+        /* save the already point-size-scaled position offsets */
+        heightY = transformMatrix->TM_heightY;
+        scriptY = transformMatrix->TM_scriptY;
 
         if( win )
         {
@@ -911,22 +919,27 @@ EC(             ECCheckWindowHandle( win ) );
 
         GrGetTransform( gstate, &graphicMatrix );
 
-        temp_e11 = GrMulWWFixed( transformMatrix->TM_matrix.xx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e11 ) ) 
-                        + GrMulWWFixed( transformMatrix->TM_matrix.xy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e21 ) );
-        temp_e12 = GrMulWWFixed( transformMatrix->TM_matrix.xx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e12 ) ) 
-                        + GrMulWWFixed( transformMatrix->TM_matrix.xy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e22 ) );
-        temp_e21 = GrMulWWFixed( transformMatrix->TM_matrix.yx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e11 ) ) 
-                        + GrMulWWFixed( transformMatrix->TM_matrix.yy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e21 ) );
-        temp_e22 = GrMulWWFixed( transformMatrix->TM_matrix.yx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e12 ) ) 
-                        + GrMulWWFixed( transformMatrix->TM_matrix.yy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e22 ) );
+        /* transform the glyph matrix */
+        temp_e11 = GrMulWWFixed( transformMatrix->TM_matrix.xx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e11 ) )
+                + GrMulWWFixed( transformMatrix->TM_matrix.xy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e21 ) );
+        temp_e12 = GrMulWWFixed( transformMatrix->TM_matrix.xx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e12 ) )
+                + GrMulWWFixed( transformMatrix->TM_matrix.xy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e22 ) );
+        temp_e21 = GrMulWWFixed( transformMatrix->TM_matrix.yx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e11 ) )
+                + GrMulWWFixed( transformMatrix->TM_matrix.yy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e21 ) );
+        temp_e22 = GrMulWWFixed( transformMatrix->TM_matrix.yx, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e12 ) )
+                + GrMulWWFixed( transformMatrix->TM_matrix.yy, WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e22 ) );
 
         transformMatrix->TM_matrix.xx = GrMulWWFixed( temp_e11, WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e11 ) );
-        transformMatrix->TM_matrix.yx = - GrMulWWFixed( temp_e12, WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e22 ) );
-        transformMatrix->TM_matrix.xy = - GrMulWWFixed( temp_e21, WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e11 ) );
+        transformMatrix->TM_matrix.yx = -GrMulWWFixed( temp_e12, WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e22 ) );
+        transformMatrix->TM_matrix.xy = -GrMulWWFixed( temp_e21, WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e11 ) );
         transformMatrix->TM_matrix.yy = GrMulWWFixed( temp_e22, WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e22 ) );
 
-        transformMatrix->TM_heightX = -INTEGER_OF_WWFIXEDASDWORD( GrMulWWFixed( 
-                        WORD_TO_WWFIXEDASDWORD( transformMatrix->TM_heightY ), transformMatrix->TM_matrix.xy ) );
-        transformMatrix->TM_heightY = INTEGER_OF_WWFIXEDASDWORD( GrMulWWFixed( 
-                        WORD_TO_WWFIXEDASDWORD( transformMatrix->TM_heightY ), transformMatrix->TM_matrix.yy ) );
+        /* calc baseline and script offsets */
+        positionScaleX = GrMulWWFixed( WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e21 ), WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e11 ) );
+        positionScaleY = GrMulWWFixed( WWFIXED_TO_WWFIXEDASDWORD( graphicMatrix.TM_e22 ), WWFIXED_TO_WWFIXEDASDWORD( windowMatrix.TM_e22 ) );
+
+        transformMatrix->TM_heightX = INTEGER_OF_WWFIXEDASDWORD( GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( heightY ), positionScaleX ) );
+        transformMatrix->TM_heightY = INTEGER_OF_WWFIXEDASDWORD( GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( heightY ), positionScaleY ) );
+        transformMatrix->TM_scriptX = INTEGER_OF_WWFIXEDASDWORD( GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( scriptY ), positionScaleX ) );
+        transformMatrix->TM_scriptY = INTEGER_OF_WWFIXEDASDWORD( GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( scriptY ), positionScaleY ) );
 }
