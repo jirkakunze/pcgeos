@@ -31,8 +31,7 @@
 #include "ftxkern.h"
 
 
-static word  AllocFontBlock( word               additionalSpace,
-                        word                    numOfCharacters,
+static word  AllocFontBlock( word               numOfCharacters,
                         word                    numOfKernPairs,
                         MemHandle*              fontHandle );
 
@@ -196,8 +195,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
                 &bufSpec,
                 &fontHandle	
         )) {
-                size = AllocFontBlock( sizeof( TransformMatrix ), 
-                                fontHeader->FH_numChars, 
+                size = AllocFontBlock( fontHeader->FH_numChars, 
                                 fontHeader->FH_kernCount, 
                                 &fontHandle );
                 fontBuf = (FontBuf*)MemDeref( fontHandle );
@@ -748,10 +746,7 @@ EC(     ECCheckBounds( (void*)fontBuf ) );
  *                 including character entries, kerning pairs, and additional
  *                 buffer space.
  * 
- * PARAMETERS:     word additionalSpace
- *                    Extra memory required beyond the standard font data.
- * 
- *                 word numOfCharacters
+ * PARAMETERS:     word numOfCharacters
  *                    The number of character table entries needed.
  * 
  *                 word numOfKernPairs
@@ -776,14 +771,13 @@ EC(     ECCheckBounds( (void*)fontBuf ) );
  *      14.01.23  JK        Initial Revision
  *******************************************************************/
 
-static word AllocFontBlock( word        additionalSpace,
-                            word        numOfCharacters,
+static word AllocFontBlock( word        numOfCharacters,
                             word        numOfKernPairs,
                             MemHandle*  fontHandle )
 {
         const word  size = sizeof( FontBuf ) + numOfCharacters * sizeof( CharTableEntry ) +
                 numOfKernPairs * ( sizeof( KernPair ) + sizeof( BBFixed ) ) +
-                additionalSpace; 
+                sizeof( TransformMatrix ); 
                      
         /* allocate memory for FontBuf, CharTableEntries, KernPairs and additional space */
         if( *fontHandle == NullHandle )

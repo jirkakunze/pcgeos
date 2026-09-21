@@ -64,8 +64,6 @@ word GetKernCount(       TRUETYPE_VARS );
 
 static word toHash( const char* str );
 
-static word strlen( const char* str );
-
 static void strcpoy( char* dest, const char* source );
 
 static int strcmp( const char* s1, const char* s2 );
@@ -597,11 +595,14 @@ static Boolean isFontUnacceptable( TRUETYPE_VARS )
 
 static word toHash( const char* str )
 {
-        word   i;
-        word   hash = strlen( str );
+        const char* p = str;
+        word        hash = 0;
 
-        for ( i = 0; i < strlen( str ); ++i )
-		hash = hash * 7 + str[i];
+        while( *p++ )
+                ++hash;
+
+        while( *str )
+                hash = hash * 7 + *str++;
 
         /* The generated FontID has the following structure:      */
         /* 0bMMMMGGGHHHHHHHHH        MMMM      Fontmaker (4 bit)  */
@@ -1126,15 +1127,6 @@ EC(             ECCheckBounds( pairs ) );
 /* We cannot use functions from the Ansic library, which causes a  */
 /* cycle. Therefore, the required functions are reimplemented here.*/
 /*******************************************************************/
-
-static word strlen( const char* str )
-{
-        const char  *s;
-
-        for ( s = str; *s; ++s )
-                ;
-        return( s - str );  
-}
 
 
 static void strcopy( char* dest, const char* source )
