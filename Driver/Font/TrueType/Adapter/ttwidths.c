@@ -36,7 +36,8 @@ static word  AllocFontBlock( word               additionalSpace,
                         word                    numOfKernPairs,
                         MemHandle*              fontHandle );
 
-static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf );
+static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf,
+                           WWFixedAsDWord pointSize);
 
 static void ConvertWidths( TRUETYPE_VARS, 
                         FontHeader*             fontHeader, 
@@ -220,7 +221,7 @@ EC(             ECCheckBounds( (void*) fontBuf ) );
                 CalcScaleForWidths( trueTypeVars, pointSize, stylesToImplement, width, weight );
 
                 /* convert FontHeader and fill FontBuf structure */
-                ConvertHeader( trueTypeVars, fontBuf );
+                ConvertHeader( trueTypeVars, fontBuf, pointSize );
 
                 /* fill kerning pairs and kerning values */
                 ConvertKernPairs( trueTypeVars, fontBuf );
@@ -307,7 +308,7 @@ static void ConvertWidths( TRUETYPE_VARS, FontHeader* fontHeader, FontBuf* fontB
         WWFixedAsDWord   scaledWidth;
         TT_Glyph_Metrics glyphMetrics;
         const word       winDescent = FACE_PROPERTIES.os2->usWinDescent;
-        const word       winAscent  = FACE_PROPERTIES.os2->usWinAscent;
+        const word       ascent  = FACE_PROPERTIES.os2->usWinAscent;
 
 
         for( currentChar = fontHeader->FH_firstChar; currentChar <= fontHeader->FH_lastChar; ++currentChar )
@@ -350,7 +351,7 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
                         if( -glyphMetrics.bbox.yMin > winDescent )
                                 charTableEntry->CTE_flags |= CTF_BELOW_DESCENT;
 
-                        if( glyphMetrics.bbox.yMax > winAscent )
+                        if( glyphMetrics.bbox.yMax > ascent )
                                 charTableEntry->CTE_flags |= CTF_ABOVE_ASCENT;
                 }
 
@@ -830,88 +831,93 @@ EC(             ECCheckMemHandle( *fontHandle ) );
  *      11.12.22  JK        Initial Revision
  *******************************************************************/
 
-static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf ) 
+static void ConvertHeader( TRUETYPE_VARS, FontBuf* fontBuf, WWFixedAsDWord pointSize )
 {
-        WWFixedAsDWord      ttfElement;
-        WWFixedAsDWord      scaleWidth  = SCALE_WIDTH;
-        WWFixedAsDWord      scaleHeight = SCALE_HEIGHT;
-        word                ascender    = FACE_PROPERTIES.os2->usWinAscent;
-        word                descender   = FACE_PROPERTIES.os2->usWinDescent;
-      
-
- EC(    ECCheckBounds( (void*)fontBuf ) );
+        WWFixedAsDWord ttfElement;
+        WWFixedAsDWord scaleWidth  = SCALE_WIDTH;
+        WWFixedAsDWord scaleHeight = SCALE_HEIGHT;
+        word           ascender    = FACE_PROPERTIES.os2->usWinAscent;
+        word           descender   = FACE_PROPERTIES.os2->usWinDescent;
 
 
-        /* Fill elements in FontBuf structure.                               */
-        ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->xAvgCharWidth, scaleWidth );
+EC(     ECCheckBounds( (void*)fontBuf ) );
+
+
+        /* Fill elements in FontBuf structure. */
+        ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->xAvgCharWidth, scaleWidth ) + 0x80;
+
         fontBuf->FB_avgwidth.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_avgwidth.WBF_frac = 0;
+        fontBuf->FB_avgwidth.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
-        ttfElement = SCALE_WORD( FACE_PROPERTIES.horizontal->advance_Width_Max, scaleWidth );
-        fontBuf->FB_maxwidth.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_maxwidth.WBF_frac = 0;
+        ttfElement = SCALE_WORD( FACE_PROPERTIES.horizontal->advance_Width_Max, scaleWidth ) + 0x80;
+        fontBuf->FB_maxwidth.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_maxwidth.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
-        ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->sTypoAscender - FACE_PROPERTIES.header->yMax, scaleHeight );
-        fontBuf->FB_heightAdjust.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_heightAdjust.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_baseAdjust.WBF_int    = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
-        fontBuf->FB_baseAdjust.WBF_frac   = 0;
-
-        ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->sxHeight, scaleHeight );
-        fontBuf->FB_mean.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_mean.WBF_frac = 0;
+        ttfElement = SCALE_WORD( FACE_PROPERTIES.os2->sxHeight, scaleHeight ) + 0x80;
+        fontBuf->FB_mean.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_mean.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
         ttfElement = SCALE_WORD( ascender, scaleHeight );
-        fontBuf->FB_baselinePos.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
+        fontBuf->FB_baselinePos.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
         fontBuf->FB_baselinePos.WBF_frac = 0;
 
-        ttfElement = SCALE_WORD( ascender + descender, scaleHeight );
-        fontBuf->FB_height.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_height.WBF_frac = 0;
+        ttfElement = SCALE_WORD( ascender + descender, scaleHeight ) + 0x80;
+        fontBuf->FB_height.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_height.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
+        
+        ttfElement = ( ( pointSize + 0x80 ) & 0xffffff00L ) - WBFIXED_TO_WWFIXEDASDWORD( fontBuf->FB_height );
+        fontBuf->FB_heightAdjust.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_heightAdjust.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
-        ttfElement = SCALE_WORD( ascender - FACE_PROPERTIES.os2->sCapHeight, scaleHeight );
-        fontBuf->FB_accent.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_accent.WBF_frac = 0;
- 
-        ttfElement = SCALE_WORD( descender, scaleHeight );
-        fontBuf->FB_descent.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_descent.WBF_frac = 0;
+        ttfElement = SCALE_WORD( ascender - FACE_PROPERTIES.os2->sCapHeight, scaleHeight ) + 0x80;
+        fontBuf->FB_accent.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_accent.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
+
+        ttfElement = SCALE_WORD( descender, scaleHeight ) + 0x80;
+        fontBuf->FB_descent.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_descent.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
+
+        ttfElement = pointSize - WBFIXED_TO_WWFIXEDASDWORD( fontBuf->FB_descent );
+        fontBuf->FB_baseAdjust.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 ) - fontBuf->FB_baselinePos.WBF_int;
+        fontBuf->FB_baseAdjust.WBF_frac = 0;
 
         fontBuf->FB_extLeading.WBF_int  = 0;
         fontBuf->FB_extLeading.WBF_frac = 0;
 
         ttfElement = SCALE_WORD( FACE_PROPERTIES.header->yMax - ascender, scaleHeight );
-        fontBuf->FB_aboveBox.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0xffff );
+        fontBuf->FB_aboveBox.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0xffff );
         fontBuf->FB_aboveBox.WBF_frac = 0;
-        fontBuf->FB_minTSB            = fontBuf->FB_aboveBox.WBF_int;
+
+        fontBuf->FB_minTSB = fontBuf->FB_aboveBox.WBF_int;
 
         ttfElement = SCALE_WORD( -descender - FACE_PROPERTIES.header->yMin, scaleHeight );
-        fontBuf->FB_belowBox.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0xffff );
+        fontBuf->FB_belowBox.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0xffff );
         fontBuf->FB_belowBox.WBF_frac = 0;
-        fontBuf->FB_maxBSB            = fontBuf->FB_belowBox.WBF_int;
 
-        ttfElement = SCALE_WORD( ascender + DEFAULT_UNDER_POSITION( UNITS_PER_EM ), scaleHeight );
-        fontBuf->FB_underPos.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
-        fontBuf->FB_underPos.WBF_frac = 0; 
+        fontBuf->FB_maxBSB = fontBuf->FB_belowBox.WBF_int;
 
-        ttfElement = SCALE_WORD( DEFAULT_UNDER_THICK( UNITS_PER_EM ), scaleHeight );
-        fontBuf->FB_underThickness.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );  
-        fontBuf->FB_underThickness.WBF_frac = 0;
+        ttfElement = SCALE_WORD( ascender +  DEFAULT_UNDER_POSITION( UNITS_PER_EM ), scaleHeight ) + 0x80;
+        fontBuf->FB_underPos.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_underPos.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
-        ttfElement = SCALE_WORD( DEFAULT_STRIKE_POSITION( ascender ), scaleHeight );
-        fontBuf->FB_strikePos.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        ttfElement = SCALE_WORD( DEFAULT_UNDER_THICK( UNITS_PER_EM ), scaleHeight ) + 0x80;
+        fontBuf->FB_underThickness.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
+        fontBuf->FB_underThickness.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
+
+        ttfElement = SCALE_WORD( DEFAULT_STRIKE_POSITION( ascender ), scaleHeight ) + 0x80;
+        fontBuf->FB_strikePos.WBF_int = INTEGER_OF_WWFIXEDASDWORD( ttfElement );
         fontBuf->FB_strikePos.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( ttfElement );
 
         ttfElement = SCALE_WORD( FACE_PROPERTIES.horizontal->min_Left_Side_Bearing, scaleWidth );
-        fontBuf->FB_minLSB = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 ); 
+        fontBuf->FB_minLSB = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
 
-        ttfElement = SCALE_WORD( FACE_PROPERTIES.horizontal->advance_Width_Max 
-                                - (FACE_PROPERTIES.horizontal->min_Left_Side_Bearing 
-                                + (FACE_PROPERTIES.header->xMax - FACE_PROPERTIES.header->xMin)), scaleWidth );
-        fontBuf->FB_maxRSB  = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
+        ttfElement = SCALE_WORD( FACE_PROPERTIES.horizontal->advance_Width_Max -
+                        ( FACE_PROPERTIES.horizontal-> min_Left_Side_Bearing +
+                        ( FACE_PROPERTIES.header->xMax - FACE_PROPERTIES.header->xMin ) ), scaleWidth );
+        fontBuf->FB_maxRSB = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
 
-        ttfElement = SCALE_WORD( FACE_PROPERTIES.header->yMax - FACE_PROPERTIES.header->yMin, scaleHeight );
-        fontBuf->FB_pixHeight = INTEGER_OF_WWFIXEDASDWORD( ttfElement + 0x8000 );
+        fontBuf->FB_pixHeight = fontBuf->FB_height.WBF_int + ( fontBuf->FB_height.WBF_frac >= 0x80 );
+        fontBuf->FB_pixHeight += fontBuf->FB_minTSB;
 }
 
 
@@ -976,7 +982,7 @@ static void AdjustFontBuf( TransformMatrix* transMatrix,
 
                 /* adjust FB_pixHeight, FB_minTSB */
                 fontBuf->FB_pixHeight = INTEGER_OF_WWFIXEDASDWORD(
-                        GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( fontBuf->FB_height.WBF_int ), fontMatrix->FM_22 ) );
+                        GrMulWWFixed( WBFIXED_TO_WWFIXEDASDWORD( fontBuf->FB_height ), fontMatrix->FM_22 ) );
 
                 fontBuf->FB_minTSB = INTEGER_OF_WWFIXEDASDWORD(
                         GrMulWWFixed( WORD_TO_WWFIXEDASDWORD( fontBuf->FB_minTSB ), fontMatrix->FM_22 ) );
