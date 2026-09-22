@@ -1005,39 +1005,6 @@ EC( ECCheckBounds( ins ) );
     TT_Done_Outline( &glyph->outline );
   }
 
-
-/*******************************************************************
- *
- *  Function    :  Glyph_Create
- *
- *  Description :  The glyph object constructor.
- *
- *  Input  :  _glyph   glyph record to build.
- *            _face    the glyph's parent face.
- *
- *  Output :  Error code.
- *
- ******************************************************************/
-
-  LOCAL_FUNC
-  TT_Error  Glyph_Create( void*  _glyph,
-                          void*  _face )
-  {
-    PFace     face  = (PFace)_face;
-    PGlyph    glyph = (PGlyph)_glyph;
-
-
-EC( ECCheckBounds( face ) );
-EC( ECCheckBounds( glyph ) );
-
-    glyph->face = face;
-
-    /* XXX: Don't forget the space for the 2 phantom points */
-    return TT_New_Outline( glyph->face->maxPoints + 2,
-                           glyph->face->maxContours,
-                           &glyph->outline );
-  }
-
 #pragma code_seg()
 
 /*******************************************************************

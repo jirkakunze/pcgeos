@@ -551,8 +551,7 @@ EC_ERROR_IF( face->instance != ins, TT_Err_Invalid_Instance_Handle );
  *
  ******************************************************************/
 
-EXPORT_FUNC
-TT_Error  TT_New_Glyph( TT_Face    face,
+  TT_Error  TT_New_Glyph( TT_Face    face,
                         TT_Glyph*  glyph )
 {
     PFace    _face  = HANDLE_Face( face );
@@ -565,7 +564,14 @@ EC( ECCheckBounds( _face ) );
     if ( ALLOC( _glyph, sizeof ( TGlyph ) ) )
         return TT_Err_Out_Of_Memory;
 
-    error = Glyph_Create( _glyph, _face );
+EC( ECCheckBounds( _glyph ) );
+
+    _glyph->face = _face;
+
+    /* Don't forget the space for the 2 phantom points. */
+    error = TT_New_Outline( _face->maxPoints + 2,
+                            _face->maxContours,
+                            &_glyph->outline );
     if ( error )
     {
         FREE( _glyph );
