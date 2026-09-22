@@ -187,6 +187,9 @@ EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
                 charData = EnsureBitmapBlock( bitmapHandle, size );
 EC(             ECCheckBounds( (void*)charData ) );
 
+                /* rasterizer ORs pixels into the bitmap, so it must be cleared */
+                memset( charData, 0, size );
+
                 /* init rasterMap */
                 rasterMap.rows   = height;
                 rasterMap.width  = width;
@@ -557,5 +560,5 @@ static void* EnsureBitmapBlock( MemHandle bitmapHandle, word size )
         bitmapData = MemDeref( bitmapHandle );
     }
         
-    return memset( bitmapData, 0, size );
+    return bitmapData;
 }
