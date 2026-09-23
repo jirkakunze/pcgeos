@@ -533,29 +533,16 @@ extern TEngine_Instance engineInstance;
     PInstance  ins = (PInstance)_instance;
 
 
-    if ( !_instance )
-      return;
-
     FREE( ins->cvt );
-    ins->cvtSize = 0;
 
     /* free storage area */
     FREE( ins->storage );
-    ins->storeSize = 0;
 
     /* twilight zone */
     Done_Glyph_Zone( &ins->twilight );
 
     FREE( ins->FDefs );
     FREE( ins->IDefs );
-    ins->numFDefs = 0;
-    ins->numIDefs = 0;
-    ins->maxFDefs = 0;
-    ins->maxIDefs = 0;
-    ins->maxFunc  = -1;
-
-    ins->owner = NULL;
-    ins->valid = FALSE;
   }
 
 
@@ -621,7 +608,6 @@ extern TEngine_Instance engineInstance;
     return TT_Err_Ok;
 
   Fail_Memory:
-    Instance_Destroy( ins );
     return error;
   }
 

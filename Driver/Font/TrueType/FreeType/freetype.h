@@ -695,13 +695,6 @@
                                                       TT_UShort    resolution );
   
 
-  /* Close a given instance object, destroying all associated data. */
-
-  EXPORT_DEF
-  void  TT_Done_Instance( TT_Instance  instance );
-
-
-
   /* ----------------------- glyph management ----------------------- */
 
   /* Create a new glyph object related to the given `face'. */
@@ -709,12 +702,6 @@
   EXPORT_DEF
   TT_Error  TT_New_Glyph( TT_Face    face,
                           TT_Glyph*  glyph );
-
-
-  /* Discard (and destroy) a given glyph object. */
-
-  EXPORT_DEF
-  void  TT_Done_Glyph( TT_Glyph  glyph );
 
 
 #define TTLOAD_SCALE_GLYPH                    1

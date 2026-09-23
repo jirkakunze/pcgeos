@@ -28,7 +28,7 @@
 #include <heap.h>
 
 static int strcmp( const char* s1, const char* s2 );
-static void TrueType_Free_Face(TRUETYPE_VARS);
+static void TrueType_Free_Face( TRUETYPE_VARS );
 
 
 #pragma code_seg(ttapi_TEXT)
@@ -153,8 +153,6 @@ static void TrueType_Free_Face(TRUETYPE_VARS)
 {
         if ( trueTypeVars->entry.TTOE_fontFileName[0] )
         {
-            TT_Done_Glyph( GLYPH );
-            TT_Done_Instance( INSTANCE );
             TT_Close_Face( FACE );
             trueTypeVars->entry.TTOE_fontFileName[0] = 0;
         }

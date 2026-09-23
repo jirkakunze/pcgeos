@@ -429,18 +429,18 @@ EC_ERROR_IF( _face->instance, TT_Err_Invalid_Face_Handle );
 
     error = Instance_Create( _ins, _face );
     if ( error )
-        goto Fail;
+        goto FailDestroy;
 
     error = Instance_Init( _ins );
     if ( error )
-    {
-        Instance_Destroy( _ins );
-        goto Fail;
-    }
+        goto FailDestroy;
 
     _face->instance = _ins;
     HANDLE_Set( *instance, _ins );
     return TT_Err_Ok;
+
+FailDestroy:
+    Instance_Destroy(_ins);
 
 Fail:
     FREE( _ins );
@@ -501,39 +501,6 @@ EC(     ECCheckBounds( ins ) );
         return Instance_Reset( ins );
 }
 
-/*******************************************************************
- *
- *  Function    :  TT_Done_Instance
- *
- *  Description :  Closes a given instance.
- *
- *  Input  :  instance      address of instance handle
- *
- *  Output :  void
- *
- *  MT-Safe : YES!
- *
- ******************************************************************/
-
-EXPORT_FUNC
-void  TT_Done_Instance( TT_Instance  instance )
-{
-    PInstance  ins = HANDLE_Instance( instance );
-    PFace      face;
-
-
-EC( ECCheckBounds( ins ) );
-
-    face = ins->owner;
-
-EC( ECCheckBounds( face ) );
-EC_ERROR_IF( face->instance != ins, TT_Err_Invalid_Instance_Handle );
-
-    face->instance = NULL;
-
-    Instance_Destroy( ins );
-    FREE( ins );
-}
 
 /*******************************************************************
  *
@@ -584,38 +551,6 @@ EC( ECCheckBounds( _glyph ) );
     return TT_Err_Ok;
 }
 
-/*******************************************************************
- *
- *  Function    :  TT_Done_Glyph
- *
- *  Description :  Destroys a given glyph object.
- *
- *  Input  :  glyph  the glyph handle
- *
- *  Output :  Error code.
- *
- *  MT-Safe : YES!
- *
- ******************************************************************/
-
-  EXPORT_FUNC
-  void  TT_Done_Glyph( TT_Glyph  glyph )
-  {
-    PGlyph  _glyph = HANDLE_Glyph( glyph );
-    PFace   face;
-
-
-EC( ECCheckBounds( _glyph ) );
-
-    face = _glyph->face;
-
-EC_ERROR_IF( !face, TT_Err_Invalid_Glyph_Handle );
-EC_ERROR_IF( face->glyph != _glyph, TT_Err_Invalid_Glyph_Handle );
-
-    face->glyph = NULL;
-    Glyph_Destroy( _glyph );
-    FREE( _glyph );
-  }
 
 /*******************************************************************
  *
