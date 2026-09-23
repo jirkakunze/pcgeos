@@ -1125,7 +1125,7 @@ EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
     if ( !cmap )
       return 0;  /* we return 0 in case of invalid char map */
 
-    return CharMap_Index( cmap, charCode );
+    return code_to_index4( charCode, &cmap->c.cmap4 );
   }
 #pragma code_seg()
 
