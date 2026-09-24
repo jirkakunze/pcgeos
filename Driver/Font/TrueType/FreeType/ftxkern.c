@@ -492,8 +492,7 @@ EC( ECCheckBounds( directory ) );
     if( error )
       return error;
 
-//    if ( sub->format == 0 )
-      error = Subtable_Load_0( &sub->t.kern0, faze );
+    error = Subtable_Load_0( &sub->t.kern0, faze );
 #ifdef TT_CONFIG_OPTION_SUPPORT_KERN2
     else if ( sub->format == 2 )
       error = Subtable_Load_2( &sub->t.kern2, faze );

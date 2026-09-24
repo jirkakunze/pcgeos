@@ -909,8 +909,6 @@ EC( ECCheckBounds( ins ) );
 
 
     face->stream   = input->stream;
-    face->instance = NULL;
-    face->glyph    = NULL;
 
     /* Load collection directory if present, then font directory */
 

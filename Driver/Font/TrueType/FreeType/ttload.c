@@ -527,11 +527,6 @@
 
     header->number_Of_HMetrics = GET_UShort();
 
-    FORGET_Frame();
-
-    header->long_metrics_block  = NullHandle;
-    header->short_metrics_block = NullHandle;
-
     /* Now try to load the corresponding metrics */
 
 #ifdef TT_CONFIG_OPTION_PROCESS_VMTX
@@ -793,11 +788,7 @@
 
 
     if ( ( n = TT_LookUp_Table( face, TTAG_cvt ) ) < 0 )
-    {
-      face->cvtSize = 0;
-      face->cvt     = NULL;
       return TT_Err_Ok;
-    }
 
     face->cvtSize = face->dirTables[n].Length >> 1;
 
@@ -929,34 +920,22 @@
 
 
     /* The font program is optional */
-    if ( ( n = TT_LookUp_Table( face, TTAG_fpgm ) ) < 0 )
-    {
-      face->fontProgram = NULL;
-      face->fontPgmSize = 0;
-    }
-    else
+    if ( ( n = TT_LookUp_Table( face, TTAG_fpgm ) ) >= 0 )
     {
       face->fontPgmSize = face->dirTables[n].Length;
 
-      if ( ALLOC( face->fontProgram,
-                  face->fontPgmSize )              ||
+      if ( ALLOC( face->fontProgram, face->fontPgmSize ) ||
            FILE_Read_At( face->dirTables[n].Offset,
                          (void*)face->fontProgram,
                          face->fontPgmSize )       )
         return error;
     }
 
-    if ( ( n = TT_LookUp_Table( face, TTAG_prep ) ) < 0 )
-    {
-      face->cvtProgram = NULL;
-      face->cvtPgmSize = 0;
-    }
-    else
+    if ( ( n = TT_LookUp_Table( face, TTAG_prep ) ) >= 0 )
     {
       face->cvtPgmSize = face->dirTables[n].Length;
 
-      if ( ALLOC( face->cvtProgram,
-                  face->cvtPgmSize )               ||
+      if ( ALLOC( face->cvtProgram, face->cvtPgmSize ) ||
            FILE_Read_At( face->dirTables[n].Offset,
                          (void*)face->cvtProgram,
                          face->cvtPgmSize )        )
