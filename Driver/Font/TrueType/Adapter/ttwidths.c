@@ -678,7 +678,6 @@ EC(     ECCheckBounds( (void*)fontBuf ) );
         /* initialize transMatrix */
         transMatrix->TM_heightX    = 0;
         transMatrix->TM_scriptX    = 0;
-        transMatrix->TM_heightY    = 0;
         transMatrix->TM_scriptY    = 0;
         transMatrix->TM_resolution = 72;
 
