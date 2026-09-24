@@ -335,7 +335,6 @@ EC( ECCheckBounds( pairs ) );
       if ( ACCESS_Frame( 6 ) )
         return error;
 
-      sub->loaded   = FALSE;             /* redundant, but good to see */
 #ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
       sub->version  = GET_UShort();
 #else
@@ -399,22 +398,7 @@ EC( ECCheckBounds( pairs ) );
     for ( n = 0; n < directory->nTables; ++n )
     {
       if ( sub->loaded )
-      {
-        switch ( sub->format )
-        {
-          case 0:
-            GEO_FREE( sub->t.kern0.pairsBlock );
-            break;
-
-#ifdef TT_CONFIG_OPTION_SUPPORT_KERN2
-          case 2:
-            FREE( sub->t.kern2.leftClass.classes );
-            FREE( sub->t.kern2.rightClass.classes );
-            FREE( sub->t.kern2.array );
-            break;
-#endif
-        }
-      }
+        GEO_FREE( sub->t.kern0.pairsBlock );
       ++sub;
     }
 
@@ -508,7 +492,7 @@ EC( ECCheckBounds( directory ) );
     if( error )
       return error;
 
-    if ( sub->format == 0 )
+//    if ( sub->format == 0 )
       error = Subtable_Load_0( &sub->t.kern0, faze );
 #ifdef TT_CONFIG_OPTION_SUPPORT_KERN2
     else if ( sub->format == 2 )
@@ -518,7 +502,6 @@ EC( ECCheckBounds( directory ) );
     if ( !error )
       sub->loaded = TRUE;
 
-  Fail:
     return error;
   }
 
