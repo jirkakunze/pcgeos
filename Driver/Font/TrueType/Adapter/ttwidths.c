@@ -705,7 +705,7 @@ EC(     ECCheckBounds( (void*)fontBuf ) );
 
 
                 styleMatrix.xx = GrMulWWFixed( styleMatrix.xx, SCRIPT_FACTOR );
-                styleMatrix.yy = GrMulWWFixed( styleMatrix.yy, SCRIPT_FACTOR );
+                styleMatrix.yy = SCRIPT_FACTOR;
 
                 if( stylesToImplement & TS_SUBSCRIPT )
                 {
