@@ -650,12 +650,11 @@
   PExecution_Context  New_Context( PFace  face );
 
   LOCAL_DEF
-  TT_Error  Done_Context( PExecution_Context  exec );
+  void      Done_Context( );
 
 
   LOCAL_DEF
   TT_Error  Context_Load( PExecution_Context  exec,
-                          PFace               face,
                           PInstance           ins );
 
   LOCAL_DEF

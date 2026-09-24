@@ -62,15 +62,9 @@ extern TEngine_Instance engineInstance;
  ******************************************************************/
 
   LOCAL_FUNC
-  TT_Error  Done_Context( PExecution_Context  exec )
+  void  Done_Context( )
   {
-    if ( exec != engineInstance.exec )
-        return TT_Err_Invalid_Argument;
-
-    exec->face     = NULL;
     engineInstance.exec_in_use = FALSE;
-
-    return TT_Err_Ok;
   }
 
 
@@ -343,13 +337,12 @@ extern TEngine_Instance engineInstance;
 
   LOCAL_FUNC
   TT_Error Context_Load( PExecution_Context  exec,
-                         PFace               face,
                          PInstance           ins )
   {
+    PFace         face = exec->face;
     TMaxProfile*  maxp;
     TT_Error      error;
 
-    exec->face     = face;
     maxp           = &face->maxProfile;
 
     if ( ins )
@@ -643,7 +636,7 @@ EC( ECCheckBounds( exec ) );
     ins->numIDefs = 0;
     ins->maxFunc  = -1;
 
-    Context_Load( exec, face, ins );
+    Context_Load( exec, ins );
 
     exec->callTop   = 0;
     exec->top       = 0;
@@ -687,7 +680,7 @@ EC( ECCheckBounds( exec ) );
 
   Fin:
     Context_Save( exec, ins );
-    Done_Context( exec );
+    Done_Context( );
     ins->valid = FALSE;
 
     return error;
@@ -744,7 +737,7 @@ EC( ECCheckBounds( ins ) );
     if ( !exec )
       return TT_Err_Could_Not_Find_Context;
 
-    Context_Load( exec, face, ins );
+    Context_Load( exec, ins );
 
 #ifdef DEBUG_INTERPRETER
     exec->instruction_trap = FALSE;
@@ -769,7 +762,7 @@ EC( ECCheckBounds( ins ) );
 
   Fin:
     Context_Save( exec, ins );
-    Done_Context( exec );
+    Done_Context( );
 
     if ( !error )
       ins->valid = TRUE;

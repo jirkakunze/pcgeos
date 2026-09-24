@@ -595,7 +595,7 @@ EC( ECCheckBounds( face ) );
 
 EC( ECCheckBounds( exec ) );
 
-    Context_Load( exec, face, instance );
+    Context_Load( exec, instance );
 
     if ( instance )
     {
@@ -1133,7 +1133,7 @@ EC( ECCheckBounds( exec ) );
     /* reset the execution context */
     exec->pts = base_pts;
 
-    Done_Context( exec );
+    Done_Context( );
 
     return error;
   }
