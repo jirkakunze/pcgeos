@@ -494,9 +494,6 @@ EC(     ECCheckBounds(indices) );
                 if( TT_Load_Kerning_Table( FACE, &kerningDir, table) )
                         continue;
 
-                if( subtable->format != 0 )
-                        continue;
-
 EC(             ECCheckMemHandle( subtable->t.kern0.pairsBlock) );
 
                 pairs = GEO_LOCK(subtable->t.kern0.pairsBlock);
