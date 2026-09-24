@@ -318,13 +318,15 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
 
                 /* get glyph index of currentChar */
                 charIndex = TT_Char_Index( CHAR_MAP, GeosCharToUnicode( currentChar ) );
+
+                charTableEntry->CTE_usage = 0;
+
                 if ( !charIndex )
                 {
                         charTableEntry->CTE_flags          = CTF_NO_DATA;
                         charTableEntry->CTE_dataOffset     = CHAR_NOT_EXIST;
                         charTableEntry->CTE_width.WBF_int  = 0;
                         charTableEntry->CTE_width.WBF_frac = 0;
-                        charTableEntry->CTE_usage          = 0;
                 }
                 else
                 {
@@ -338,10 +340,8 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
                         charTableEntry->CTE_width.WBF_int  = INTEGER_OF_WWFIXEDASDWORD( scaledWidth );
                         charTableEntry->CTE_width.WBF_frac = FRACTION_OF_WWFIXEDASDWORD( scaledWidth );
                         charTableEntry->CTE_dataOffset     = CHAR_NOT_BUILT;
-                        charTableEntry->CTE_usage          = 0;
                         charTableEntry->CTE_flags          = 0;
                 
-               
                         /* set flags in CTE_flags if needed */
                         if( glyphMetrics.bbox.xMin < 0 )
                                 charTableEntry->CTE_flags |= CTF_NEGATIVE_LSB;
