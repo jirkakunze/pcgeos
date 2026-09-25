@@ -77,11 +77,6 @@ static void AdjustTransMatrix( TransformMatrix* transMatrix,
                                     fontHeader->FH_numChars * sizeof( CharTableEntry) + \
                                     sizeof( TransformMatrix ) )
 
-#define OFFSET_KERN_VALUES        ( sizeof(FontBuf) +                                   \
-                                    fontHeader->FH_numChars * sizeof( CharTableEntry) + \
-                                    sizeof( TransformMatrix ) +                         \
-                                    fontHeader->FH_kernCount * sizeof( KernPair ) )
-
 
 /********************************************************************
  *                      TrueType_Gen_Widths
@@ -210,10 +205,19 @@ EC(             ECCheckBounds( (void*) fontBuf ) );
                 fontBuf->FB_firstChar    = fontHeader->FH_firstChar;
                 fontBuf->FB_lastChar     = fontHeader->FH_lastChar;
                 fontBuf->FB_defaultChar  = fontHeader->FH_defaultChar;
-
                 fontBuf->FB_kernCount    = fontHeader->FH_kernCount;
-                fontBuf->FB_kernPairs    = fontHeader->FH_kernCount ? OFFSET_KERN_PAIRS : 0;
-                fontBuf->FB_kernValues   = fontHeader->FH_kernCount ? OFFSET_KERN_VALUES : 0;
+
+                if( fontBuf->FB_kernCount )
+                {
+                        fontBuf->FB_kernPairs = OFFSET_KERN_PAIRS;
+                        fontBuf->FB_kernValues = fontBuf->FB_kernPairs +
+                                                 fontBuf->FB_kernCount * sizeof( KernPair );
+                }
+                else
+                {
+                        fontBuf->FB_kernPairs  = 0;
+                        fontBuf->FB_kernValues = 0;
+                }
 
                 /* calculate scale factor */
                 CalcScaleForWidths( trueTypeVars, pointSize, stylesToImplement, width, weight );
