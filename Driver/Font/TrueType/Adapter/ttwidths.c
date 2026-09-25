@@ -67,8 +67,6 @@ static Boolean IsRegionNeeded( TransformMatrix* transMatrix,
 
 extern void InitConvertHeader( TRUETYPE_VARS, FontHeader* fontHeader );
 
-static void FillKerningFlags( FontHeader* fontHeader, FontBuf* fontBuf );
-
 static void AdjustTransMatrix( TransformMatrix* transMatrix, 
                                FontMatrix* windowMatrix );
 
@@ -225,13 +223,11 @@ EC(             ECCheckBounds( (void*) fontBuf ) );
                 /* convert FontHeader and fill FontBuf structure */
                 ConvertHeader( trueTypeVars, fontBuf, pointSize );
 
-                /* fill kerning pairs and kerning values */
-                ConvertKernPairs( trueTypeVars, fontBuf );
-
                 /* convert widths and fill CharTableEntries */
                 ConvertWidths( trueTypeVars, fontHeader, fontBuf );
 
-                FillKerningFlags( fontHeader, fontBuf ); 
+                /* fill kerning pairs, values and character flags */
+                ConvertKernPairs( trueTypeVars, fontBuf );
 
                 /* calculate the transformation matrix and copy it into the FontBlock */
                 transMatrix = (TransformMatrix*)(((byte*)fontBuf) + sizeof( FontBuf ) + fontHeader->FH_numChars * sizeof( CharTableEntry ));
@@ -363,61 +359,6 @@ EC(             ECCheckBounds( (void*)charTableEntry ) );
 
 
 /********************************************************************
- *                      FillKerningFlags
- ********************************************************************
- * SYNOPSIS:       Updates the character table entries in the font
- *                 buffer to indicate which characters are involved
- *                 in kerning pairs.
- * 
- * PARAMETERS:     FontHeader* fontHeader
- *                    Pointer to the FontHeader structure containing
- *                    metadata about the character set.
- * 
- *                 FontBuf* fontBuf
- *                    Pointer to the FontBuf structure, which contains
- *                    character table entries and kerning pair information.
- * 
- * RETURNS:        void
- * 
- * STRATEGY:       - Retrieve the kerning pairs and character table 
- *                   entries from the font buffer.
- *                 - Iterate over each kerning pair to find the left 
- *                   and right characters involved.
- *                 - Set the appropriate flags in the corresponding 
- *                   character table entries.
- * 
- * REVISION HISTORY:
- *      Date      Name      Description
- *      ----      ----      -----------
- *      18.09.24  JK        Initial Revision
- *******************************************************************/
-
-static void FillKerningFlags( FontHeader* fontHeader, FontBuf* fontBuf ) 
-{
-        word             i;
-        const KernPair*  const kernPairs = (const KernPair*) ( ( (const byte*)fontBuf ) + fontBuf->FB_kernPairs );
-        CharTableEntry*  const charTableEntries = (CharTableEntry*) ( ( (byte*)fontBuf ) + sizeof( FontBuf ));
-
-EC(     ECCheckStack() );
-EC(     ECCheckBounds( (void*)kernPairs ) );
-EC(     ECCheckBounds( charTableEntries ) );
-
-        for( i = 0; i < fontBuf->FB_kernCount; ++i )
-        {
-                const unsigned char  indexLeftChar  = kernPairs[i].KP_charLeft - fontHeader->FH_firstChar;
-                const unsigned char  indexRightChar = kernPairs[i].KP_charRight - fontHeader->FH_firstChar;
-
-
-EC_ERROR_IF(    indexLeftChar  > fontHeader->FH_lastChar - fontHeader->FH_firstChar, CHARINDEX_OUT_OF_BOUNDS );
-EC_ERROR_IF(    indexRightChar > fontHeader->FH_lastChar - fontHeader->FH_firstChar, CHARINDEX_OUT_OF_BOUNDS );
-
-                charTableEntries[indexLeftChar].CTE_flags  |= CTF_IS_FIRST_KERN;
-                charTableEntries[indexRightChar].CTE_flags |= CTF_IS_SECOND_KERN;
-        }
-}
-
-
-/********************************************************************
  *                      ConvertKernPairs
  ********************************************************************
  * SYNOPSIS:       Converts the kerning pairs for a TrueType font, 
@@ -461,6 +402,7 @@ ConvertKernPairs( TRUETYPE_VARS, FontBuf* fontBuf )
         char              left, right;
         KernPair*         kernPair;
         BBFixed*          kernValue;
+        CharTableEntry*   charTableEntries;
 
 
         /* Nothing to convert if no kerning pairs */
@@ -469,10 +411,12 @@ ConvertKernPairs( TRUETYPE_VARS, FontBuf* fontBuf )
 
         kernPair = (KernPair*)(((byte*)fontBuf) + fontBuf->FB_kernPairs);
         kernValue = (BBFixed*)(((byte*)fontBuf) + fontBuf->FB_kernValues);
+        charTableEntries = (CharTableEntry*)(((byte*)fontBuf) + sizeof(FontBuf));
 
 EC(     ECCheckBounds((void*)trueTypeVars) );
 EC(     ECCheckBounds((void*)kernPair) );
 EC(     ECCheckBounds((void*)kernValue) );
+EC(     ECCheckBounds((void*)charTableEntries) );
 
         /* load kerning directory */
         if( TT_Load_Kerning_Directory(FACE, &kerningDir) )
@@ -527,6 +471,14 @@ EC(             ECCheckBounds(pairs) );
 
                         kernPair->KP_charLeft  = left;
                         kernPair->KP_charRight = right;
+
+EC(                     EC_ERROR_IF( (unsigned char)(left - fontBuf->FB_firstChar) >
+                                        fontBuf->FB_lastChar - fontBuf->FB_firstChar, CHARINDEX_OUT_OF_BOUNDS ) );
+EC(                     EC_ERROR_IF( (unsigned char)(right - fontBuf->FB_firstChar) >
+                                        fontBuf->FB_lastChar - fontBuf->FB_firstChar, CHARINDEX_OUT_OF_BOUNDS ) );
+
+                        charTableEntries[(unsigned char)(left - fontBuf->FB_firstChar)].CTE_flags |= CTF_IS_FIRST_KERN;
+                        charTableEntries[(unsigned char)(right - fontBuf->FB_firstChar)].CTE_flags |= CTF_IS_SECOND_KERN;
 
                         /* save scaled kerning value */
                         scaledKernValue = SCALE_WORD( pairs[i].value, SCALE_WIDTH );
