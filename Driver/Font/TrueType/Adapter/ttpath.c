@@ -129,7 +129,7 @@ void _pascal TrueType_Gen_Path(
         TrueTypeVars*          trueTypeVars;
         TrueTypeOutlineEntry*  trueTypeOutline;
         FontHeader*            fontHeader;
-        TT_Outline             outline;
+        TT_Outline*            outline;
         TransMatrix            transMatrix;
         TT_UShort              charIndex;
         WWFixedAsDWord         pointSize;
@@ -173,8 +173,8 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         
         /* load glyph and scale its outline to 1000 units per em */
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, TTLOAD_HINT_GLYPH );
-        TT_Get_Glyph_Outline( GLYPH, &outline );
-        CalcScaleAndScaleOutline( trueTypeVars, &outline );
+        outline = TT_Get_Glyph_Outline( GLYPH );
+        CalcScaleAndScaleOutline( trueTypeVars, outline );
 
         /* write comment with glyph parameters */
         WriteComment( trueTypeVars, gstate );
@@ -224,7 +224,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         renderFunctions.Proc_ConicTo = ConicTo;
         
         /* convert outline into GrDraw...() calls */
-        ConvertOutline( gstate, &outline, &renderFunctions );
+        ConvertOutline( gstate, outline, &renderFunctions );
 
         /* write epilogue */
         if( pathFlags & FGPF_SAVE_STATE )
@@ -277,7 +277,7 @@ void _pascal TrueType_Gen_In_Region(
         TrueTypeVars*          trueTypeVars;
         FontHeader*            fontHeader;
         TrueTypeOutlineEntry*  trueTypeOutline;
-        TT_Outline             outline;
+        TT_Outline*            outline;
         TT_UShort              charIndex;
         RenderFunctions        renderFunctions;
         TransformMatrix        transform;
@@ -315,7 +315,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
 
         /* load glyph */
         TT_Load_Glyph( INSTANCE, GLYPH, charIndex, 0 );
-        TT_Get_Glyph_Outline( GLYPH, &outline );
+        outline = TT_Get_Glyph_Outline( GLYPH );
 
         /* store font matrix */
         InitDriversTransformMatrix( trueTypeVars, &transform, pointSize, stylesToImplement, width, weight );
@@ -326,9 +326,9 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         result = GrTransform( gstate, DWORD_X(cursorPos), DWORD_Y(cursorPos) );
 
         /* transform glyphs outline */
-        TT_Transform_Outline( &outline, &transform.TM_matrix );
-        TT_Transform_Outline( &outline, &flipMatrix );
-        TT_Translate_Outline( &outline, DWORD_X(result) + transform.TM_heightX + transform.TM_scriptX, 
+        TT_Transform_Outline( outline, &transform.TM_matrix );
+        TT_Transform_Outline( outline, &flipMatrix );
+        TT_Translate_Outline( outline, DWORD_X(result) + transform.TM_heightX + transform.TM_scriptX, 
                                         DWORD_Y(result) + transform.TM_heightY + transform.TM_scriptY );
 
         /* set render functions */
@@ -336,7 +336,7 @@ EC(     ECCheckBounds( (void*)fontHeader ) );
         renderFunctions.Proc_LineTo  = RegionPathLineTo;
         renderFunctions.Proc_ConicTo = RegionPathConicTo;
 
-        ConvertOutline( regionPath, &outline, &renderFunctions );
+        ConvertOutline( regionPath, outline, &renderFunctions );
 
 Fail:
         TrueType_Unlock_Face( trueTypeVars );

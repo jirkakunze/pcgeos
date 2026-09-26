@@ -1029,8 +1029,12 @@
 #endif
 
     os2->sTypoAscender       = GET_Short();
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     os2->sTypoDescender      = GET_Short();
     os2->sTypoLineGap        = GET_Short();
+#else
+    SKIP( 4 );
+#endif
     os2->usWinAscent         = GET_UShort();
     os2->usWinDescent        = GET_UShort();
 

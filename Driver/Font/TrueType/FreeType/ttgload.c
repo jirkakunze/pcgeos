@@ -634,8 +634,6 @@ EC( ECCheckBounds( exec ) );
 
     /* now access stream */
 
-    /*if ( USE_Stream( face->stream, stream ) )
-      goto Fin;*/
     stream = face->stream;
 
     /* Main loading loop */
@@ -1057,6 +1055,14 @@ EC( ECCheckBounds( exec ) );
 
     exec->pts = base_pts;
 
+#ifdef __GEOS__
+    /* Execution context persists between glyph loads. Use its arrays        */
+    /* directly instead of copying the outline into a second set of buffers. */
+    glyph->outline.points   = exec->pts.cur;
+    glyph->outline.flags    = exec->pts.touch;
+    glyph->outline.contours = exec->pts.contours;
+    //glyph->outline.owner    = FALSE;
+#else
     for ( u = 0; u < num_points + 2; ++u )
     {
       glyph->outline.points[u] = exec->pts.cur[u];
@@ -1065,6 +1071,7 @@ EC( ECCheckBounds( exec ) );
 
     for ( k = 0; k < num_contours; ++k )
       glyph->outline.contours[k] = exec->pts.contours[k];
+#endif
 
     glyph->outline.n_points    = num_points;
     glyph->outline.n_contours  = num_contours;
@@ -1127,8 +1134,6 @@ EC( ECCheckBounds( exec ) );
 
   Fail_File:
   Fail:
-
-  Fin:
 
     /* reset the execution context */
     exec->pts = base_pts;

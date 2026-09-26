@@ -156,8 +156,10 @@
     /* TT_New_Outline() API, while it isn't for those returned by        */
     /* TT_Get_Glyph_Outline().                                           */
 
+#ifndef __GEOS__
     TT_Bool          owner;      /* The outline owns the coordinates, */
                                  /* flags and contours array it uses. */
+#endif
 
     /* The following flags are set automatically by                      */
     /* TT_Get_Glyph_Outline().  Their meaning is the following:          */
@@ -464,8 +466,10 @@
 #endif
 
     TT_Short   sTypoAscender;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS    
     TT_Short   sTypoDescender;
     TT_Short   sTypoLineGap;
+#endif
     TT_UShort  usWinAscent;
     TT_UShort  usWinDescent;
 
@@ -745,8 +749,7 @@
   /* it.  The client application should _not_ change the pointers.       */
 
   EXPORT_DEF
-  void  TT_Get_Glyph_Outline( TT_Glyph     glyph,
-                              TT_Outline*  outline );
+  TT_Outline*  TT_Get_Glyph_Outline( TT_Glyph     glyph );
 
 
   /* Copy the glyph metrics into `metrics'. */
@@ -767,16 +770,16 @@
   /* Allocate a new outline.  Reserve space for `numPoints' and */
   /* `numContours'.                                             */
 
-  EXPORT_DEF
+  /*EXPORT_DEF
   TT_Error  TT_New_Outline( TT_UShort    numPoints,
                             TT_Short     numContours,
-                            TT_Outline*  outline );
+                            TT_Outline*  outline );*/
 
 
   /* Release an outline. */
 
-  EXPORT_DEF
-  void      TT_Done_Outline( TT_Outline*  outline );
+  /*EXPORT_DEF
+  void      TT_Done_Outline( TT_Outline*  outline );*/
 
 
   /* Render an outline into a bitmap. */

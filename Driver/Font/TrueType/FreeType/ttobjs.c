@@ -810,7 +810,9 @@ EC( ECCheckBounds( ins ) );
 
     if ( face->glyph )
     {
+#ifndef __GEOS__
       Glyph_Destroy( face->glyph );
+#endif
       FREE( face->glyph );
       face->glyph = NULL;
     }
@@ -955,6 +957,7 @@ EC( ECCheckBounds( ins ) );
 
 #undef LOAD_
 
+#ifndef __GEOS__
 #pragma code_seg(ttapi_TEXT)
 
 /*******************************************************************
@@ -977,12 +980,14 @@ EC( ECCheckBounds( ins ) );
 
     if ( !glyph )
       return;
-
+#ifndef __GEOS__
     glyph->outline.owner = TRUE;
     TT_Done_Outline( &glyph->outline );
+#endif
   }
 
 #pragma code_seg()
+#endif
 
 /*******************************************************************
  *

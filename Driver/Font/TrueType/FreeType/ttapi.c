@@ -535,6 +535,11 @@ EC( ECCheckBounds( _glyph ) );
 
     _glyph->face = _face;
 
+#ifdef __GEOS__
+    /* GEOS driver uses the execution context's point arrays */
+    /* directly.  Do not allocate a second outline buffer.   */
+    //MEM_Set( &_glyph->outline, 0, sizeof ( TT_Outline ) );
+#else
     /* Don't forget the space for the 2 phantom points. */
     error = TT_New_Outline( _face->maxPoints + 2,
                             _face->maxContours,
@@ -544,6 +549,7 @@ EC( ECCheckBounds( _glyph ) );
         FREE( _glyph );
         return error;
     }
+#endif
 
     _face->glyph = _glyph;
     HANDLE_Set( *glyph, _glyph );
@@ -620,16 +626,15 @@ EC( ECCheckBounds( _glyph ) );
  ******************************************************************/
 
   EXPORT_FUNC
-  void  TT_Get_Glyph_Outline( TT_Glyph     glyph,
-                              TT_Outline*  outline )
+  TT_Outline*  TT_Get_Glyph_Outline( TT_Glyph     glyph )
   {
     PGlyph  _glyph = HANDLE_Glyph( glyph );
 
 
 EC( ECCheckBounds( _glyph ) );
 
-    *outline = _glyph->outline;
-    outline->owner = FALSE;
+    //*outline = _glyph->outline;
+    return &_glyph->outline;
   }
 
 
@@ -752,6 +757,7 @@ EC_ERROR_IF( index >= faze->numGlyphs, TT_Err_Invalid_Argument );
   }
 
 
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  TT_New_Outline
@@ -796,8 +802,9 @@ EC( ECCheckBounds( outline ) );
     TT_Done_Outline( outline );
     return error;
   }
+#endif
 
-
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  TT_Done_Outline
@@ -829,6 +836,7 @@ EC( ECCheckBounds( outline ) );
       MEM_Set( outline, 0, sizeof(TT_Outline) );
     }
   }
+#endif
 
 
 /*******************************************************************
