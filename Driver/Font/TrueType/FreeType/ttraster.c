@@ -215,6 +215,13 @@ extern TEngine_Instance engineInstance;
   struct  TRaster_Instance_
   {
     Int       precision_step;
+    Byte      dropOutControl;       /* current drop_out control method   */
+    Byte      state;                /* rendering state                   */
+    Byte      fresh;                /* signals a fresh new profile which */
+                                    /* 'start' field must be completed   */
+    Byte      joint;                /* signals that the last arc ended   */
+                                    /* exactly on a scanline.  Allows    */
+                                    /* removal of doublets               */
 
     MemHandle buffer;               /* The profiles bufferblock     */
     PStorage  sizeBuff;             /* Render pool size             */
@@ -238,16 +245,10 @@ extern TEngine_Instance engineInstance;
 
     UShort    num_Profs;            /* current number of profiles */
 
-    Bool      fresh;                /* signals a fresh new profile which */
-                                    /* 'start' field must be completed   */
-    Bool      joint;                /* signals that the last arc ended   */
-                                    /* exactly on a scanline.  Allows    */
-                                    /* removal of doublets               */
     PProfile  cProfile;             /* current profile                   */
     PProfile  fProfile;             /* head of linked list of profiles   */
     PProfile  gProfile;             /* contour's first profile in case   */
                                     /* of impact                         */
-    TStates   state;                /* rendering state */
 
     Int       bRows;                /* target bitmap height */
     Int       bCols;                /* target bitmap bytes per row */
@@ -265,10 +266,7 @@ extern TEngine_Instance engineInstance;
 
     TT_Vector*  coords;
 
-    Byte      dropOutControl;       /* current drop_out control method */
-
     TPoint    arcs[2 * MaxBezier + 1];  /* The Bezier stack */
-
     TBand     band_stack[MaxBand];     /* band stack used for sub-banding */
   };
 

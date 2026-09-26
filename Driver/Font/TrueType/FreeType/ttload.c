@@ -179,7 +179,6 @@
 #endif
 
     maxProfile->numGlyphs             = GET_UShort();
-
     maxProfile->maxPoints             = GET_UShort();
     maxProfile->maxContours           = GET_UShort();
     maxProfile->maxCompositePoints    = GET_UShort();
