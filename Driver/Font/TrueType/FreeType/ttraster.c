@@ -751,7 +751,8 @@ extern TEngine_Instance engineInstance;
       if ( y2 > e )
       {
         y1 = arc[2].y;
-        if ( y2 - y1 >= ras.precision_step )
+        e0 = y2 - y1;
+        if ( e0 >= ras.precision_step )
         {
           Split_Bezier( arc );
           arc += 2;
@@ -760,7 +761,7 @@ extern TEngine_Instance engineInstance;
         {
           *top++ = arc[2].x + FMulDiv( arc[0].x - arc[2].x,
                                        e - y1,
-                                       y2 - y1 );
+                                       e0 );
 
           arc -= 2;
           e   += PRECISION;

@@ -1110,7 +1110,7 @@
     post->underlineThickness = GET_Short();
 #endif
 
-    post->isFixedPitch       = GET_ULong();
+    post->isFixedPitch       = GET_ULong() != 0;
 
 #ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     post->minMemType42       = GET_ULong();

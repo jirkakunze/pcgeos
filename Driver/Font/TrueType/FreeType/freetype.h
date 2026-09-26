@@ -498,7 +498,7 @@
     TT_FWord  underlineThickness;
 #endif
 
-    TT_ULong  isFixedPitch;
+    TT_Short  isFixedPitch;
     
 #ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     TT_ULong  minMemType42;
