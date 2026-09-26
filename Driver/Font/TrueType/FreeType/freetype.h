@@ -219,22 +219,6 @@
   typedef struct TT_Glyph_Metrics_  TT_Glyph_Metrics;
 
 
-  /* A structure used to return instance metrics. */
-
-  struct  TT_Instance_Metrics_
-  {
-    TT_F26Dot6  pointSize;     /* char. size in points (1pt = 1/72 inch) */
-
-    TT_UShort   x_ppem;        /* horizontal pixels per EM square */
-    TT_UShort   y_ppem;        /* vertical pixels per EM square   */
-
-    TT_UShort   x_resolution;  /* device horizontal resolution in dpi */
-    TT_UShort   y_resolution;  /* device vertical resolution in dpi   */
-  };
-
-  typedef struct TT_Instance_Metrics_  TT_Instance_Metrics;
-
-
   /* Flow constants:                                             */
   /*                                                             */
   /* The flow of a bitmap refers to the way lines are oriented   */
