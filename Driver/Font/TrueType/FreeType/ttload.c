@@ -1086,9 +1086,16 @@
     if ( ( i = TT_LookUp_Table( face, TTAG_post ) ) < 0 )
       return TT_Err_Post_Table_Missing;
 
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     if ( FILE_Seek( face->dirTables[i].Offset ) ||
          ACCESS_Frame( 32 ) )
       return error;
+#else
+    if ( FILE_Seek( face->dirTables[i].Offset + 12 ) ||
+         ACCESS_Frame( 4 ) )
+      return error;
+#endif
+
 
     /* read frame data into face table */
 
@@ -1097,8 +1104,6 @@
     post->italicAngle        = GET_ULong();
     post->underlinePosition  = GET_Short();
     post->underlineThickness = GET_Short();
-#else
-    SKIP( 12 );
 #endif
 
     post->isFixedPitch       = GET_ULong();
