@@ -403,6 +403,7 @@ ConvertKernPairs( TRUETYPE_VARS, FontBuf* fontBuf )
         KernPair*         kernPair;
         BBFixed*          kernValue;
         CharTableEntry*   charTableEntries;
+        const word        minKernValue = UNITS_PER_EM / KERN_VALUE_DIVIDENT;
 
 
         /* Nothing to convert if no kerning pairs */
@@ -453,7 +454,7 @@ EC(             ECCheckBounds(pairs) );
                         WWFixedAsDWord scaledKernValue;
 
                         /* discard pairs with small kerning values */
-                        if( ABS(pairs[i].value) <= UNITS_PER_EM / KERN_VALUE_DIVIDENT )
+                        if( ABS(pairs[i].value) <= minKernValue )
                                 continue;
 
                         left  = GetGEOSCharForIndex( indices, pairs[i].left);
