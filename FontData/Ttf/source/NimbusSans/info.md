@@ -1,14 +1,14 @@
 # Font Documentation: NimbusSans
 
 ## 1. General Information
-* **Original File Name:** NimbusSans-Regular.ttf, NimbusSans-Italic.ttf, NimbusSans-Bold.ttf
-* **GEOS File Name:** nsansre.ttf, nsansri.ttf, nsansbo.ttf
+* **Original File Name:** NimbusSans-Regular.ttf, NimbusSans-Italic.ttf, NimbusSans-Bold.ttf, NimbusSans-BoldItalic.ttf
+* **GEOS File Name:** nsansre.ttf, nsansri.ttf, nsansbo.ttf, nsansbi.ttf
 * **License:** [https://github.com/ArtifexSoftware/urw-base35-fonts/blob/master/COPYING](https://github.com/ArtifexSoftware/urw-base35-fonts/blob/master/COPYING)
 * **Upstream Source:** https://github.com/ArtifexSoftware/urw-base35-fonts
 
 ## 2. PC/GEOS Specifics
 * **GEOS Font ID:** Mapped in geos.ini to 0x5200
-* **Supported Styles:** Regular, Italic, Bold
+* **Supported Styles:** Regular, Italic, Bold, Bold Italic
 
 ## 3. Modifications
 *Document any changes made to the original font for optimal display in PC/GEOS.*
@@ -25,4 +25,4 @@
 ## 4. Known Issues / To-Do
 
 ---
-*Last updated: 10.10.2026 by jkunze*
+*Last updated: 29.10.2026 by jkunze*
