@@ -3769,7 +3769,7 @@ PUSHB_1
 SHP[rp1]
 PUSHB_3
  4
- 4
+ 3
  0
 CALL
 PUSHB_5
@@ -4160,7 +4160,7 @@ PUSHB_2
 MIRP[min,black]
 PUSHB_3
  5
- 4
+ 3
  0
 CALL
 PUSHB_2
@@ -4237,7 +4237,7 @@ PUSHB_3
 CALL
 PUSHB_3
  3
- 4
+ 3
  0
 CALL
 PUSHB_2
@@ -4449,7 +4449,7 @@ PUSHB_1
 SHP[rp1]
 PUSHB_3
  4
- 4
+ 3
  0
 CALL
 PUSHB_1
@@ -4540,7 +4540,7 @@ PUSHB_3
 CALL
 PUSHB_3
  3
- 4
+ 3
  0
 CALL
 SVTCA[x-axis]
@@ -4750,7 +4750,7 @@ PUSHB_2
 MIRP[min,black]
 PUSHB_3
  5
- 4
+ 3
  0
 CALL
 SVTCA[x-axis]
@@ -4808,7 +4808,7 @@ SHP[rp1]
 SHP[rp1]
 PUSHB_3
  5
- 4
+ 3
  0
 CALL
 PUSHB_1
@@ -4908,7 +4908,7 @@ PUSHB_1
 SHP[rp1]
 PUSHB_3
  6
- 4
+ 3
  0
 CALL
 PUSHB_1
@@ -5663,7 +5663,7 @@ PUSHB_3
 CALL
 PUSHB_3
  5
- 4
+ 3
  0
 CALL
 PUSHB_2
@@ -5800,7 +5800,7 @@ PUSHB_3
 CALL
 PUSHB_3
  2
- 4
+ 3
  0
 CALL
 PUSHB_1
@@ -6031,7 +6031,7 @@ PUSHB_3
 CALL
 PUSHB_3
  4
- 4
+ 3
  0
 CALL
 PUSHB_1
@@ -6110,7 +6110,7 @@ PUSHB_2
 MIRP[min,black]
 PUSHB_3
  9
- 4
+ 3
  0
 CALL
 PUSHB_2
