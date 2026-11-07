@@ -496,7 +496,7 @@ extern TEngine_Instance engineInstance;
     { 0x4000, 0 },
     1, 64, 1,
     TRUE, 68, 0, 0, 9, 3,
-    0, FALSE, 2, 1, 1, 1
+    0, 2, 1, 1, 1
   };
 
 

@@ -195,7 +195,6 @@
     Short          delta_shift;
 
     Byte           instruct_control;
-    Bool           scan_control;
     Int            scan_type;
 
     UShort         gep0;

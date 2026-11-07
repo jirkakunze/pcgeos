@@ -74,6 +74,7 @@ static void _near RegionPathConicTo( Handle handle, const TT_Vector* v_control, 
 static void WriteComment( TRUETYPE_VARS, GStateHandle gstate );
 
 static void CalcScaleAndScaleOutline( TRUETYPE_VARS, TT_Outline* outline );
+static void CalcScaleAndScaleOutline( TRUETYPE_VARS, TT_Outline* outline );
 
 static void InitDriversTransformMatrix( TRUETYPE_VARS,
                                         TransformMatrix*  transMatrix,

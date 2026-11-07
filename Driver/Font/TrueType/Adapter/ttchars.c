@@ -161,11 +161,15 @@ EC(             ECCheckBounds( (void*)charData ) );
                 TT_Get_Outline_Region( outline, &rasterMap );
 
 EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
+EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
 
                 /* fill header of charData */
                 ((RegionCharData*)charData)->RCD_xoff = transformMatrix->TM_scriptX + 
                                                         transformMatrix->TM_heightX + ( glyphBBox.xMin >> 6 );
+                                                        transformMatrix->TM_heightX + ( glyphBBox.xMin >> 6 );
                 ((RegionCharData*)charData)->RCD_yoff = transformMatrix->TM_scriptY + 
+                                                        transformMatrix->TM_heightY - ( glyphBBox.yMax >> 6 ); 
+                ((RegionCharData*)charData)->RCD_size = rasterMap.size;
                                                         transformMatrix->TM_heightY - ( glyphBBox.yMax >> 6 ); 
                 ((RegionCharData*)charData)->RCD_size = rasterMap.size;
                 ((RegionCharData*)charData)->RCD_bounds.R_left   = 0;
@@ -173,6 +177,7 @@ EC_ERROR_IF(    size < rasterMap.size, ERROR_BITMAP_BUFFER_OVERFLOW );
                 ((RegionCharData*)charData)->RCD_bounds.R_top    = 0;
                 ((RegionCharData*)charData)->RCD_bounds.R_bottom = height;
 
+                size = rasterMap.size + SIZE_REGION_HEADER;
                 size = rasterMap.size + SIZE_REGION_HEADER;
         }
         else
