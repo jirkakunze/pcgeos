@@ -432,7 +432,7 @@ ShortTable: cvt  46
   168
   154
   211
-  168
+  180
   188
   208
   145
@@ -503,9 +503,9 @@ WinInfo: 22 11 6
 BeginPrivate: 11
 BlueFuzz 1 1
 StdHW 5 [168]
-StdVW 5 [168]
+StdVW 5 [180]
 StemSnapH 13 [154 168 211]
-StemSnapV 13 [168 188 208]
+StemSnapV 13 [180 188 208]
 ForceBold 5 false
 LanguageGroup 1 0
 BlueScale 5 0.019
