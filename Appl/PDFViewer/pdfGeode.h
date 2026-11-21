@@ -639,66 +639,7 @@ typedef struct LZWData
     long finchar;
 } LZWData;
 
-/* FlateStream */
-
-#define flateWindow 32768  /* buffer size */
-#define flateMask (flateWindow - 1)
-#define flateReadBufSize 128  /* GetChar cache; avoids lock/unlock per byte */
-#define flateMaxHuffman 15  /* max Huffman code length */
-#define flateMaxCodeLenCodes 19 /* max # code length codes */
-#define flateMaxLitCodes 288    /* max # literal codes */
-#define flateMaxDistCodes 30    /* max # distance codes */
-
-/* Huffman code table entry */
-/*
- * All three fields narrowed from the original all-`long` layout : - code
- * (word): assigned either from a small loop index (safe) or from nextCode[]
- * in.
- */
-typedef struct FlateCode
-{
-    word code; /* code word */
-    word val; /* value represented by this code */
-    Guchar len; /* code length in bits */
-} FlateCode;
-
-/* Huffman code table */
-typedef struct FlateHuffmanTab
-{
-    long start[flateMaxHuffman + 2]; /* indexes of first code of each length */
-    FlateCode *codes; /* codes, sorted by length and code word */
-} FlateHuffmanTab;
-
-/* Decoding info for length and distance code words */
-typedef struct FlateDecode
-{
-    long bits; /* # extra bits */
-    long first; /* first length/distance */
-} FlateDecode;
-
-typedef struct FlateData
-{
-
-    MemHandle bufhan; /* output data buffer */
-    long index; /* current index into output buffer */
-    long remain; /* number valid bytes in output buffer */
-    long codeBuf; /* input buffer */
-    long codeSize; /* number of bits in input buffer */
-    FlateCode /* literal and distance codes */
-    allCodes[flateMaxLitCodes + flateMaxDistCodes];
-    FlateHuffmanTab litCodeTab; /* literal code table */
-    FlateHuffmanTab distCodeTab; /* distance code table */
-    GBool compressedBlock; /* set if reading a compressed block */
-    long blockLen; /* remaining length of uncompressed block */
-    GBool endOfBlock; /* set when end of block is reached */
-    GBool eof; /* set when end of stream is reached */
-
-    /* Keep the 32 KB window movable; lock it only while refilling the cache. */
-    Guchar readBuf[flateReadBufSize];
-    word readIndex;
-    word readCount;
-
-} FlateData;
+/* FlateStream: FlateData is private to main/stream.goc (wraps zlib) */
 
 /* ASCII85Stream */
 

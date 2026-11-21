@@ -46,6 +46,31 @@
 #include <ctype.h>
 #include <ec.h>
 #include <hugearr.h>
+#include <zlib.h>
+
+/*
+ * FlateStream: thin wrapper around the zlib library. The z_stream and both
+ * buffers live in one heap block (process stack is only 3000 bytes);
+ * zlib's own state (32 KB window + tables, fixed malloc memory) is only
+ * held while the stream is actually being read: the parser creates a
+ * filter chain for every stream object it meets, most of them are never
+ * read or only briefly.
+ */
+#define flateInBufSize 1024     /* compressed bytes per StreamRead */
+#define flateReadBufSize 256    /* GetChar/LookChar cache */
+#define flateWindowBits 15      /* PDF writers use the full 32 KB window */
+
+typedef struct FlateData
+{
+    z_stream strm;
+    GBool zInit;        /* strm holds zlib state (window allocated) */
+    GBool eof;          /* zlib stream ended (or failed) */
+    GBool inEof;        /* no more compressed input */
+    word readIndex;
+    word readCount;
+    Guchar inBuf[flateInBufSize];
+    Guchar readBuf[flateReadBufSize];
+} FlateData;
 
 #define PDF_MAX_CCITT_COLUMNS 32765L
 #define PDF_MAX_PREDICTOR_VALUES 32760L
@@ -56,16 +81,8 @@
 static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
     XRef *xref);
 
-static void FlateStreamReadSome(Stream *str);
 static word FlateStreamReadRaw(Stream *str, Guchar *buf, word size);
-static long FlateStreamReadByte(Stream *str);
-static GBool FlateStreamStartBlock(Stream *str);
-static void FlateStreamLoadFixedCodes(Stream *str);
-static GBool FlateStreamReadDynamicCodes(Stream *str);
-static GBool FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab,
-    word n);
-static long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab);
-static long FlateStreamGetCodeWord(Stream *str, long bits);
+static void FlateStreamEndZlib(FlateData *fd);
 
 static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     long colors, long bits);
@@ -6759,213 +6776,117 @@ static long RC4StreamLookChar(Stream *str)
 #pragma code_seg("FlateStream")
 #endif
 
-@start FLATEDATA, data;
+/***********************************************************************
+ *      FlateStreamEndZlib
+ ***********************************************************************
+ * SYNOPSIS:        Free zlib's state (window), if it is allocated.
+ ***********************************************************************/
 
-@chunk short codeLenCodeMap_[flateMaxCodeLenCodes] = {
-    16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
-};
-
-@chunk FlateDecode lengthDecode_[flateMaxLitCodes - 257] = {
-    {0, 3},
-        {0, 4},
-        {0, 5},
-        {0, 6},
-        {0, 7},
-        {0, 8},
-        {0, 9},
-        {0, 10},
-        {1, 11},
-        {1, 13},
-        {1, 15},
-        {1, 17},
-        {2, 19},
-        {2, 23},
-        {2, 27},
-        {2, 31},
-        {3, 35},
-        {3, 43},
-        {3, 51},
-        {3, 59},
-        {4, 67},
-        {4, 83},
-        {4, 99},
-        {4, 115},
-        {5, 131},
-        {5, 163},
-        {5, 195},
-        {5, 227},
-        {0, 258}
-};
-
-@chunk FlateDecode distDecode_[flateMaxDistCodes] = {
-    { 0, 1},
-        { 0, 2},
-        { 0, 3},
-        { 0, 4},
-        { 1, 5},
-        { 1, 7},
-        { 2, 9},
-        { 2, 13},
-        { 3, 17},
-        { 3, 25},
-        { 4, 33},
-        { 4, 49},
-        { 5, 65},
-        { 5, 97},
-        { 6, 129},
-        { 6, 193},
-        { 7, 257},
-        { 7, 385},
-        { 8, 513},
-        { 8, 769},
-        { 9, 1025},
-        { 9, 1537},
-        {10, 2049},
-        {10, 3073},
-        {11, 4097},
-        {11, 6145},
-        {12, 8193},
-        {12, 12289},
-        {13, 16385},
-        {13, 24577}
-};
-
-@end FLATEDATA;
+static void FlateStreamEndZlib(FlateData *fd)
+{
+    if (fd->zInit)
+    {
+        inflateEnd(&fd->strm);
+        fd->zInit = gFalse;
+    }
+}
 
 /***********************************************************************
  *      FlateStreamInit
  ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
+ * SYNOPSIS:        Initialize a zlib based Flate decoder.
+ * PARAMETERS:      Stream *str     stream to set up
+ *                  Stream *str1    compressed data
  *
  * RETURNS:         void
  *
- * CONTEXT:
- *
  * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ *      Only the wrapper data is allocated here; zlib itself is set up by
+ *      FlateStreamReset when the stream is really read.
+ *      No StreamReset here: the parser builds the filter chain before it
+ *      has read "endstream" (see PredictorStreamWrap).
  ***********************************************************************/
 
 void FlateStreamInit(Stream *str, Stream *str1)
 {
+    FlateData *fd;
 
     StreamInit(str);
     str->str = str1;
 
+    fd = gmalloc(sizeof(FlateData));
+    if (!fd)
+    {
+        EOFStreamInit(str, str1);
+        return;
+    }
+    memset(fd, 0, sizeof(FlateData));   /* zalloc/zfree/opaque = Z_NULL */
+
+    fd->eof = gTrue;    /* nothing to read until the first reset */
     str->kind = strFlate;
-    str->u.flate = gmalloc(sizeof (FlateData));
-    if (!str->u.flate)
-    {
-        EOFStreamInit(str, str1);
-        return;
-    }
-    str->u.flate->bufhan = MemAlloc(flateWindow, HF_DYNAMIC,
-        HAF_STANDARD_NO_ERR);
-    if (str->u.flate->bufhan == NullHandle)
-    {
-        GMemSetError();
-        gfree(str->u.flate);
-        str->u.flate = NULL;
-        EOFStreamInit(str, str1);
-        return;
-    }
-    str->u.flate->readIndex = 0;
-    str->u.flate->readCount = 0;
+    str->u.flate = fd;
 }
 
 /***********************************************************************
  *      FlateStreamFree
  ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ * SYNOPSIS:        Release the zlib state and the wrapper data.
  ***********************************************************************/
 
 void FlateStreamFree(Stream *str)
 {
-    MemFree(str->u.flate->bufhan);
-    gfree(str->u.flate);
+    if (str->u.flate)
+    {
+        FlateStreamEndZlib(str->u.flate);
+        gfree(str->u.flate);
+        str->u.flate = NULL;
+    }
 }
 
 /***********************************************************************
  *      FlateStreamReset
  ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ * SYNOPSIS:        Restart decoding at the beginning of the data.
  ***********************************************************************/
 
 void FlateStreamReset(Stream *str)
 {
-    long cmf, flg;
-    FlateData *pflate = str->u.flate;
+    FlateData *fd = str->u.flate;
+
+    int ret;
 
     StreamReset(str->str);
 
-    /* ~ need to look at window size? */
-    pflate->endOfBlock = pflate->eof = gTrue;
-    cmf = FlateStreamReadByte(str);
-    flg = FlateStreamReadByte(str);
-    if (cmf == EOF || flg == EOF)
+    /*
+     * Fresh zlib state for every pass (inflateReset would keep the old
+     * window around between passes). 15 window bits: the zlib library is
+     * built with MAX_WBITS=14 (that only limits its own compressor), but
+     * almost all PDF writers use the full 32 KB window, which plain
+     * inflateInit() would reject as "invalid window size".
+     */
+    FlateStreamEndZlib(fd);
+    fd->eof = gTrue;
+    fd->readIndex = 0;
+    fd->readCount = 0;
+    memset(&fd->strm, 0, sizeof(z_stream));
+    fd->strm.next_in = fd->inBuf;
+    ret = inflateInit2(&fd->strm, flateWindowBits);
+    if (ret != Z_OK)
     {
+        if (ret == Z_MEM_ERROR)
+        {
+            GMemSetError();
+        }
         return;
     }
-    if ((cmf & 0x0f) != 0x08)
-    {
-        EC_WARNING(-1);
+    fd->zInit = gTrue;
 
-        return;
-    }
-    if ((((cmf << 8) + flg) % 31) != 0)
-    {
-        EC_WARNING(-1);
-
-        return;
-    }
-    if (flg & 0x20)
-    {
-        EC_WARNING(-1);
-
-        return;
-    }
-
-    pflate->index = 0;
-    pflate->remain = 0;
-    pflate->codeBuf = 0;
-    pflate->codeSize = 0;
-    pflate->compressedBlock = gFalse;
-    pflate->endOfBlock = gTrue;
-    pflate->eof = gFalse;
-    pflate->readIndex = 0;
-    pflate->readCount = 0;
+    fd->strm.next_in = fd->inBuf;   /* zlib 1.1.4 rejects next_in == NULL */
+    fd->strm.avail_in = 0;
+    fd->eof = gFalse;
+    fd->inEof = gFalse;
+    fd->readIndex = 0;
+    fd->readCount = 0;
 }
 
 /* FlateStreamGetChar moved above into StreamGetChar's code segment. */
@@ -6973,772 +6894,108 @@ void FlateStreamReset(Stream *str)
 /***********************************************************************
  *      FlateStreamLookChar
  ***********************************************************************
- * SYNOPSIS:        Process flate stream look char.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ * SYNOPSIS:        Peek at the next decoded byte.
+ * RETURNS:         byte value or EOF
  ***********************************************************************/
 
 long FlateStreamLookChar(Stream *str)
 {
-    FlateData *pflate = str->u.flate;
+    FlateData *fd = str->u.flate;
 
-    if (pflate->readIndex >= pflate->readCount)
+    if (fd->readIndex >= fd->readCount)
     {
-        pflate->readCount = FlateStreamReadRaw(str, pflate->readBuf,
+        fd->readCount = FlateStreamReadRaw(str, fd->readBuf,
             flateReadBufSize);
-        pflate->readIndex = 0;
-        if (pflate->readCount == 0)
+        fd->readIndex = 0;
+        if (fd->readCount == 0)
         {
             return EOF;
         }
     }
 
-    return pflate->readBuf[pflate->readIndex];
+    return fd->readBuf[fd->readIndex];
 }
 
-/* Fill a caller buffer while holding the movable DEFLATE window only once. */
 /***********************************************************************
  *      FlateStreamReadRaw
  ***********************************************************************
- * SYNOPSIS:        Read raw.
- * PARAMETERS:      Stream *str    string
- *                  Guchar *out    out
- *                  word size    size
+ * SYNOPSIS:        Inflate up to size bytes straight into out.
+ * PARAMETERS:      Stream *str     Flate stream
+ *                  Guchar *out     destination
+ *                  word size       bytes wanted
  *
- * RETURNS:         result value
- *
- * CONTEXT:
+ * RETURNS:         bytes delivered; less than size only at the end
  *
  * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ *      Refill the input buffer from the underlying stream whenever zlib
+ *      has used it up. Stop at Z_STREAM_END, on any zlib error (what was
+ *      decoded so far is still returned, like xpdf does with damaged
+ *      data), or when the input is exhausted and zlib makes no progress
+ *      (truncated stream).
  ***********************************************************************/
 
 static word FlateStreamReadRaw(Stream *str, Guchar *out, word size)
 {
-    FlateData *pflate = str->u.flate;
-    Guchar *buf;
-    word total = 0;
-    word n;
-    word contiguous;
+    FlateData *fd = str->u.flate;
+    z_stream *zs;
+    uInt outBefore, inBefore;
+    int ret;
 
-    if (size == 0)
+    if (fd->eof || size == 0)
     {
         return 0;
     }
 
-    buf = MemLock(pflate->bufhan);
+    zs = &fd->strm;
+    zs->next_out = out;
+    zs->avail_out = size;
 
-    while (total < size)
+    while (zs->avail_out > 0)
     {
-        while (pflate->remain == 0)
+        if (zs->avail_in == 0 && !fd->inEof)
         {
-            if (pflate->endOfBlock && pflate->eof)
+            zs->next_in = fd->inBuf;
+            zs->avail_in = StreamRead(str->str, fd->inBuf, flateInBufSize);
+            if (zs->avail_in == 0)
             {
-                goto done;
-            }
-            FlateStreamReadSome(str);
-            if (pflate->remain == 0 && pflate->endOfBlock && pflate->eof)
-            {
-                goto done;
+                fd->inEof = gTrue;
             }
         }
 
-        contiguous = (word)flateWindow - pflate->index;
-        n = pflate->remain;
-        if (n > contiguous)
+        outBefore = zs->avail_out;
+        inBefore = zs->avail_in;
+        ret = inflate(zs, Z_NO_FLUSH);
+
+        if (ret == Z_STREAM_END)
         {
-            n = contiguous;
+            fd->eof = gTrue;
+            break;
         }
-        if (n > size - total)
+        if (ret != Z_OK && ret != Z_BUF_ERROR)
         {
-            n = size - total;
-        }
-
-        memcpy(out + total, buf + pflate->index, n);
-        total += n;
-        pflate->index = (pflate->index + n) & flateMask;
-        pflate->remain -= n;
-    }
-
-    done:
-    MemUnlock(pflate->bufhan);
-    return total;
-}
-
-
-/***********************************************************************
- *      FlateStreamReadByte
- ***********************************************************************
- * SYNOPSIS:        Read byte.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static long FlateStreamReadByte(Stream *str)
-{
-    return StreamGetChar(str->str);
-}
-
-/***********************************************************************
- *      FlateStreamReadSome
- ***********************************************************************
- * SYNOPSIS:        Read some.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static void FlateStreamReadSome(Stream *str)
-{
-    FlateData *pflate = str->u.flate;
-    FlateDecode *lengthDecode;
-    FlateDecode *distDecode;
-    Guchar *buf = MemDeref(pflate->bufhan); /* locked by caller */
-
-    long code1, code2;
-    long len, dist;
-    long i, j, k;
-    long c;
-
-    if (pflate->endOfBlock)
-    {
-        if (!FlateStreamStartBlock(str))
-        {
-            return;
-        }
-    }
-
-    MemLock(OptrToHandle(@lengthDecode_));
-    lengthDecode = LMemDeref(@lengthDecode_);
-    distDecode = LMemDeref(@distDecode_);
-
-    if (pflate->compressedBlock)
-    {
-        if ((code1 = FlateStreamGetHuffmanCodeWord(str,
-            &pflate->litCodeTab)) == EOF)
-        {
-            goto err;
-        }
-        if (code1 < 256)
-        {
-            buf[pflate->index] = code1;
-            pflate->remain = 1;
-        }
-        else if (code1 == 256)
-        {
-            pflate->endOfBlock = gTrue;
-            pflate->remain = 0;
-        }
-        else
-        {
-            code1 -= 257;
-            code2 = lengthDecode[code1].bits;
-            if (code2 > 0 && (code2 = FlateStreamGetCodeWord(str,
-                code2)) == EOF)
+            /* Z_DATA_ERROR, Z_NEED_DICT, Z_MEM_ERROR, Z_STREAM_ERROR */
+            if (ret == Z_MEM_ERROR)
             {
-                goto err;
+                GMemSetError();
             }
-            len = lengthDecode[code1].first + code2;
-            if ((code1 = FlateStreamGetHuffmanCodeWord(str,
-                &pflate->distCodeTab)) == EOF)
-            {
-                goto err;
-            }
-            code2 = distDecode[code1].bits;
-            if (code2 > 0 && (code2 = FlateStreamGetCodeWord(str,
-                code2)) == EOF)
-            {
-                goto err;
-            }
-            dist = distDecode[code1].first + code2;
-            i = pflate->index;
-            j = (pflate->index - dist) & flateMask;
-            for (k = 0; k < len; ++k)
-            {
-                buf[i] = buf[j];
-                i = (i + 1) & flateMask;
-                j = (j + 1) & flateMask;
-            }
-            pflate->remain = len;
-        }
-
-    }
-    else
-    {
-        len = (pflate->blockLen < flateWindow) ? pflate->blockLen : flateWindow;
-        for (i = 0, j = pflate->index; i < len; ++i, j = (j + 1) & flateMask)
-        {
-            if ((c = FlateStreamReadByte(str)) == EOF)
-            {
-                pflate->endOfBlock = pflate->eof = gTrue;
-                break;
-            }
-            buf[j] = c & 0xff;
-        }
-        pflate->remain = i;
-        pflate->blockLen -= len;
-        if (pflate->blockLen == 0)
-        {
-            pflate->endOfBlock = gTrue;
-        }
-    }
-
-    MemUnlock(OptrToHandle(@lengthDecode_));
-    return;
-
-    err:
-    EC_WARNING(-1);
-
-    pflate->endOfBlock = pflate->eof = gTrue;
-    pflate->remain = 0;
-
-    MemUnlock(OptrToHandle(@lengthDecode_));
-}
-
-/***********************************************************************
- *      FlateStreamStartBlock
- ***********************************************************************
- * SYNOPSIS:        Process flate stream start block.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static GBool FlateStreamStartBlock(Stream *str)
-{
-    FlateData *pflate = str->u.flate;
-    long blockHdr;
-    long c;
-    long check;
-
-    blockHdr = FlateStreamGetCodeWord(str, 3);
-    if (blockHdr & 1)
-    {
-        pflate->eof = gTrue;
-    }
-    blockHdr >>= 1;
-
-    /* uncompressed block */
-    if (blockHdr == 0)
-    {
-        pflate->compressedBlock = gFalse;
-        if ((c = FlateStreamReadByte(str)) == EOF)
-        {
-            goto err;
-        }
-        pflate->blockLen = c & 0xff;
-        if ((c = FlateStreamReadByte(str)) == EOF)
-        {
-            goto err;
-        }
-        pflate->blockLen |= (c & 0xff) << 8;
-        if ((c = FlateStreamReadByte(str)) == EOF)
-        {
-            goto err;
-        }
-        check = c & 0xff;
-        if ((c = FlateStreamReadByte(str)) == EOF)
-        {
-            goto err;
-        }
-        check |= (c & 0xff) << 8;
-        if (check != (~pflate->blockLen & 0xffff))
-        {
             EC_WARNING(-1);
+            fd->eof = gTrue;
+            break;
         }
-
-        pflate->codeBuf = 0;
-        pflate->codeSize = 0;
-
-        /* compressed block with fixed codes */
-    }
-    else if (blockHdr == 1)
-    {
-        pflate->compressedBlock = gTrue;
-        FlateStreamLoadFixedCodes(str);
-
-        /* compressed block with dynamic codes */
-    }
-    else if (blockHdr == 2)
-    {
-        pflate->compressedBlock = gTrue;
-        if (!FlateStreamReadDynamicCodes(str))
+        if (zs->avail_out == outBefore && zs->avail_in == inBefore &&
+            (fd->inEof || zs->avail_in > 0))
         {
-            goto err;
+            /* no progress possible: truncated or stuck stream */
+            fd->eof = gTrue;
+            break;
         }
-
-        /* unknown block type */
     }
-    else
+
+    size -= (word)zs->avail_out;
+    if (fd->eof)
     {
-        goto err;
+        /* done with this pass: give the window back right away */
+        FlateStreamEndZlib(fd);
     }
-
-    pflate->endOfBlock = gFalse;
-    return gTrue;
-
-    err:
-    EC_WARNING(-1);
-
-    pflate->endOfBlock = pflate->eof = gTrue;
-    return gFalse;
+    return size;
 }
-
-/***********************************************************************
- *      FlateStreamLoadFixedCodes
- ***********************************************************************
- * SYNOPSIS:        Load fixed codes.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static void FlateStreamLoadFixedCodes(Stream *str)
-{
-    FlateData *pflate = str->u.flate;
-    word i;
-
-    pflate->litCodeTab.codes = pflate->allCodes;
-    pflate->distCodeTab.codes = pflate->allCodes + flateMaxLitCodes;
-
-    for (i = 0; i <= 143; ++i)
-    {
-        pflate->litCodeTab.codes[i].len = 8;
-    }
-    for (i = 144; i <= 255; ++i)
-    {
-        pflate->litCodeTab.codes[i].len = 9;
-    }
-    for (i = 256; i <= 279; ++i)
-    {
-        pflate->litCodeTab.codes[i].len = 7;
-    }
-    for (i = 280; i <= 287; ++i)
-    {
-        pflate->litCodeTab.codes[i].len = 8;
-    }
-    /*
-     * A genuine failure would mean a bug in the constants just above, not a
-     * malformed input file.
-     */
-    if (!FlateStreamCompHuffmanCodes(str, &pflate->litCodeTab,
-        flateMaxLitCodes))
-    {
-        EC_WARNING(-1);
-    }
-
-    for (i = 0; i < 5; ++i)
-    {
-        pflate->distCodeTab.start[i] = 0;
-    }
-    pflate->distCodeTab.start[5] = 0;
-    for (i = 6; i <= flateMaxHuffman + 1; ++i)
-    {
-        pflate->distCodeTab.start[6] = flateMaxDistCodes;
-    }
-    for (i = 0; i < flateMaxDistCodes; ++i)
-    {
-        pflate->distCodeTab.codes[i].len = 5;
-        pflate->distCodeTab.codes[i].code = i;
-        pflate->distCodeTab.codes[i].val = i;
-    }
-}
-
-/***********************************************************************
- *      FlateStreamReadDynamicCodes
- ***********************************************************************
- * SYNOPSIS:        Read dynamic codes.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static GBool FlateStreamReadDynamicCodes(Stream *str)
-{
-    FlateData *pflate = str->u.flate;
-    short *codeLenCodeMap;
-
-    word numCodeLenCodes;
-    word numLitCodes;
-    word numDistCodes;
-    FlateCode codeLenCodes[flateMaxCodeLenCodes];
-    FlateHuffmanTab codeLenCodeTab;
-    long len, repeat, code;
-    word i;
-
-    MemLock(OptrToHandle(@lengthDecode_));
-    codeLenCodeMap = LMemDeref(@codeLenCodeMap_);
-
-    if ((code = FlateStreamGetCodeWord(str, 5)) == EOF)
-    {
-        goto err;
-    }
-    numLitCodes = (word)(code + 257);
-    if ((code = FlateStreamGetCodeWord(str, 5)) == EOF)
-    {
-        goto err;
-    }
-    numDistCodes = (word)(code + 1);
-    if ((code = FlateStreamGetCodeWord(str, 4)) == EOF)
-    {
-        goto err;
-    }
-    numCodeLenCodes = (word)(code + 4);
-    if (numLitCodes > flateMaxLitCodes ||
-        numDistCodes > flateMaxDistCodes ||
-        numCodeLenCodes > flateMaxCodeLenCodes)
-    {
-        goto err;
-    }
-
-    codeLenCodeTab.codes = codeLenCodes;
-    for (i = 0; i < flateMaxCodeLenCodes; ++i)
-    {
-        codeLenCodes[i].len = 0;
-    }
-    for (i = 0; i < numCodeLenCodes; ++i)
-    {
-        /*
-         * Read into the existing wide `code` local first, not directly into
-         * codeLenCodes[...].len.
-         */
-        code = FlateStreamGetCodeWord(str, 3);
-        if (code == -1)
-        {
-            goto err;
-        }
-        codeLenCodes[codeLenCodeMap[i]].len = code;
-    }
-    if (!FlateStreamCompHuffmanCodes(str, &codeLenCodeTab,
-        flateMaxCodeLenCodes))
-    {
-        goto err;
-    }
-
-    pflate->litCodeTab.codes = pflate->allCodes;
-    pflate->distCodeTab.codes = pflate->allCodes + numLitCodes;
-
-    len = 0;
-    repeat = 0;
-    i = 0;
-    while (i < numLitCodes + numDistCodes)
-    {
-        if ((code = FlateStreamGetHuffmanCodeWord(str, &codeLenCodeTab)) == EOF)
-        {
-            goto err;
-        }
-        if (code == 16)
-        {
-            if ((repeat = FlateStreamGetCodeWord(str, 2)) == EOF)
-            {
-                goto err;
-            }
-            for (repeat += 3; repeat > 0; --repeat)
-            {
-                pflate->allCodes[i++].len = len;
-            }
-        }
-        else if (code == 17)
-        {
-            if ((repeat = FlateStreamGetCodeWord(str, 3)) == EOF)
-            {
-                goto err;
-            }
-            len = 0;
-            for (repeat += 3; repeat > 0; --repeat)
-            {
-                pflate->allCodes[i++].len = 0;
-            }
-        }
-        else if (code == 18)
-        {
-            if ((repeat = FlateStreamGetCodeWord(str, 7)) == EOF)
-            {
-                goto err;
-            }
-            len = 0;
-            for (repeat += 11; repeat > 0; --repeat)
-            {
-                pflate->allCodes[i++].len = 0;
-            }
-        }
-        else
-        {
-            pflate->allCodes[i++].len = len = code;
-        }
-    }
-    if (!FlateStreamCompHuffmanCodes(str, &pflate->litCodeTab, numLitCodes))
-    {
-        goto err;
-    }
-    if (!FlateStreamCompHuffmanCodes(str, &pflate->distCodeTab, numDistCodes))
-    {
-        goto err;
-    }
-
-    MemUnlock(OptrToHandle(@lengthDecode_));
-    return gTrue;
-
-    err:
-    EC_WARNING(-1);
-
-    MemUnlock(OptrToHandle(@lengthDecode_));
-    return gFalse;
-}
-
-
-/***********************************************************************
- *      FlateStreamCompHuffmanCodes
- ***********************************************************************
- * SYNOPSIS:        Process flate stream comp huffman codes.
- * PARAMETERS:      Stream *str    string
- *                  FlateHuffmanTab *tab    tab
- *                  word n    count
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static GBool FlateStreamCompHuffmanCodes(Stream *str, FlateHuffmanTab *tab,
-    word n)
-{
-    /*
-     * numLengths/nextIndex narrowed to word : both are bounded by n
-     * (<=flateMaxLitCodes==288) regardless of input.
-     */
-    word numLengths[flateMaxHuffman + 1];
-    word nextCode[flateMaxHuffman + 1];
-    word nextIndex[flateMaxHuffman + 2];
-    long code;
-    word i, j;
-
-    (void)str;
-
-    /* count number of codes for each code length */
-    for (i = 0; i <= flateMaxHuffman; ++i)
-    {
-        numLengths[i] = 0;
-    }
-    for (i = 0; i < n; ++i)
-    {
-        ++numLengths[tab->codes[i].len];
-    }
-
-    /* compute first index for each length */
-    tab->start[0] = nextIndex[0] = 0;
-    for (i = 1; i <= flateMaxHuffman + 1; ++i)
-    {
-        tab->start[i] = nextIndex[i] = tab->start[i - 1] + numLengths[i - 1];
-    }
-
-    /* compute first code for each length */
-    code = 0;
-    numLengths[0] = 0;
-    for (i = 1; i <= flateMaxHuffman; ++i)
-    {
-        code = (code + numLengths[i - 1]) << 1;
-        if (code > (1L << i))
-        {
-            EC_WARNING(-1);
-            return gFalse;
-        }
-        nextCode[i] = (word)code;
-    }
-
-    /* compute the codes -- this permutes the codes array from value */
-    /* order to length/code order */
-    for (i = 0; i < n; ++i)
-    {
-        j = nextIndex[tab->codes[i].len]++;
-        if (tab->codes[i].len == 0)
-        {
-            tab->codes[j].code = 0;
-        }
-        else
-        {
-            tab->codes[j].code = nextCode[tab->codes[i].len]++;
-        }
-        tab->codes[j].val = i;
-    }
-    return gTrue;
-}
-
-/***********************************************************************
- *      FlateStreamGetHuffmanCodeWord
- ***********************************************************************
- * SYNOPSIS:        Get huffman code word.
- * PARAMETERS:      Stream *str    string
- *                  FlateHuffmanTab *tab    tab
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static long FlateStreamGetHuffmanCodeWord(Stream *str, FlateHuffmanTab *tab)
-{
-    FlateData *pflate = str->u.flate;
-    word len;
-    long code;
-    long c;
-    word i, j;
-
-    code = 0;
-    for (len = 1; len <= flateMaxHuffman; ++len)
-    {
-
-        /* add a bit to the code */
-        if (pflate->codeSize == 0)
-        {
-            if ((c = FlateStreamReadByte(str)) == EOF)
-            {
-                return EOF;
-            }
-            pflate->codeBuf = c & 0xff;
-            pflate->codeSize = 8;
-        }
-        code = (code << 1) | (pflate->codeBuf & 1);
-        pflate->codeBuf >>= 1;
-        --pflate->codeSize;
-
-        /* look for code */
-        i = tab->start[len];
-        j = tab->start[len + 1];
-        if (i < j && code >= tab->codes[i].code &&
-            code <= tab->codes[j - 1].code)
-        {
-            i += code - tab->codes[i].code;
-            return tab->codes[i].val;
-        }
-    }
-
-    /* not found */
-    EC_WARNING(-1);
-
-    return EOF;
-}
-
-/***********************************************************************
- *      FlateStreamGetCodeWord
- ***********************************************************************
- * SYNOPSIS:        Get code word.
- * PARAMETERS:      Stream *str    string
- *                  long bits    bits
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static long FlateStreamGetCodeWord(Stream *str, long bits)
-{
-    FlateData *pflate = str->u.flate;
-    long c;
-
-    while (pflate->codeSize < bits)
-    {
-        if ((c = FlateStreamReadByte(str)) == EOF)
-        {
-            return EOF;
-        }
-        pflate->codeBuf |= (c & 0xff) << pflate->codeSize;
-        pflate->codeSize += 8;
-    }
-    c = pflate->codeBuf & ((1 << bits) - 1);
-    pflate->codeBuf >>= bits;
-    pflate->codeSize -= bits;
-    return c;
-}
-
