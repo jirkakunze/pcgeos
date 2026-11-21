@@ -257,7 +257,6 @@
     Int    Range;     /* in which code range is it located ? */
     UShort Start;     /* where does it start ?               */
     Int    Opc;       /* function #, or instruction code     */
-    Bool   Active;    /* is it active ?                      */
   };
 
   typedef struct TDefRecord_  TDefRecord;
@@ -317,8 +316,7 @@
 #define CALL_INTERPRETER  ( engineInstance.interpreterActive ? RunIns( exec ) : TT_Err_Ok )
 
   /* Rounding function, as used by the interpreter */
-  typedef TT_F26Dot6  TRound_Function( EXEC_OPS TT_F26Dot6 distance,
-                                                TT_F26Dot6 compensation );
+  typedef TT_F26Dot6  TRound_Function( EXEC_OPS TT_F26Dot6 distance );
 
   /* Point displacement along the freedom vector routine, as */
   /* used by the interpreter                                 */
@@ -336,7 +334,6 @@
   {
     TT_Fixed    xx, xy; /* transformation */
     TT_Fixed    yx, yy; /*     matrix     */
-    TT_F26Dot6  ox, oy; /*    offsets     */
   };
 
   typedef struct TTransform_  TTransform;
@@ -356,8 +353,8 @@
 
     TGlyph_Zone  zone;
 
-    Long         arg1;  /* first argument  */
-    Long         arg2;  /* second argument */
+    Short        arg1;  /* first argument  */
+    Short        arg2;  /* second argument */
 
     UShort       element_flag;    /* current load element flag */
 
@@ -371,60 +368,6 @@
   typedef TSubglyph_Record*         PSubglyph_Record;
   typedef TSubglyph_Record*         PSubglyph_Stack;
 
-  /* A note regarding non-squared pixels:                                */
-  /*                                                                     */
-  /* (This text will probably go into some docs at some time, for        */
-  /*  now, it is kept there to explain some definitions in the           */
-  /*  TIns_Metrics record).                                              */
-  /*                                                                     */
-  /* The CVT is a one-dimensional array containing values that           */
-  /* control certain important characteristics in a font, like           */
-  /* the height of all capitals, all lowercase letter, default           */
-  /* spacing or stem width/height.                                       */
-  /*                                                                     */
-  /* These values are found in FUnits in the font file, and must be      */
-  /* scaled to pixel coordinates before being used by the CVT and        */
-  /* glyph programs.  Unfortunately, when using distinct x and y         */
-  /* resolutions (or distinct x and y pointsizes), there are two         */
-  /* possible scalings.                                                  */
-  /*                                                                     */
-  /* A first try was to implement a 'lazy' scheme where all values       */
-  /* were scaled when first used.  However, while some values are always */
-  /* used in the same direction, and some other are used in many         */
-  /* different circumstances and orientations.                           */
-  /*                                                                     */
-  /* I have found a simpler way to do the same, and it even seems to     */
-  /* work in most of the cases:                                          */
-  /*                                                                     */
-  /* - all CVT values are scaled to the maximum ppem size                */
-  /*                                                                     */
-  /* - when performing a read or write in the CVT, a ratio factor        */
-  /*   is used to perform adequate scaling. Example:                     */
-  /*                                                                     */
-  /*    x_ppem = 14                                                      */
-  /*    y_ppem = 10                                                      */
-  /*                                                                     */
-  /*   we choose ppem = x_ppem = 14 as the CVT scaling size.  All cvt    */
-  /*   entries are scaled to it.                                         */
-  /*                                                                     */
-  /*    x_ratio = 1.0                                                    */
-  /*    y_ratio = y_ppem/ppem (< 1.0)                                    */
-  /*                                                                     */
-  /*   we compute the current ratio like:                                */
-  /*                                                                     */
-  /*     - if projVector is horizontal,                                  */
-  /*         ratio = x_ratio = 1.0                                       */
-  /*     - if projVector is vertical,                                    */
-  /*         ratop = y_ratio                                             */
-  /*     - else,                                                         */
-  /*         ratio = sqrt((proj.x*x_ratio)^2 + (proj.y*y_ratio)^2)       */
-  /*                                                                     */
-  /*   reading a cvt value returns      ratio * cvt[index]               */
-  /*   writing a cvt value in pixels    cvt[index] / ratio               */
-  /*                                                                     */
-  /*   the current ppem is simply       ratio * ppem                     */
-  /*                                                                     */
-
   /* metrics used by the instance and execution context objects */
   struct  TIns_Metrics_
   {
@@ -432,15 +375,9 @@
 
     UShort      resolution;  /* device resolution in dpi. */
     UShort      ppem;        /* maximum ppem size */
-    Long        x_scale1;
 
-    Long        units_per_em;
-
-    Long        ratio;       /* current ratio     */
     Long        scale1;
     Long        scale2;      /* scale for ppem */
-
-    TT_F26Dot6  compensations[4];  /* device-specific compensations */
   };
 
   typedef struct TIns_Metrics_  TIns_Metrics;
@@ -560,9 +497,6 @@
     PDefArray        IDefs;     /* table of IDefs entries            */
 
     Int              maxFunc;   /* maximum function definition id    */
-    Int              maxIns;    /* maximum instruction definition id */
-
-    TCodeRangeTable  codeRangeTable;
 
     TGraphicsState   GS;
 
@@ -585,7 +519,6 @@
   struct  TExecution_Context_
   {
     PFace           face;
-    PInstance       instance;
 
     /* instructions state */
 
@@ -617,8 +550,6 @@
     Byte            opcode;    /* current opcode              */
     Int             length;    /* length of current opcode    */
 
-    Bool            step_ins;  /* true if the interpreter must */
-                               /* increment IP after ins. exec */
     UShort          cvtSize;
     PLong           cvt;
 
@@ -634,7 +565,6 @@
     PDefRecord      IDefs;     /* table of IDefs entries             */
 
     Int             maxFunc;
-    Int             maxIns;
 
     Int             callTop,    /* top of call stack during execution */
                     callSize;   /* size of call stack */
@@ -657,8 +587,6 @@
 #ifdef DEBUG_INTERPRETER
     Bool            instruction_trap;  /* If True, the interpreter will */
 #endif                                 /* exit after each instruction   */
-
-    Bool            is_composite;  /* ture if the glyph is composite */
 
 #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
    Bool            pedantic_hinting;  /* if true, read and write array   */
@@ -718,36 +646,23 @@
                             UShort              IP );
 
 
-  /* Set a given code range properties */
-  LOCAL_DEF
-  TT_Error  Set_CodeRange( PExecution_Context  exec,
-                           Int                 range,
-                           void*               base,
-                           UShort              length );
-
-  /* Clear a given coderange */
-  LOCAL_DEF
-  TT_Error  Clear_CodeRange( PExecution_Context  exec, Int  range );
-
-
   LOCAL_DEF
   PExecution_Context  New_Context( PFace  face );
 
   LOCAL_DEF
-  TT_Error  Done_Context( PExecution_Context  exec );
+  void      Done_Context( );
 
 
   LOCAL_DEF
   TT_Error  Context_Load( PExecution_Context  exec,
-                          PFace               face,
                           PInstance           ins );
 
   LOCAL_DEF
-  void      Context_Save( PExecution_Context  exec,
-                          PInstance           ins );
-
-  LOCAL_DEF
+  #ifdef TT_CONFIG_OPTION_SUPPORT_PEDANTIC_HINTING
   TT_Error  Context_Run( PExecution_Context  exec );
+  #else
+  void      Context_Run( PExecution_Context  exec );
+  #endif
 
   LOCAL_DEF
   TT_Error  Instance_Init( PInstance  ins );

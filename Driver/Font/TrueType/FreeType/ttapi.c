@@ -207,7 +207,7 @@ Fail:
 
   EXPORT_FUNC
   void  TT_Get_Face_Properties( TT_Face              face,
-                                    TT_Face_Properties*  properties )
+                                TT_Face_Properties*  properties )
   {
     PFace _face = HANDLE_Face( face );
 
@@ -216,7 +216,9 @@ EC( ECCheckBounds( _face ) );
 
     properties->num_Glyphs   = _face->numGlyphs;
     properties->max_Points   = _face->maxPoints;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     properties->max_Contours = _face->maxContours;
+#endif
     properties->num_CharMaps = _face->numCMaps;
     properties->num_Names    = _face->nameTable.numNameRecords;
 
@@ -231,11 +233,12 @@ EC( ECCheckBounds( _face ) );
 #endif
 
     properties->os2          = &_face->os2;
+#ifdef TT_CONFIG_OPTION_SUPPORT_OPTIONAL_FIELDS
     properties->postscript   = &_face->postscript;
-
-  #ifdef TT_CONFIG_OPTION_PROCESS_HDMX
+#endif
+#ifdef TT_CONFIG_OPTION_PROCESS_HDMX
     properties->hdmx         = &_face->hdmx;
-  #endif
+#endif
   }
 
 
@@ -426,18 +429,18 @@ EC_ERROR_IF( _face->instance, TT_Err_Invalid_Face_Handle );
 
     error = Instance_Create( _ins, _face );
     if ( error )
-        goto Fail;
+        goto FailDestroy;
 
     error = Instance_Init( _ins );
     if ( error )
-    {
-        Instance_Destroy( _ins );
-        goto Fail;
-    }
+        goto FailDestroy;
 
     _face->instance = _ins;
     HANDLE_Set( *instance, _ins );
     return TT_Err_Ok;
+
+FailDestroy:
+    Instance_Destroy(_ins);
 
 Fail:
     FREE( _ins );
@@ -466,73 +469,38 @@ Fail:
  ******************************************************************/
 
   EXPORT_FUNC
-  TT_Error  TT_Set_Instance_CharSize_And_Resolutions( TT_Instance  instance,
-                                                      TT_F26Dot6   charSize,
-                                                      TT_UShort    resolution )
-  {
-    PInstance   ins = HANDLE_Instance( instance );
-    TT_F26Dot6  scale1;
-
-EC( ECCheckBounds( ins ) );
-
-    if ( charSize < 1 * 64 )
-      charSize = 1 * 64;
-
-    scale1 = ( charSize * resolution ) / 72;
-
-    if ( ins->owner->fontHeader.Flags & 8 )
-      scale1 = ( scale1 + 32 ) & -64;
-
-    if ( ins->valid                        &&
-         ins->metrics.resolution == resolution &&
-         ins->metrics.x_scale1   == scale1     &&
-         ins->metrics.pointSize  == charSize )
-      return TT_Err_Ok;
-
-    ins->metrics.resolution   = resolution;
-    ins->metrics.x_scale1     = scale1;
-    ins->metrics.units_per_em = ins->owner->fontHeader.Units_Per_EM;
-    ins->metrics.ppem         = scale1 >> 6;
-    ins->metrics.pointSize    = charSize;
-    ins->valid                = FALSE;
-
-    return Instance_Reset( ins );
-  }
-
-
-/*******************************************************************
- *
- *  Function    :  TT_Done_Instance
- *
- *  Description :  Closes a given instance.
- *
- *  Input  :  instance      address of instance handle
- *
- *  Output :  void
- *
- *  MT-Safe : YES!
- *
- ******************************************************************/
-
-EXPORT_FUNC
-void  TT_Done_Instance( TT_Instance  instance )
+  TT_Error TT_Set_Instance_CharSize_And_Resolutions( TT_Instance instance,
+                                                     TT_F26Dot6 charSize,
+                                                     TT_UShort resolution )
 {
-    PInstance  ins = HANDLE_Instance( instance );
-    PFace      face;
+        PInstance   ins = HANDLE_Instance( instance );
+        TT_F26Dot6  scale1;
 
+EC(     ECCheckBounds( ins ) );
 
-EC( ECCheckBounds( ins ) );
+        if( charSize < 1 * 64 )
+                charSize = 1 * 64;
 
-    face = ins->owner;
+        if( ins->valid &&
+            ins->metrics.resolution == resolution &&
+            ins->metrics.pointSize == charSize )
+                return TT_Err_Ok;
 
-EC( ECCheckBounds( face ) );
-EC_ERROR_IF( face->instance != ins, TT_Err_Invalid_Instance_Handle );
+        scale1 = ( charSize * resolution ) / 72;
 
-    face->instance = NULL;
+        if( ins->owner->fontHeader.Flags & 8 )
+                scale1 = ( scale1 + 32 ) & -64;
 
-    Instance_Destroy( ins );
-    FREE( ins );
+        ins->metrics.resolution = resolution;
+        ins->metrics.scale1 = scale1;
+        ins->metrics.scale2 = ins->owner->fontHeader.Units_Per_EM;
+        ins->metrics.ppem = scale1 >> 6;
+        ins->metrics.pointSize = charSize;
+        ins->valid = FALSE;
+
+        return Instance_Reset( ins );
 }
+
 
 /*******************************************************************
  *
@@ -550,8 +518,7 @@ EC_ERROR_IF( face->instance != ins, TT_Err_Invalid_Instance_Handle );
  *
  ******************************************************************/
 
-EXPORT_FUNC
-TT_Error  TT_New_Glyph( TT_Face    face,
+  TT_Error  TT_New_Glyph( TT_Face    face,
                         TT_Glyph*  glyph )
 {
     PFace    _face  = HANDLE_Face( face );
@@ -564,12 +531,25 @@ EC( ECCheckBounds( _face ) );
     if ( ALLOC( _glyph, sizeof ( TGlyph ) ) )
         return TT_Err_Out_Of_Memory;
 
-    error = Glyph_Create( _glyph, _face );
+EC( ECCheckBounds( _glyph ) );
+
+    _glyph->face = _face;
+
+#ifdef __GEOS__
+    /* GEOS driver uses the execution context's point arrays */
+    /* directly.  Do not allocate a second outline buffer.   */
+    //MEM_Set( &_glyph->outline, 0, sizeof ( TT_Outline ) );
+#else
+    /* Don't forget the space for the 2 phantom points. */
+    error = TT_New_Outline( _face->maxPoints + 2,
+                            _face->maxContours,
+                            &_glyph->outline );
     if ( error )
     {
         FREE( _glyph );
         return error;
     }
+#endif
 
     _face->glyph = _glyph;
     HANDLE_Set( *glyph, _glyph );
@@ -577,38 +557,6 @@ EC( ECCheckBounds( _face ) );
     return TT_Err_Ok;
 }
 
-/*******************************************************************
- *
- *  Function    :  TT_Done_Glyph
- *
- *  Description :  Destroys a given glyph object.
- *
- *  Input  :  glyph  the glyph handle
- *
- *  Output :  Error code.
- *
- *  MT-Safe : YES!
- *
- ******************************************************************/
-
-  EXPORT_FUNC
-  void  TT_Done_Glyph( TT_Glyph  glyph )
-  {
-    PGlyph  _glyph = HANDLE_Glyph( glyph );
-    PFace   face;
-
-
-EC( ECCheckBounds( _glyph ) );
-
-    face = _glyph->face;
-
-EC_ERROR_IF( !face, TT_Err_Invalid_Glyph_Handle );
-EC_ERROR_IF( face->glyph != _glyph, TT_Err_Invalid_Glyph_Handle );
-
-    face->glyph = NULL;
-    Glyph_Destroy( _glyph );
-    FREE( _glyph );
-  }
 
 /*******************************************************************
  *
@@ -678,16 +626,15 @@ EC_ERROR_IF( face->glyph != _glyph, TT_Err_Invalid_Glyph_Handle );
  ******************************************************************/
 
   EXPORT_FUNC
-  void  TT_Get_Glyph_Outline( TT_Glyph     glyph,
-                              TT_Outline*  outline )
+  TT_Outline*  TT_Get_Glyph_Outline( TT_Glyph     glyph )
   {
     PGlyph  _glyph = HANDLE_Glyph( glyph );
 
 
 EC( ECCheckBounds( _glyph ) );
 
-    *outline = _glyph->outline;
-    outline->owner = FALSE;
+    //*outline = _glyph->outline;
+    return &_glyph->outline;
   }
 
 
@@ -743,7 +690,7 @@ EC( ECCheckBounds( _glyph ) );
     DEFINE_ALL_LOCALS;
 
     PFace     faze = HANDLE_Face(face);
-    Long      table;
+    Short     table;
     PStorage  glyphLocations;
     Short     bearing;
     UShort    advance;
@@ -759,8 +706,7 @@ EC_ERROR_IF( index >= faze->numGlyphs, TT_Err_Invalid_Argument );
       return TT_Err_Glyf_Table_Missing;
 
     /* now access stream */
-    if ( USE_Stream( faze->stream, stream ) )
-      return error;
+    stream = faze->stream;
 
     glyphLocations = GEO_LOCK( faze->glyphLocationBlock );
 
@@ -807,11 +753,11 @@ EC_ERROR_IF( index >= faze->numGlyphs, TT_Err_Invalid_Argument );
     metrics->bearingX = bearing;
 
   Fail:
-    DONE_Stream( stream );
     return error;
   }
 
 
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  TT_New_Outline
@@ -856,8 +802,9 @@ EC( ECCheckBounds( outline ) );
     TT_Done_Outline( outline );
     return error;
   }
+#endif
 
-
+#ifndef __GEOS__
 /*******************************************************************
  *
  *  Function    :  TT_Done_Outline
@@ -889,6 +836,7 @@ EC( ECCheckBounds( outline ) );
       MEM_Set( outline, 0, sizeof(TT_Outline) );
     }
   }
+#endif
 
 
 /*******************************************************************
@@ -1058,10 +1006,10 @@ EC( ECCheckBounds( bbox ) );
       {
         x = vec->x;
         if ( x < bbox->xMin ) bbox->xMin = x;
-        if ( x > bbox->xMax ) bbox->xMax = x;
+        else if ( x > bbox->xMax ) bbox->xMax = x;
         y = vec->y;
         if ( y < bbox->yMin ) bbox->yMin = y;
-        if ( y > bbox->yMax ) bbox->yMax = y;
+        else if ( y > bbox->yMax ) bbox->yMax = y;
         ++vec;
       }
     }
@@ -1129,7 +1077,6 @@ EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
                             TT_UShort    charmapIndex,
                             TT_CharMap*  charMap )
   {
-    TT_Stream   stream;
     PCMapTable  cmap;
     TT_Error    error = TT_Err_Ok;
     PFace       faze = HANDLE_Face( face );
@@ -1141,19 +1088,14 @@ EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
     cmap = faze->cMaps + charmapIndex;
 
     /* Load table if needed */
-    if ( !cmap->loaded )
+    if( !cmap->loaded )
     {
-      (void)USE_Stream( faze->stream, stream );
-      if ( !error )
-      {
-        error = CharMap_Load( cmap, stream );
-        DONE_Stream( stream );
-      }
+        error = CharMap_Load( cmap, faze->stream );
 
-      if ( error )
-        cmap = NULL;
-      else
-        cmap->loaded = TRUE;
+        if( error )
+          cmap = NULL;
+        else
+          cmap->loaded = TRUE;
     }
 
     HANDLE_Set( *charMap, cmap );
@@ -1191,7 +1133,7 @@ EC_ERROR_IF( charmapIndex >= faze->numCMaps, TT_Err_Invalid_Argument );
     if ( !cmap )
       return 0;  /* we return 0 in case of invalid char map */
 
-    return CharMap_Index( cmap, charCode );
+    return code_to_index4( charCode, &cmap->c.cmap4 );
   }
 #pragma code_seg()
 

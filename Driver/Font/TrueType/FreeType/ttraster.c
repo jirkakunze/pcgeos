@@ -215,6 +215,13 @@ extern TEngine_Instance engineInstance;
   struct  TRaster_Instance_
   {
     Int       precision_step;
+    Byte      dropOutControl;       /* current drop_out control method   */
+    Byte      state;                /* rendering state                   */
+    Byte      fresh;                /* signals a fresh new profile which */
+                                    /* 'start' field must be completed   */
+    Byte      joint;                /* signals that the last arc ended   */
+                                    /* exactly on a scanline.  Allows    */
+                                    /* removal of doublets               */
 
     MemHandle buffer;               /* The profiles bufferblock     */
     PStorage  sizeBuff;             /* Render pool size             */
@@ -238,25 +245,17 @@ extern TEngine_Instance engineInstance;
 
     UShort    num_Profs;            /* current number of profiles */
 
-    Bool      fresh;                /* signals a fresh new profile which */
-                                    /* 'start' field must be completed   */
-    Bool      joint;                /* signals that the last arc ended   */
-                                    /* exactly on a scanline.  Allows    */
-                                    /* removal of doublets               */
     PProfile  cProfile;             /* current profile                   */
     PProfile  fProfile;             /* head of linked list of profiles   */
     PProfile  gProfile;             /* contour's first profile in case   */
                                     /* of impact                         */
-    TStates   state;                /* rendering state */
 
-    TT_Raster_Map  target;          /* description of target bit/pixmap */
+    Int       bRows;                /* target bitmap height */
+    Int       bCols;                /* target bitmap bytes per row */
 
     Short     traceOfs;             /* current offset in target bitmap */
     Short     traceOfsLastLine;     /* offset in traget region before line step */
     Short     traceIncr;            /* sweep's increment in target bitmap */
-#ifdef __GEOS__
-    Bool      regionStarted;        /* true after region output was initialized */
-#endif
 
     /* dispatch variables */
 
@@ -267,10 +266,7 @@ extern TEngine_Instance engineInstance;
 
     TT_Vector*  coords;
 
-    Byte      dropOutControl;       /* current drop_out control method */
-
     TPoint    arcs[2 * MaxBezier + 1];  /* The Bezier stack */
-
     TBand     band_stack[MaxBand];     /* band stack used for sub-banding */
   };
 
@@ -315,18 +311,8 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
-    if ( aState == Unknown )
-    {
-      ras.error = Raster_Err_Invalid;
-      return FAILURE;
-    }
-    ras.cProfile->flow = ( aState == Ascending ) ? TT_Flow_Up : TT_Flow_Down;
-
-    ras.cProfile->start  = 0;
-    ras.cProfile->height = 0;
+    ras.cProfile->flow   = ( aState == Ascending ) ? TT_Flow_Up : TT_Flow_Down;
     ras.cProfile->offset = ras.top;
-    ras.cProfile->link   = (PProfile)0;
-    ras.cProfile->next   = (PProfile)0;
 
     if ( !ras.gProfile )
       ras.gProfile = ras.cProfile;
@@ -374,7 +360,6 @@ extern TEngine_Instance engineInstance;
 
       ras.top             += AlignProfileSize;
 
-      ras.cProfile->height = 0;
       ras.cProfile->offset = ras.top;
       oldProfile->next     = ras.cProfile;
       ++ras.num_Profs;
@@ -385,8 +370,6 @@ extern TEngine_Instance engineInstance;
       ras.error = Raster_Err_Overflow;
       return FAILURE;
     }
-
-    ras.joint = FALSE;
 
     return SUCCESS;
   }
@@ -406,40 +389,36 @@ extern TEngine_Instance engineInstance;
   static Bool _near  Insert_Y_Turn( RAS_ARGS  Int  y )
   {
     PStorage  y_turns;
-    Int       y2, n;
+    Int       n;
 
-    n       = ras.numTurns-1;
+    n       = ras.numTurns - 1;
     y_turns = ras.sizeBuff - ras.numTurns;
 
     /* look for first y value that is <= */
     while ( n >= 0 && y < y_turns[n] )
       --n;
 
-    /* if it is <, simply insert it, ignore if == */
-    if ( n >= 0 && y > y_turns[n] )
-      while ( n >= 0 )
-      {
-        y2 = y_turns[n];
-        y_turns[n] = y;
-        y = y2;
-        --n;
-      }
+    /* ignore duplicate y values */
+    if ( n >= 0 && y == y_turns[n] )
+      return SUCCESS;
 
-    if ( n < 0 )
+    if ( ras.maxBuff <= ras.top + 1 )
     {
-      if (ras.maxBuff <= ras.top + 1)
-      {
-        ras.error = Raster_Err_Overflow;
-        return FAILURE;
-      }
-      --ras.maxBuff;
-      ++ras.numTurns;
-      ras.sizeBuff[-ras.numTurns] = y;
+      ras.error = Raster_Err_Overflow;
+      return FAILURE;
     }
 
-    return SUCCESS;
-  }
+    /* Make room for the new turn. The turn table grows downwards */
+    /* from the end of the render pool.                           */
+  if ( n >= 0 )
+    MEM_Move( y_turns - 1, y_turns, (n + 1) * sizeof ( Storage ) );
 
+  --ras.maxBuff;
+  ++ras.numTurns;
+  y_turns[n] = y;
+
+  return SUCCESS;
+}
 
 /****************************************************************************/
 /*                                                                          */
@@ -604,10 +583,9 @@ extern TEngine_Instance engineInstance;
       ++e1;
     }
     else if ( ras.joint )
-      {
-        ras.top--;
-        ras.joint = FALSE;
-      }
+    {
+      ras.top--;
+    }
 
     ras.joint = ( f2 == 0 );
 
@@ -624,11 +602,33 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
+    /* A single scanline needs no stepping calculations. */
+    if ( size == 1 )
+    {
+      *ras.top++ = x1;
+      return SUCCESS;
+    }
+
+    /* Calculate quotient and remainder using a positive delta. */
+    /* A negative remainder would prevent the error accumulator */
+    /* from correcting lines with a negative slope.             */
+    Ax = 1;
+
+    if (Dx < 0)
+    {
+      Dx = -Dx;
+      Ax = -1;
+    }
+
     Ix = (PRECISION * Dx) / Dy;
     Rx = (PRECISION * Dx) % Dy;
-    Dx = (Dx > 0) ? 1 : -1;
 
-    Ax  = -Dy;
+    if (Ax < 0)
+      Ix = -Ix;
+
+    Dx = Ax;
+    Ax = -Dy;
+
     top = ras.top;
 
     while ( size-- > 0 )
@@ -749,7 +749,8 @@ extern TEngine_Instance engineInstance;
       if ( y2 > e )
       {
         y1 = arc[2].y;
-        if ( y2 - y1 >= ras.precision_step )
+        e0 = y2 - y1;
+        if ( e0 >= ras.precision_step )
         {
           Split_Bezier( arc );
           arc += 2;
@@ -758,7 +759,7 @@ extern TEngine_Instance engineInstance;
         {
           *top++ = arc[2].x + FMulDiv( arc[0].x - arc[2].x,
                                        e - y1,
-                                       y2 - y1 );
+                                       e0 );
 
           arc -= 2;
           e   += PRECISION;
@@ -835,51 +836,36 @@ extern TEngine_Instance engineInstance;
 
   static Bool _near  Line_To( RAS_ARGS Long  x, Long  y )
   {
-    /* First, detect a change of direction */
+    TStates  newState;
 
-    switch ( ras.state )
+
+    /* Horizontal segments don't change the profile and don't */
+    /* contribute any scanline intersections.                 */
+    if ( y != ras.lastY )
     {
-    case Unknown:
-      if ( y > ras.lastY )
+      newState = y > ras.lastY ? Ascending : Descending;
+
+      /* Detect a change of direction. */
+      if ( ras.state != newState )
       {
-        if ( New_Profile( RAS_VARS  Ascending ) ) return FAILURE;
-      } 
-      else if ( y < ras.lastY )
-      {
-          if ( New_Profile( RAS_VARS  Descending ) ) return FAILURE;
+        if ( ras.state != Unknown && End_Profile( RAS_VAR ) )
+          return FAILURE;
+
+        if ( New_Profile( RAS_VARS newState ) )
+          return FAILURE;
       }
-      break;
 
-    case Ascending:
-      if ( y < ras.lastY )
+      /* Compute the line according to its direction. */
+      if ( newState == Ascending )
       {
-        if ( End_Profile( RAS_VAR ) ||
-             New_Profile( RAS_VARS  Descending ) ) return FAILURE;
+        if ( Line_Up( RAS_VARS ras.lastX, ras.lastY, x, y, ras.minY, ras.maxY ) )
+          return FAILURE;
       }
-      break;
-
-    case Descending:
-      if ( y > ras.lastY )
+      else
       {
-        if ( End_Profile( RAS_VAR ) ||
-             New_Profile( RAS_VARS  Ascending ) ) return FAILURE;
+        if ( Line_Down( RAS_VARS ras.lastX, ras.lastY, x, y, ras.minY, ras.maxY ) )
+          return FAILURE;
       }
-      break;
-    }
-
-    /* Then compute the lines */
-
-    if ( ras.state == Ascending )
-    {
-      if ( Line_Up ( RAS_VARS  ras.lastX, ras.lastY,
-                     x, y, ras.minY, ras.maxY ) )
-        return FAILURE;
-    }
-    else if ( ras.state == Descending )
-    {
-      if ( Line_Down( RAS_VARS ras.lastX, ras.lastY,
-                      x, y, ras.minY, ras.maxY ) )
-        return FAILURE;
     }
 
     ras.lastX = x;
@@ -973,7 +959,7 @@ extern TEngine_Instance engineInstance;
 
         /* compute */
 
-        switch ( ras.state )
+        switch ( state_bez )
         {
         case Ascending:
           if ( Bezier_Up ( RAS_VARS ras.minY, ras.maxY ) )
@@ -1156,8 +1142,6 @@ extern TEngine_Instance engineInstance;
 
 
     ras.fProfile         = NULL;
-    ras.joint            = FALSE;
-    ras.fresh            = FALSE;
     ras.maxBuff          = ras.sizeBuff - AlignProfileSize;
     ras.numTurns         = 0;
     ras.cProfile         = (PProfile)ras.top;
@@ -1194,38 +1178,7 @@ extern TEngine_Instance engineInstance;
     if (Finalize_Profile_Table( RAS_VAR ))
       return FAILURE;
 
-    if ( ras.top >= ras.maxBuff )
-    {
-      ras.error = Raster_Err_Overflow;
-      return FAILURE;
-    }
-
     return SUCCESS;
-  }
-
-
-/************************************************/
-/*                                              */
-/*  InsNew :                                    */
-/*                                              */
-/*    Inserts a new Profile in a linked list.   */
-/*                                              */
-/************************************************/
-
-  static void _near  InsNew( PProfileList  list,
-                             PProfile      profile )
-  {
-    PProfile* insert_point = list;
-    PProfile  current      = *insert_point;
-
-
-    while (current && current->X < profile->X) {
-        insert_point = &current->link;
-        current = *insert_point;
-    }
-
-    profile->link = current;
-    *insert_point = profile;
   }
 
 
@@ -1261,42 +1214,34 @@ extern TEngine_Instance engineInstance;
 
   static void _near  Sort( PProfileList  list )
   {
-    PProfile  *old, current, next;
+    PProfile  *insert, current, next;
 
-
-    /* First, set the new X coordinate of each profile */
+    /* Update each profile exactly once before sorting. */
     Update( *list );
 
-    /* Then sort them */
-    old     = list;
-    current = *old;
-
+    current = *list;
     if ( !current )
       return;
 
-    next = current->link;
-
-    while ( next )
+    while ( (next = current->link) != NULL )
     {
       if ( current->X <= next->X )
       {
-        old     = &current->link;
-        current = *old;
-
-        if ( !current )
-          return;
+        current = next;
       }
       else
       {
-        *old          = next;
+        /* Remove the misplaced profile from behind current. */
         current->link = next->link;
-        next->link    = current;
 
-        old     = list;
-        current = *old;
+        /* current->X > next->X guarantees a stopping point. */
+        insert = list;
+        while ( (*insert)->X <= next->X )
+          insert = &(*insert)->link;
+
+        next->link = *insert;
+        *insert    = next;
       }
-
-      next = current->link;
     }
   }
 
@@ -1312,8 +1257,8 @@ extern TEngine_Instance engineInstance;
 
   static void _near  Vertical_Sweep_Init( RAS_ARGS Short*  min )
   {
-    ras.traceOfs  = ( ras.target.rows - 1 - *min ) * ras.target.cols;
-    ras.traceIncr = -ras.target.cols;
+    ras.traceOfs  = ( ras.bRows - 1 - *min ) * ras.bCols;
+    ras.traceIncr = -ras.bCols;
   }
 
 
@@ -1335,7 +1280,7 @@ extern TEngine_Instance engineInstance;
     if ( x2-x1-PRECISION <= 1 )
       e2 = e1;
     else
-      e2 = TRUNC( FLOOR( x2 ) );
+      e2 = TRUNC( x2 );
 
     if ( e2 >= 0 && e1 < ras.bWidth )
     {
@@ -1476,31 +1421,21 @@ extern TEngine_Instance engineInstance;
 /*                                                                     */
 /***********************************************************************/
 
-  static void _near  Vertical_Region_Sweep_Init( RAS_ARGS Short*  min )
+  static void _near  Null_Sweep_Init( RAS_ARGS Short* min )
   {
-    (void)min;
-
-    if ( !ras.regionStarted )
-    {
-      ras.traceOfs         = 0;
-      ras.traceOfsLastLine = -1;
-      ras.regionStarted    = TRUE;
-    }
-
-    ras.traceIncr = 0;
+    (void)raster, (void)min;
   }
 
-  static void _near  Vertical_Region_Sweep_Span( RAS_ARGS Short       y,
-                                                          TT_F26Dot6  x1,
-                                                          TT_F26Dot6  x2 )
+  static void _near  Vertical_Region_Sweep_Span( RAS_ARGS Short  y,
+                                                     TT_F26Dot6  x1,
+                                                     TT_F26Dot6  x2 )
   {
     Short   e1     = TRUNC( CEILING( x1 ) );
-    Short   e2     = TRUNC( FLOOR( x2 ) );
+    Short   e2     = TRUNC( x2 );
     PShort  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
 
 
-    if ( ras.traceIncr == 0 )
-      target[ras.traceIncr++] = y;
+    (void)y;
 
     if ( e2 >= 0 && e1 < ras.bWidth )   
     {
@@ -1512,14 +1447,6 @@ extern TEngine_Instance engineInstance;
     }
   }
 
-  static void _near  Vertical_Region_Sweep_Drop( RAS_ARGS Short       y,
-                                                          TT_F26Dot6  x1,
-                                                          TT_F26Dot6  x2,
-                                                          PProfile    left,
-                                                          PProfile    right )
-  {
-    (void)raster, (void)y, (void)x1, (void)x2, (void)left, (void)right;
-  } 
 
   static void _near  Vertical_Region_Sweep_Step( RAS_ARGS Short y )
   {
@@ -1527,14 +1454,9 @@ extern TEngine_Instance engineInstance;
     PShort  targetLastLine = ( (PShort)ras.bTarget ) + ras.traceOfsLastLine;
 
 
-    /* special case: the current line was empty */
-
-    if ( ras.traceIncr == 0 )
-      target[ras.traceIncr++] = y;
-      
-
     /* finish current line */
 
+    target[0] = y;
     target[ras.traceIncr++] = (Short)EOREGREC;
 
 
@@ -1543,8 +1465,8 @@ extern TEngine_Instance engineInstance;
     if ( ( ras.traceOfsLastLine > -1 ) &&
          ( MEM_Cmp( targetLastLine + 1, target + 1, ( ras.traceIncr - 1 ) * sizeof( Short ) ) == 0 ) )
     {
-      *targetLastLine = *target;
-      ras.traceIncr   = 0;
+      *targetLastLine = y;
+      ras.traceIncr   = 1;
       return;
     }   
 
@@ -1553,16 +1475,7 @@ extern TEngine_Instance engineInstance;
 
     ras.traceOfsLastLine = ras.traceOfs;
     ras.traceOfs         += ras.traceIncr;
-    ras.traceIncr        = 0;
-  }
-
-  static void _near  Region_Sweep_Finish( RAS_ARG )
-  {
-    Short*  target = ( (PShort)ras.bTarget ) + ras.traceOfs;
-
-
-    target[ras.traceIncr++] = (Short)EOREGREC;
-    ras.target.size = ( ras.traceOfs + ras.traceIncr ) * sizeof( Short );
+    ras.traceIncr        = 1;
   }
 
 #endif  /* __GEOS__ */
@@ -1577,12 +1490,7 @@ extern TEngine_Instance engineInstance;
 /*                                                                     */
 /***********************************************************************/
 
-  static void _near  Horizontal_Sweep_Init( RAS_ARGS Short*  min )
-  {
-    (void)raster, (void)min;
-  }
-
-
+ 
   static void _near  Horizontal_Sweep_Span( RAS_ARGS Short y,
                                                      TT_F26Dot6  x1,
                                                      TT_F26Dot6  x2 )
@@ -1600,10 +1508,10 @@ extern TEngine_Instance engineInstance;
       {
         e1 = TRUNC( e1 );
 
-        if ( e1 >= 0 && e1 < ras.target.rows )
+        if ( e1 >= 0 && e1 < ras.bRows )
         {
           bits = ras.bTarget + (y >> 3);
-          bits[(ras.target.rows-1 - e1) * ras.target.cols] |= ((Byte)(0x80 >> (y  & 7)));
+          bits[(ras.bRows-1 - e1) * ras.bCols] |= ((Byte)(0x80 >> (y  & 7)));
         }
       }
     }
@@ -1661,10 +1569,10 @@ extern TEngine_Instance engineInstance;
 
           bits = ras.bTarget + (y >> 3);
 
-          bits += (ras.target.rows-1-e1) * ras.target.cols;
+          bits += (ras.bRows-1-e1) * ras.bCols;
 
-          if ( e1 >= 0              &&
-               e1 < ras.target.rows &&
+          if ( e1 >= 0        &&
+               e1 < ras.bRows &&
                *bits & ((Byte)(0x80 >> (y &  7))) )
             return;
 
@@ -1687,8 +1595,8 @@ extern TEngine_Instance engineInstance;
 
     e1 = TRUNC( e1 );
 
-    if ( e1 >= 0 && e1 < ras.target.rows )
-        bits[(ras.target.rows-1-e1) * ras.target.cols] |= (Byte)(0x80 >> (y  & 7));
+    if ( e1 >= 0 && e1 < ras.bRows )
+        bits[(ras.bRows-1-e1) * ras.bCols] |= (Byte)(0x80 >> (y  & 7));
   }
 
 
@@ -1903,11 +1811,9 @@ extern TEngine_Instance engineInstance;
 
   static Bool _near  Draw_Sweep( RAS_ARG )
   {
-    Short  y, y_change;
-
+    Short     y, y_change;
     PProfile  P, Q, P_Left, P_Right;
-
-    Short  min_Y, bottom, dropouts;
+    Short     min_Y, dropouts;
 
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
     Short  max_Y, top;
@@ -1927,23 +1833,19 @@ extern TEngine_Instance engineInstance;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
     max_Y = (short)TRUNC( ras.minY );
 #endif
-    min_Y = (short)TRUNC( ras.maxY );
 
     while ( P )
     {
       Q = P->link;
 
-      bottom = P->start;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
       top    = P->start + P->height-1;
 #endif
 
-      if ( min_Y > bottom ) min_Y = bottom;
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
       if ( max_Y < top    ) max_Y = top;
 #endif
 
-      P->X = 0;
       P->link = wait;
       wait    = P;
 
@@ -1957,6 +1859,10 @@ extern TEngine_Instance engineInstance;
       return FAILURE;
     }
 
+    /* The Y-turn table is sorted in ascending order. */
+
+    min_Y = (Short)ras.sizeBuff[-ras.numTurns--];
+
     /* Now inits the sweep */
 
 #ifdef TT_CONFIG_OPTION_GRAY_SCALING
@@ -1968,10 +1874,6 @@ extern TEngine_Instance engineInstance;
     /* Let's go */
 
     y = min_Y;
-
-    if ( ras.numTurns > 0 &&
-         ras.sizeBuff[-ras.numTurns] == min_Y )
-      --ras.numTurns;
 
     while ( ras.numTurns > 0 )
     {
@@ -1990,8 +1892,15 @@ extern TEngine_Instance engineInstance;
 
             switch ( P->flow )
             {
-              case TT_Flow_Up:    InsNew( &draw_left,  P ); break;
-              case TT_Flow_Down:  InsNew( &draw_right, P ); break;
+              case TT_Flow_Up:
+                P->link   = draw_left;
+                draw_left = P;
+                break;
+
+              case TT_Flow_Down:
+                P->link    = draw_right;
+                draw_right = P;
+                break;
             }
           }
           else
@@ -2028,13 +1937,12 @@ extern TEngine_Instance engineInstance;
             x2 = xs;
           }
 
-          if ( x2-x1 <= PRECISION )
+          if ( x2-x1 <= PRECISION && ras.dropOutControl != 0)
           {
             e1 = FLOOR( x1 );
             e2 = CEILING( x2 );
 
-            if ( ras.dropOutControl != 0 &&
-                 (e1 > e2 || e2 == e1 + PRECISION) )
+            if ( e1 > e2 || e2 == e1 + PRECISION )
             {
               /* a drop out was detected */
 
@@ -2132,8 +2040,7 @@ Scan_DropOuts :
         e1 = FLOOR( x1 );
         e2 = CEILING( x2 );
 
-        if ( ras.dropOutControl != 0 &&
-             ( e1 > e2 || e2 == e1 + PRECISION ) )
+        if ( e1 > e2 || e2 == e1 + PRECISION )
         {
           ras.Proc_Sweep_Drop( RAS_VARS  y,
                                x1,
@@ -2164,20 +2071,16 @@ Scan_DropOuts :
 /*                                                                          */
 /****************************************************************************/
 
-  static TT_Error  Render_Single_Pass( RAS_ARGS Bool  flipped )
+  static TT_Error _near Render_Single_Pass( RAS_ARGS Bool  flipped )
   {
-    Short  i, j, k;
-    TBand  band;
-    Int    band_top = 1;
+    Short     i, j, k;
+    TBand     band;
+    Int       band_top = 1;
+    PStorage  buffer;
 
 
-    /*
-     * Treat band_stack as a stack of pending bands.  When a band overflows,
-     * push the upper half first and the lower half last so that the lower
-     * half is processed first.  Bitmap rendering is order independent, but
-     * GEOS region output is not: it appends scanline records and must see
-     * bands in ascending y order.
-     */
+    buffer = ras.sizeBuff - ( RASTER_RENDER_POOL_SIZE >> 2 );
+
     while ( band_top > 0 )
     {
       band = ras.band_stack[--band_top];
@@ -2185,7 +2088,7 @@ Scan_DropOuts :
       ras.maxY = (Long)band.y_max * PRECISION;
       ras.minY = (Long)band.y_min * PRECISION;
 
-      ras.top = MemDeref( ras.buffer );
+      ras.top = buffer;
 
       ras.error = Raster_Err_None;
 
@@ -2198,17 +2101,8 @@ Scan_DropOuts :
         i = band.y_min;
         j = band.y_max;
 
-        if ( i >= j )
-        {
-          ras.error = Raster_Err_Overflow;
+        if ( i >= j || band_top > MaxBand - 2 )
           return ras.error;
-        }
-
-        if ( band_top > MaxBand - 2 )
-        {
-          ras.error = Raster_Err_Overflow;
-          return ras.error;
-        }
 
         k = ( i + j ) >> 1;
 
@@ -2222,21 +2116,15 @@ Scan_DropOuts :
         ++band_top;
       }
       else
-      {
         if ( ras.fProfile )
-        {
           if ( Draw_Sweep( RAS_VAR ) ) return ras.error;
-        }
-        else
-          ras.Proc_Sweep_Init( RAS_VAR, 0 );
-      }
     }
 
     return TT_Err_Ok;
   }
 
   
-  static void Initialize_Raster_Instance( RAS_ARGS TT_Outline*  glyph )
+  static void _near Initialize_Raster_Instance( RAS_ARGS TT_Outline*  glyph )
   {
     ras.outs      = glyph->contours;
     ras.flags     = glyph->flags;
@@ -2272,8 +2160,6 @@ EC( ECCheckMemHandle( ras.buffer ) );
 EC( ECCheckBounds( (void*)target_map ) );
 
 
-    ras.target = *target_map;
-
     Initialize_Raster_Instance( RAS_VARS glyph );
 
     /* Vertical Sweep */
@@ -2283,10 +2169,12 @@ EC( ECCheckBounds( (void*)target_map ) );
     ras.Proc_Sweep_Step   = Vertical_Sweep_Step;
 
     ras.band_stack[0].y_min = 0;
-    ras.band_stack[0].y_max = ras.target.rows - 1;
+    ras.band_stack[0].y_max = target_map->rows - 1;
 
-    ras.bWidth  = ras.target.width;
-    ras.bTarget = (Byte*)ras.target.bitmap;
+    ras.bRows   = target_map->rows;
+    ras.bCols   = target_map->cols;
+    ras.bWidth  = target_map->width;
+    ras.bTarget = (PByte)target_map->bitmap;
 
     /* lock renderpool cache */
     LOCK_RENDER_POOL;
@@ -2298,13 +2186,13 @@ EC( ECCheckBounds( (void*)target_map ) );
 
     if ( ras.dropOutControl != 0 )
     {
-      ras.Proc_Sweep_Init   = Horizontal_Sweep_Init;
+      ras.Proc_Sweep_Init   = Null_Sweep_Init;
       ras.Proc_Sweep_Span   = Horizontal_Sweep_Span;
       ras.Proc_Sweep_Drop   = Horizontal_Sweep_Drop;
       ras.Proc_Sweep_Step   = Horizontal_Sweep_Step;
 
       ras.band_stack[0].y_min = 0;
-      ras.band_stack[0].y_max = ras.target.width - 1;
+      ras.band_stack[0].y_max = ras.bWidth - 1;
 
       error = Render_Single_Pass( RAS_VARS  1 );
     }
@@ -2341,25 +2229,25 @@ EC( ECCheckMemHandle( ras.buffer ) );
 EC( ECCheckBounds( (void*)map ) );
 
 
-    ras.target = *map;
-
     Initialize_Raster_Instance( RAS_VARS glyph );
 
     /* disable drop-out control */
     ras.dropOutControl = 0;
 
-    /* Vertical Sweep */
-    ras.Proc_Sweep_Init   = Vertical_Region_Sweep_Init;
+    /* Region rendering disables drop-out control, so Proc_Sweep_Drop */
+    /* is never called and does not need to be initialized here.      */
+    ras.Proc_Sweep_Init   = Null_Sweep_Init;
     ras.Proc_Sweep_Span   = Vertical_Region_Sweep_Span;
-    ras.Proc_Sweep_Drop   = Vertical_Region_Sweep_Drop;
     ras.Proc_Sweep_Step   = Vertical_Region_Sweep_Step;
 
     ras.band_stack[0].y_min = 0;
-    ras.band_stack[0].y_max = ras.target.rows - 1;
+    ras.band_stack[0].y_max = map->rows - 1;
+    ras.bWidth              = map->cols;
+    ras.bTarget             = (PByte)map->bitmap;
 
-    ras.bWidth        = ras.target.cols;
-    ras.bTarget       = (PByte)ras.target.bitmap;
-    ras.regionStarted = FALSE;
+    ras.traceOfs         = 0;
+    ras.traceOfsLastLine = -1;
+    ras.traceIncr        = 1;
 
 
     /* lock renderpool cache */
@@ -2368,8 +2256,8 @@ EC( ECCheckBounds( (void*)map ) );
     if ( (error = Render_Single_Pass( RAS_VARS 0 )) != 0 )
       goto Fin;
 
-    Region_Sweep_Finish( RAS_VAR );
-    map->size = ras.target.size;
+    ((PShort)ras.bTarget)[ras.traceOfs] = (Short)EOREGREC;
+    map->size = ( ras.traceOfs + 1 ) * sizeof( Short );
 
   Fin:
     UNLOCK_RENDER_POOL;
