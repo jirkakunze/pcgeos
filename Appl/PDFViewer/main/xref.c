@@ -181,6 +181,17 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan)
             batchMax = 1;
         }
         batchBuf = gmalloc((long)batchMax * sizeof(XRefEntry));
+        if (!xref->entries || !batchBuf)
+        {
+            gfree(batchBuf);
+            if (xref->entries)
+            {
+                HugeArrayDestroy(xref->vmFile, xref->entries);
+            }
+            xref->size = 0;
+            xref->entries = NULL;
+            goto err;
+        }
         for (entryIdx = 0; entryIdx < batchMax; ++entryIdx)
         {
             batchBuf[entryIdx] = entryTemplate;
@@ -450,6 +461,12 @@ static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
     initNull(&numObj);
     fs2 = gmalloc(sizeof(Stream));
     lexer = gmalloc(sizeof(Lexer));
+    if (!fs2 || !lexer)
+    {
+        gfree(fs2);
+        gfree(lexer);
+        return 0;
+    }
     FStreamInit(fs2, xref->fHan, xref->start + pos, -1, &numObj);
     LexerInitFromStream(lexer, fs2, xref);
     ParserInit(&parser, lexer);
@@ -571,12 +588,22 @@ GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection
         }
         batchBuf = gmalloc((long)batchMax * sizeof(XRefEntry));
         batchCount = 0;
+        if (!batchBuf)
+        {
+            goto err;
+        }
     }
 
     (void)fs;
     initNull(&numObj);
     fs2 = gmalloc(sizeof(Stream));
     lexer = gmalloc(sizeof(Lexer));
+    if (!fs2 || !lexer)
+    {
+        gfree(fs2);
+        gfree(lexer);
+        goto err;
+    }
     FStreamInit(fs2, xref->fHan, xref->start + *pos, -1, &numObj);
     LexerInitFromStream(lexer, fs2, xref);
     ParserInit(&parser, lexer);
@@ -970,8 +997,13 @@ long XRefReadTrailer(XRef *xref, Stream *fs)
     initNull(&obj);
 
     fs2 = gmalloc(sizeof(Stream));
-
     lexer = gmalloc(sizeof (Lexer));
+    if (!fs2 || !lexer)
+    {
+        gfree(fs2);
+        gfree(lexer);
+        return 0;
+    }
 
     FStreamInit(fs2, xref->fHan, xref->start + pos1, -1, &obj);
 
@@ -1131,6 +1163,10 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
         }
         batchBuf = gmalloc((long)batchMax * sizeof(XRefEntry));
         batchCount = 0;
+        if (!batchBuf)
+        {
+            goto err2;
+        }
     }
 
     /* seek to xref in stream */
@@ -1293,6 +1329,12 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
 
     fs2 = gmalloc(sizeof(Stream));
     lexer = gmalloc(sizeof(Lexer));
+    if (!fs2 || !lexer)
+    {
+        gfree(fs2);
+        gfree(lexer);
+        goto err2;
+    }
 
     FStreamInit(fs2, xref->fHan, FStreamGetPos(fs), -1, &obj);
     LexerInitFromStream(lexer, fs2, xref);
@@ -1571,11 +1613,19 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     str = getStream(&objStmObj);
 
     subStr = gmalloc(sizeof(Stream));
+    lexer = gmalloc(sizeof(Lexer));
+    if (!subStr || !lexer)
+    {
+        gfree(subStr);
+        gfree(lexer);
+        ObjFree(&objStmObj);
+        initNull(obj);
+        return;
+    }
     initNull(&dummyDict);
     SubStreamInit(subStr, str, &dummyDict);
     ObjFree(&dummyDict);
 
-    lexer = gmalloc(sizeof(Lexer));
     LexerInitFromStream(lexer, subStr, xref);
     ParserInit(&parser, lexer);
     ParserGetObj(&parser, obj);
