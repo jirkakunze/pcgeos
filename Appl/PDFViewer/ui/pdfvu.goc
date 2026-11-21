@@ -57,6 +57,7 @@ void PDFUpdatePageControl (word totalPages, word curPage);
 void PDFDocProgressCallback(dword kind, dword current, dword total, void *userData);
 void PDFDismissProgress(void);
 void PDFShowError(optr msg);
+void PDFUpdateSaveDirText(void);
 
 /*
  * PDFSetupGState and PDFGetPageGString used to be declared here and
@@ -112,6 +113,8 @@ Boolean onTV, g_showTools;
 
 @class	PDFProcessClass, GenProcessClass ;
 	@message void MSG_PDF_TOGGLE_OPTIONS();
+	/* Save Copy As file selector changed folder */
+	@message (GEN_FILE_SELECTOR_NOTIFICATION_MSG) MSG_PDF_SAVE_DIR_SELECTED;
 @endc   /* end of class definition */
 
 
@@ -170,9 +173,6 @@ Boolean onTV, g_showTools;
 @instance  word		PDFDoc_pageNum = 1;  /* current page num on display */
 
 @instance  Point    PDFDoc_bounds = {0, 0};  /* view bounds of current page */
-
-/* User can 'save' this document to SP_DOCUMENT if this value is TRUE. */
-@instance  Boolean	PDFDoc_saveable = FALSE;
 
 /* Page whose decode error was already reported (0 = none), so every
  * redraw of a broken page doesn't pop up the dialog again. */
@@ -644,8 +644,8 @@ Boolean onTV, g_showTools;
 
 
 @object GenTriggerClass PDFDocumentSave = {
-	 GI_visMoniker = 'S', "Save";
-	 GI_attrs = @default & ~(GS_USABLE);
+	 GI_visMoniker = 'C', "Save Copy As...";
+	 GI_states = @default & ~GS_ENABLED;
 	 GTI_destination = (TO_APP_MODEL);
 	 GTI_actionMsg = MSG_PDF_DOCUMENT_SAVE;
 	 ATTR_GEN_DESTINATION_CLASS = &PDFDocumentClass;
@@ -654,71 +654,77 @@ Boolean onTV, g_showTools;
 
 
 /*
- * Save Dialog Box
+ * Save Copy As dialog -- laid out like the document control's own
+ * "Save As" dialog (CommonUI cmainUIDocumentControl.ui, FileSaveAsSummons)
+ * so it looks the same as in other GEOS applications.
  */
 @object GenInteractionClass PDFSaveDB =
 {
-    GI_visMoniker = "Save File";
-	 GI_comp = @PDFSaveNameStuff,
-				  @PDFSaveFileSel,
-				  @PDFSaveTrigger,
-				  @PDFCancelTrigger;
+    GI_visMoniker = "Save Copy As";
+    GI_comp = @PDFSaveGlyph,
+	      @PDFSaveFileSel,
+	      @PDFSaveDirText,
+	      @PDFFileName,
+	      @PDFSaveTrigger,
+	      @PDFCancelTrigger;
+    GII_type = GIT_COMMAND;
     GII_visibility = GIV_DIALOG;
-    GII_attrs = GIA_NOT_USER_INITIATABLE | GIA_MODAL;
+    GII_attrs = @default | GIA_NOT_USER_INITIATABLE | GIA_MODAL;
     ATTR_GEN_HELP_CONTEXT = "SaveDB";
-    HINT_ORIENT_CHILDREN_VERTICALLY;
-    HINT_CENTER_CHILDREN_HORIZONTALLY;
 }
 
-@object GenInteractionClass PDFSaveNameStuff = {
-	 GI_comp = @PDFFileName, @PDFNameWarn;
-	 HINT_EXPAND_WIDTH_TO_FIT_PARENT;
-	 HINT_ORIENT_CHILDREN_HORIZONTALLY;
-	 HINT_CENTER_CHILDREN_VERTICALLY;
+@object GenGlyphClass PDFSaveGlyph = {
+    GI_visMoniker = "Save document with a new name.";
+    HINT_CENTER_MONIKER;
+    HINT_EXPAND_WIDTH_TO_FIT_PARENT;
 }
 
-@object GenTextClass PDFFileName = {
-	 GI_visMoniker = "File Name:";
-	 GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
-	 GTXI_maxLength = (12);
-	 ATTR_GEN_TEXT_LEGAL_DOS_FILENAMES;
-	 ATTR_GEN_TEXT_MAKE_UPPERCASE;
-	 ATTR_GEN_TEXT_SET_OBJECT_ENABLED_WHEN_TEXT_EXISTS = @PDFSaveTrigger;
-	 HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 16, 0, 0};
-	 HINT_TEXT_WHITE_WASH_COLOR;
-	 HINT_DEFAULT_FOCUS;
-}
-
-@object GenGlyphClass PDFNameWarn = {
-	 GI_visMoniker = "(DOS file name ending in .PDF)";
-}
 @object GenFileSelectorClass PDFSaveFileSel = {
-	 GFSI_fileCriteria = FSFC_MASK_CASE_INSENSITIVE |
-					 FSFC_DIRS |
-					 FSFC_NON_GEOS_FILES;
-	 GFSI_attrs = @default | FSA_SHOW_FILES_DISABLED;
-	 ATTR_GEN_PATH_DATA = {SP_DOCUMENT, "."};
-	 ATTR_GEN_FILE_SELECTOR_NAME_MASK = {"*.PDF"};
-	 HINT_FILE_SELECTOR_NUMBER_OF_FILES_TO_SHOW = 12;
-	 HINT_FILE_SELECTOR_FILE_LIST_WIDTH = 40;
+    GFSI_fileCriteria = FSFC_MASK_CASE_INSENSITIVE |
+			FSFC_DIRS |
+			FSFC_NON_GEOS_FILES;
+    GFSI_attrs = @default | FSA_SHOW_FILES_DISABLED;
+    GFSI_destination = process;
+    GFSI_notificationMsg = MSG_PDF_SAVE_DIR_SELECTED;
+    ATTR_GEN_PATH_DATA = {SP_DOCUMENT, "."};
+    ATTR_GEN_FILE_SELECTOR_NAME_MASK = {"*.PDF"};
+    HINT_FILE_SELECTOR_SINGLE_ACTION;
+}
+
+@object GenTextClass PDFSaveDirText = {
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_EXPAND_WIDTH_TO_FIT_PARENT;
+}
+
+/* Native (DOS) file, so the name is limited to 8.3 */
+@object GenTextClass PDFFileName = {
+    GI_visMoniker = "New Name:";
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    GTXI_maxLength = (12);
+    ATTR_GEN_TEXT_LEGAL_DOS_FILENAMES;
+    ATTR_GEN_TEXT_MAKE_UPPERCASE;
+    ATTR_GEN_TEXT_SET_OBJECT_ENABLED_WHEN_TEXT_EXISTS = @PDFSaveTrigger;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 14, 0, 0};
+    HINT_DEFAULT_FOCUS;
 }
 
 @object GenTriggerClass PDFSaveTrigger =
 {
-    GI_visMoniker = "Save";
-	 GI_states = @default &~GS_ENABLED;
-	 GTI_destination = (TO_APP_MODEL);
+    GI_visMoniker = 'a', "Save";
+    GI_states = @default & ~GS_ENABLED;
+    GTI_destination = (TO_APP_MODEL);
     GTI_actionMsg = MSG_PDF_DOCUMENT_SAVE_FILE_NOW;
     ATTR_GEN_DESTINATION_CLASS = &PDFDocumentClass;
     HINT_SEEK_REPLY_BAR;
-	 HINT_DEFAULT_DEFAULT_ACTION;
+    HINT_DEFAULT_DEFAULT_ACTION;
 }
 
 @object GenTriggerClass PDFCancelTrigger =
 {
-	 GI_visMoniker = "Cancel";
     GI_attrs = @default | GA_SIGNAL_INTERACTION_COMPLETE;
-	 HINT_SEEK_REPLY_BAR;
+    HINT_SEEK_REPLY_BAR;
+    ATTR_GEN_TRIGGER_INTERACTION_COMMAND = IC_DISMISS;
 }
 
 
@@ -882,6 +888,8 @@ Boolean onTV, g_showTools;
 @chunk char PDFPageError[] = "PDF Viewer could not display this page. "
                         "The page may be damaged or use features that are "
                         "not supported.";
+
+@chunk TCHAR PDFSaveToDirStr[] = "Saving to Folder: ";
 
 @chunk TCHAR SaveFileExistsStr[] = "The file already exists - please choose another name.";
 
@@ -1257,9 +1265,6 @@ errorClose:
  *		1. The user is running on the TV
  *		2. The file is located outside of the GEOS tree.
  *
- *		Additionally, if the file is not located under 
- *		SP_DOCUMENT, set a flag to later enable the Save button.
- *
  * REVISION HISTORY:
  *	Name		Date		Description
  *	----		----		-----------
@@ -1282,10 +1287,6 @@ errorClose:
 	    @call view::MSG_GEN_VIEW_SET_COLOR(gray, CF_RGB, (gray << 8) | gray);
 	}
     }
-
-    if (FileComparePaths(NULL, SP_DOCUMENT, ppath->GFP_path, ppath->GFP_disk)
-	> PCT_SUBDIR)
-	pself->PDFDoc_saveable = TRUE;
 
     @callsuper();
 }
@@ -1385,7 +1386,10 @@ errorClose:
  * and now happens here instead, using what PdfDrawPage reports. */
 
 	err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, FALSE, &pageSize);
-	if (err == PDF_OK) {
+	/* only tell the view about a new size -- setting the bounds on
+	 * every draw makes the view redraw/rescroll for nothing */
+	if (err == PDF_OK && (pageSize.P_x != pself->PDFDoc_bounds.P_x ||
+			      pageSize.P_y != pself->PDFDoc_bounds.P_y)) {
 	    pself->PDFDoc_bounds = pageSize;
 	    @call pself->GCI_genView::MSG_GEN_VIEW_SET_DOC_BOUNDS(
 		pageSize.P_y, pageSize.P_x, 0, 0);
@@ -2060,38 +2064,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
 
     info->GCSI_appProhibited &= ~(GPCTF_PREVIOUS_PAGE | GPCTF_GOTO_PAGE |
 	    GPCTF_NEXT_PAGE | GPCTF_FIRST_PAGE | GPCTF_LAST_PAGE);
-}
-
-/***********************************************************************
- *		MSG_META_GAINED(LOST)_TARGET_EXCL for ClipSampProcessClass
- ***********************************************************************
- * SYNOPSIS:	    Take note that we are the target object and are
- *		    thus responsible for notifying other objects
- *		    of our status.
- * PARAMETERS:	    void (void)
- * SIDE EFFECTS:
- *
- * STRATEGY:	    Update the enabled state of the Save trigger in the
- *		    file menu.
- *
- * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	dhunter	4/26/2000	Initial revision
- *
- ***********************************************************************/
-/*@method PDFDocumentClass, MSG_META_GAINED_TARGET_EXCL,
-			  MSG_META_LOST_TARGET_EXCL
-{
-    Message triggerMsg = MSG_GEN_SET_NOT_USABLE;
-    
-    if (message == MSG_META_GAINED_TARGET_EXCL && pself->PDFDoc_saveable)
-	triggerMsg = MSG_GEN_SET_USABLE;
-
-    @send PDFDocumentSave::{MSG_GEN_SET_USABLE} triggerMsg(VUM_NOW);
-
-    @callsuper();
-}
+}*/
 
 /***********************************************************************
  *		MSG_PDF_DOCUMENT_SAVE for PDFDocumentClass
@@ -2116,8 +2089,72 @@ PDFUpdatePageControl (word totalPages, word curPage)
     /* Grab the current file's name and stuff it into the text object */
 	 @call PDFFileName::MSG_VIS_TEXT_REPLACE_ALL_PTR(
 														pself->GDI_fileName, 0);
+	 PDFUpdateSaveDirText();
 	 @send PDFSaveDB::MSG_GEN_INTERACTION_INITIATE();
     return;
+}
+
+/***********************************************************************
+ *		PDFUpdateSaveDirText
+ ***********************************************************************
+ * SYNOPSIS:	Show the file selector's current folder below it, like
+ *		the standard Save As dialog ("Saving to Folder: NAME").
+ * STRATEGY:	Path buffers come from the heap -- PATH_BUFFER_SIZE is
+ *		too big for the process stack.
+ ***********************************************************************/
+void
+PDFUpdateSaveDirText(void)
+{
+    MemHandle mh;
+    TCHAR *fsPath, *fullPath, *end, *name;
+    DiskHandle disk;
+
+    @call PDFSaveDirText::MSG_VIS_TEXT_REPLACE_ALL_OPTR(@PDFSaveToDirStr, 0);
+
+    mh = MemAlloc(2 * PATH_BUFFER_SIZE, HF_SWAPABLE, HAF_LOCK);
+    if (!mh) {
+	return;
+    }
+    fsPath = MemDeref(mh);
+    fullPath = fsPath + PATH_BUFFER_SIZE / sizeof(TCHAR);
+
+    @call PDFSaveFileSel::MSG_GEN_PATH_GET(fsPath, PATH_BUFFER_SIZE);
+    disk = @call PDFSaveFileSel::MSG_GEN_PATH_GET_DISK_HANDLE();
+
+    end = fullPath;
+    *end = 0;
+    FileConstructFullPath(&end, PATH_BUFFER_SIZE, disk, fsPath, TRUE);
+
+    /* only the last folder name, unless that is the root ("C:\") */
+    name = fullPath;
+    while (end > fullPath && end[-1] == '\\' && end - 1 > fullPath &&
+	   end[-2] != ':') {
+	*--end = 0;
+    }
+    {
+	TCHAR *p;
+	for (p = fullPath; p < end; p++) {
+	    if (*p == '\\' && p + 1 < end) {
+		name = p + 1;
+	    }
+	}
+    }
+
+    @call PDFSaveDirText::MSG_VIS_TEXT_APPEND_PTR(name, 0);
+    MemFree(mh);
+}
+
+/***********************************************************************
+ *		MSG_PDF_SAVE_DIR_SELECTED for PDFProcessClass
+ ***********************************************************************
+ * SYNOPSIS:	Save Copy As file selector changed folder (or selection);
+ *		update the "Saving to Folder" line.
+ ***********************************************************************/
+@method PDFProcessClass, MSG_PDF_SAVE_DIR_SELECTED
+{
+    if (!(entryFlags & (GFSEF_ERROR | GFSEF_NO_ENTRIES))) {
+	PDFUpdateSaveDirText();
+    }
 }
 
 /***********************************************************************
@@ -2138,6 +2175,64 @@ PDFUpdatePageControl (word totalPages, word curPage)
  *	Don	3/14/00   	Initial Revision
  *
  ***********************************************************************/
+#define PDF_SAVE_BUF_SIZE 4096
+
+/***********************************************************************
+ *		PDFCopyOpenFile
+ ***********************************************************************
+ * SYNOPSIS:	Copy the (already open) document file to a new file in
+ *		the current directory.
+ * RETURNS:	0 on success, non-zero on error
+ * STRATEGY:	Read through our own file handle instead of reopening
+ *		the file by name: we only have the handle, and the open
+ *		document may not be shareable. The engine seeks before
+ *		every read, so moving the file position here is safe.
+ *		A partly written destination is deleted again.
+ ***********************************************************************/
+static word
+PDFCopyOpenFile(FileHandle src, const char *destName)
+{
+    FileHandle dst;
+    MemHandle mh;
+    byte *buf;
+    dword remaining;
+    word chunk;
+    word result = 0;
+
+    mh = MemAlloc(PDF_SAVE_BUF_SIZE, HF_SWAPABLE, HAF_LOCK);
+    if (!mh) {
+	return 1;
+    }
+    buf = MemDeref(mh);
+
+    dst = FileCreate(destName,
+	FILE_CREATE_ONLY | FCF_NATIVE | FILE_ACCESS_W | FILE_DENY_RW, 0);
+    if (!dst) {
+	MemFree(mh);
+	return 1;
+    }
+
+    remaining = FileSize(src);
+    FilePos(src, 0, FILE_POS_START);
+    while (remaining > 0) {
+	chunk = (remaining > PDF_SAVE_BUF_SIZE) ?
+	    PDF_SAVE_BUF_SIZE : (word)remaining;
+	if (FileRead(src, buf, chunk, FALSE) != chunk ||
+	    FileWrite(dst, buf, chunk, FALSE) != chunk) {
+	    result = 1;
+	    break;
+	}
+	remaining -= chunk;
+    }
+
+    FileClose(dst, FALSE);
+    if (result) {
+	FileDelete(destName);
+    }
+    MemFree(mh);
+    return result;
+}
+
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_SAVE_FILE_NOW
 {
  word		retval;
@@ -2171,8 +2266,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
 		@call application::MSG_GEN_APPLICATION_MARK_APP_COMPLETELY_BUSY();
 
 		/* Complete the copy */
-		retval = FileCopy((const char *)pself->PDFDoc_sourceFile, destFile,
-	      					0, 0);
+		retval = PDFCopyOpenFile(pself->PDFDoc_sourceFile, destFile);
 
 		/* All done - unmark application busy */
 		@send PDFSaveTrigger::MSG_GEN_SET_ENABLED(VUM_NOW);
@@ -2290,6 +2384,9 @@ EC( ECCheckEventHandle( notifyEvent ); )
 {
     ClipboardAddToNotificationList(oself);
 
+    /* "Save Copy As..." needs a document to copy */
+    @send PDFDocumentSave::MSG_GEN_SET_ENABLED(VUM_NOW);
+
     @callsuper();
 	SendSelectNotify();
 }
@@ -2317,6 +2414,7 @@ EC( ECCheckEventHandle( notifyEvent ); )
 @method PDFDocumentClass, MSG_META_LOST_TARGET_EXCL
 {
     ClipboardRemoveFromNotificationList(oself);
+    @send PDFDocumentSave::MSG_GEN_SET_NOT_ENABLED(VUM_NOW);
     @callsuper();
 }
 
@@ -2381,6 +2479,11 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	    @send, forceQueue oself::MSG_PDF_DOCUMENT_REPORT_ERROR(err);
 	    return;
 	}
+
+	/* terminate the gstring and free its handle; the data stays in
+	 * the clipboard file as the transfer item's VM chain */
+	GrEndGString(gstate);
+	GrDestroyGString(gstate, NULL, GSKT_LEAVE_DATA);
 
 
 	 /* Now, allocate and fill in the transfer item header block. */
