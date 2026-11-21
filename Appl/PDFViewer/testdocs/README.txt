@@ -81,6 +81,13 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     in main/gfx.goc's Bild-Decoder (Progress-Dialog wird für Inline-
     Images bewusst übersprungen, siehe Phase 4).
 
+17_form_xobject.pdf
+    Form-XObjects (Do auf /Subtype /Form). Oben: rotes Quadrat (Fm1),
+    darin über eine verschachtelte Form (Fm2) ein grünes Quadrat. Unten:
+    blaues Quadrat aus einer Form (Fm3), die sich selbst aufruft --
+    muss nach PDF_MAX_FORM_DEPTH abbrechen, darf nicht hängen oder
+    abstürzen. Der Text "End of page reached." muss erscheinen.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

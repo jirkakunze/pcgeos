@@ -1,0 +1,64 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << /Fm1 5 0 R /Fm3 7 0 R >> /Font << /F1 8 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 346 >>
+stream
+BT /F1 18 Tf 72 740 Td (Form XObject test) Tj ET
+BT /F1 11 Tf 72 715 Td (Top: red box with a green box inside, drawn via nested forms.) Tj ET
+BT /F1 11 Tf 72 700 Td (Bottom: blue box from a self-referencing form; must not hang.) Tj ET
+q 1 0 0 1 72 400 cm /Fm1 Do Q
+q 1 0 0 1 72 100 cm /Fm3 Do Q
+BT /F1 11 Tf 72 60 Td (End of page reached.) Tj ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Resources << /XObject << /Fm2 6 0 R >> >> /Length 55 >>
+stream
+1 0 0 rg 0 0 200 200 re f
+q 1 0 0 1 50 50 cm /Fm2 Do Q
+
+endstream
+endobj
+6 0 obj
+<< /Type /XObject /Subtype /Form /FormType 1 /BBox [0 0 100 100] /Matrix [1 0 0 1 0 0] /Length 28 >>
+stream
+0 0.6 0 rg 0 0 100 100 re f
+
+endstream
+endobj
+7 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 150 150] /Resources << /XObject << /Fm3 7 0 R >> >> /Length 34 >>
+stream
+0 0 1 rg 0 0 150 150 re f
+/Fm3 Do
+
+endstream
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000278 00000 n 
+0000000675 00000 n 
+0000000873 00000 n 
+0000001035 00000 n 
+0000001212 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+1282
+%%EOF

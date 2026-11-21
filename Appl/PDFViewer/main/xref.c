@@ -1606,11 +1606,21 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
  *
  ***********************************************************************/
 
+/*
+ * Parser and scratch objects of XRefFetch. Kept on the heap: XRefFetch runs
+ * at the deepest point of every object lookup, also inside nested Form
+ * XObjects, and the process stack is small.
+ */
+typedef struct XRefFetchFrame
+{
+    Parser parser;
+    Obj obj1, obj2, obj3;
+} XRefFetchFrame;
+
 void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
 {
     XRefEntry *e;
-    Parser parser;
-    Obj obj1, obj2, obj3;
+    XRefFetchFrame *f;
     word entrySize;
     short entryType;
     long entryOffset, entryGen;
@@ -1650,40 +1660,49 @@ void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
 
     if (entryType == xrefEntryClassic && entryGen == gen && entryOffset >= 0)
     {
-        initNull(&obj1);
-
+        f = gmalloc(sizeof(XRefFetchFrame));
         fs2 = gmalloc(sizeof(Stream));
         lexer = gmalloc(sizeof (Lexer));
+        if (!f || !fs2 || !lexer)
+        {
+            gfree(f);
+            gfree(fs2);
+            gfree(lexer);
+            initNull(obj);
+            return;
+        }
 
-        FStreamInit(fs2, xref->fHan, xref->start + entryOffset, -1, &obj1);
+        initNull(&f->obj1);
+        FStreamInit(fs2, xref->fHan, xref->start + entryOffset, -1, &f->obj1);
         LexerInitFromStream(lexer, fs2, xref);
-        ParserInit(&parser, lexer);
+        ParserInit(&f->parser, lexer);
         /*
          * See crypt.goh/ParserInit's comment for why every other Parser must
          * stay noCrypt.
          */
-        parser.cryptNum = num;
-        parser.cryptGen = gen;
-        parser.noCrypt = !xref->encrypted;
-        ObjFree(&obj1);
+        f->parser.cryptNum = num;
+        f->parser.cryptGen = gen;
+        f->parser.noCrypt = !xref->encrypted;
+        ObjFree(&f->obj1);
 
-        ParserGetObj(&parser, &obj1);
-        ParserGetObj(&parser, &obj2);
-        ParserGetObj(&parser, &obj3);
-        if (isInt(&obj1) && getInt(&obj1) == num &&
-            isInt(&obj2) && getInt(&obj2) == gen &&
-            isCmdSame(&obj3, "obj"))
+        ParserGetObj(&f->parser, &f->obj1);
+        ParserGetObj(&f->parser, &f->obj2);
+        ParserGetObj(&f->parser, &f->obj3);
+        if (isInt(&f->obj1) && getInt(&f->obj1) == num &&
+            isInt(&f->obj2) && getInt(&f->obj2) == gen &&
+            isCmdSame(&f->obj3, "obj"))
         {
-            ParserGetObj(&parser, obj);
+            ParserGetObj(&f->parser, obj);
         }
         else
         {
             initNull(obj);
         }
-        ObjFree(&obj1);
-        ObjFree(&obj2);
-        ObjFree(&obj3);
-        ParserFree(&parser);
+        ObjFree(&f->obj1);
+        ObjFree(&f->obj2);
+        ObjFree(&f->obj3);
+        ParserFree(&f->parser);
+        gfree(f);
     }
     else
     {

@@ -456,6 +456,7 @@ typedef struct Gfx
         void *userData);
     void *progressUserData;
     GBool *cancelFlag;
+    word formDepth; /* current Form XObject nesting level */
 } Gfx;
 
 /* Built-in font table. */

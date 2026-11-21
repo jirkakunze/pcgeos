@@ -76,6 +76,16 @@ static GBool GfxCheckPageResourceBudget(Gfx *gfx, dword bytes);
 static void GfxReportProgress(Gfx *gfx, dword kind, dword current,
     dword total);
 static void GfxDoForm(Gfx *gfx, Obj *str);
+static void GfxApplyMatrix6(Handle gstring, gdouble m0, gdouble m1, gdouble m2,
+    gdouble m3, gdouble m4, gdouble m5);
+static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref);
+
+/*
+ * Maximum nesting of Form XObjects. Guards against self-referencing forms
+ * and keeps the recursion (GfxDisplay -> GfxGo -> opXObject -> GfxDoForm,
+ * a few hundred bytes of stack per level) within the process stack.
+ */
+#define PDF_MAX_FORM_DEPTH                4
 static void buildImageStream(Gfx *gfx, Stream **str);
 static GBool GfxLookupXObject(Gfx *this, char *name, Obj *obj);
 
@@ -487,6 +497,7 @@ void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
     this->progressCallback = NULL;
     this->progressUserData = NULL;
     this->cancelFlag = NULL;
+    this->formDepth = 0;
 
 }
 
@@ -613,7 +624,8 @@ GBool GfxDisplay(Gfx *this, Obj *obj)
 {
     Obj obj2;
     word i;
-    Parser parser;
+    Parser *parser;
+    Parser *oldParser;
     Lexer *lexer;
     XRef *xref = this->xref;
     GBool goRetval;
@@ -652,12 +664,27 @@ GBool GfxDisplay(Gfx *this, Obj *obj)
         gfree(lexer);
         return gFalse;
     }
-    ParserInit(&parser, lexer);
+    /* heap, not stack: re-entered once per Form XObject level */
+    parser = gmalloc(sizeof(Parser));
+    if (!parser)
+    {
+        LexerFree(lexer);
+        gfree(lexer);
+        return gFalse;
+    }
+    ParserInit(parser, lexer);
 
-    this->parser = &parser;
-    goRetval = GfxGo(this, &parser);
-    ParserFree(&parser);
-    this->parser = 0;
+    /*
+     * GfxDisplay is re-entered for Form XObjects while the page's content
+     * stream is still being parsed; restore the outer parser afterwards
+     * (inline images read their data through this->parser).
+     */
+    oldParser = this->parser;
+    this->parser = parser;
+    goRetval = GfxGo(this, parser);
+    ParserFree(parser);
+    gfree(parser);
+    this->parser = oldParser;
 
     return goRetval;
 }
@@ -685,14 +712,23 @@ GBool GfxDisplay(Gfx *this, Obj *obj)
 static GBool GfxGo(Gfx *this, Parser *parser)
 {
     Obj obj;
-    Obj args[maxArgs];
+    Obj *args;
     Operator *pOpTab;
     long streamStart;
     long streamLen;
     int numCmds, numArgs;
     short i;
-    GfxState *state = this->state;
-    (void)state;
+    GBool retval;
+
+    /*
+     * The argument array lives on the heap: GfxGo recurses once per Form
+     * XObject level and the process stack is small.
+     */
+    args = gmalloc(maxArgs * sizeof(Obj));
+    if (!args)
+    {
+        return gFalse;
+    }
 
     /* scan a sequence of objects */
     numCmds = 0;
@@ -778,9 +814,12 @@ static GBool GfxGo(Gfx *this, Parser *parser)
         }
     }
 
+    gfree(args);
+
     /* gFalse reports cancellation, not a rendering error. */
-    return !this->resourceLimitExceeded &&
+    retval = !this->resourceLimitExceeded &&
         !(this->cancelFlag && *this->cancelFlag);
+    return retval;
 }
 
 /***********************************************************************
@@ -4624,129 +4663,143 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
 /***********************************************************************
  *      GfxDoForm
  ***********************************************************************
- * SYNOPSIS:        Process gfx do form.
+ * SYNOPSIS:        Draw a Form XObject (Do operator, /Subtype /Form).
  * PARAMETERS:      Gfx *gfx    graphics context
- *                  Obj *str    string
+ *                  Obj *str    the form's content stream
  *
  * RETURNS:         void
  *
- * CONTEXT:
+ * CONTEXT:         opXObject
  *
  * STRATEGY:
+ *      Same steps as the annotation appearance code in
+ *      GfxDrawOneAnnotation, minus the mapping onto /Rect:
+ *      - push a resource layer for the form's own /Resources
+ *      - save state, concatenate /Matrix (default identity)
+ *      - clip to /BBox (axis-aligned in form space)
+ *      - run the form's content stream through GfxDisplay
+ *      - restore state, pop the resource layer
+ *      Nesting is limited to PDF_MAX_FORM_DEPTH, which also stops
+ *      forms that (directly or indirectly) draw themselves. All
+ *      per-level data lives in a heap GfxFormFrame; GfxDisplay and
+ *      GfxGo also keep their Parser/argument array on the heap, so a
+ *      form level costs only call frames on the small process stack.
  *
  * REVISION HISTORY:
  *  Name    Date        Description
  *  ----    ----        -----------
  *  JK      08/22/26    Style cleanup
+ *  JK      11/21/26    Implemented (was an empty stub)
  *
  ***********************************************************************/
 
+/* Per-level state of GfxDoForm, kept on the heap to save stack. */
+typedef struct GfxFormFrame
+{
+    GfxResources res;
+    gdouble bbox[4];
+    gdouble matrix[6];
+    Obj obj1;
+    Obj obj2;
+} GfxFormFrame;
+
 static void GfxDoForm(Gfx *gfx, Obj *str)
 {
-    (void)gfx;
-    (void)str;
-#if 0
-    Parser *oldParser;
-    GfxResources *resPtr;
-    Dict *dict;
-    Dict *resDict;
-    Object matrixObj, bboxObj;
-    double m[6];
-    Object obj1, obj2;
-    int i;
+    Dict *formDict;
+    GfxFormFrame *f;
+    Handle gstring = gfx->state->gstring;
 
-    dict = str->streamGetDict();
-
-    dict->lookup("FormType", &obj1);
-    if (!(obj1.isInt() && obj1.getInt() == 1))
+    if (gfx->formDepth >= PDF_MAX_FORM_DEPTH)
     {
-        obj1.free();
-        error(getPos(), "Unknown form type");
-        return;
-    }
-    obj1.free();
-
-    dict->lookup("Matrix", &matrixObj);
-    if (!matrixObj.isArray())
-    {
-        matrixObj.free();
-        error(getPos(), "Bad form matrix");
-        return;
-    }
-    dict->lookup("BBox", &bboxObj);
-    if (!bboxObj.isArray())
-    {
-        matrixObj.free();
-        bboxObj.free();
-        error(getPos(), "Bad form bounding box");
+        EC_WARNING(-1);
         return;
     }
 
-    /* push new resources on stack */
-    dict->lookup("Resources", &obj1);
-    if (obj1.isDict())
+    f = gmalloc(sizeof(GfxFormFrame));
+    if (!f)
     {
-        resDict = obj1.getDict();
-        res = new GfxResources(res);
-        res->fonts = NULL;
-        resDict->lookup("Font", &obj2);
-        if (obj2.isDict())
+        return;
+    }
+    formDict = ObjStreamGetDict(str);
+
+    /* /FormType is optional; if present it must be 1 */
+    DictLookup(formDict, "FormType", &f->obj1, gfx->xref);
+    if (!isNull(&f->obj1) && !(isInt(&f->obj1) && getInt(&f->obj1) == 1))
+    {
+        ObjFree(&f->obj1);
+        gfree(f);
+        EC_WARNING(-1);
+        return;
+    }
+    ObjFree(&f->obj1);
+
+    DictLookup(formDict, "BBox", &f->obj1, gfx->xref);
+    if (!isArray(&f->obj1) || ObjArrayGetLength(&f->obj1) < 4)
+    {
+        ObjFree(&f->obj1);
+        gfree(f);
+        EC_WARNING(-1);
+        return;
+    }
+    GfxReadNumArray(&f->obj1, f->bbox, 4, gfx->xref);
+    ObjFree(&f->obj1);
+
+    DictLookup(formDict, "Matrix", &f->obj1, gfx->xref);
+    if (isArray(&f->obj1) && ObjArrayGetLength(&f->obj1) >= 6)
+    {
+        GfxReadNumArray(&f->obj1, f->matrix, 6, gfx->xref);
+    }
+    else
+    {
+        f->matrix[0] = IntToGdouble(1); f->matrix[1] = 0;
+        f->matrix[2] = 0; f->matrix[3] = IntToGdouble(1);
+        f->matrix[4] = 0; f->matrix[5] = 0;
+    }
+    ObjFree(&f->obj1);
+
+    /* push a resource layer for the form's own /Resources */
+    GfxResourcesInit(&f->res, gfx->res);
+    DictLookup(formDict, "Resources", &f->obj1, gfx->xref);
+    if (isDict(&f->obj1))
+    {
+        Dict *resDict = getDict(&f->obj1);
+
+        DictLookup(resDict, "Font", &f->obj2, gfx->xref);
+        if (isDict(&f->obj2))
         {
-            res->fonts = new GfxFontDict(obj2.getDict());
+            f->res.fonts = gmalloc(sizeof(GfxFontDict));
+            if (f->res.fonts)
+            {
+                GfxFontDictInit(f->res.fonts, getDict(&f->obj2), gfx->xref);
+            }
         }
-        obj2.free();
-        resDict->lookup("XObject", &res->xObjDict);
-        resDict->lookup("ColorSpace", &res->colorSpaceDict);
-        obj1.free();
+        ObjFree(&f->obj2);
+        DictLookup(resDict, "XObject", &f->res.xObjDict, gfx->xref);
+        DictLookup(resDict, "ColorSpace", &f->res.colorSpaceDict, gfx->xref);
+        DictLookup(resDict, "ExtGState", &f->res.extGStateDict, gfx->xref);
     }
+    ObjFree(&f->obj1);
+    gfx->res = &f->res;
 
-    out->saveState(state);
-    state = state->save();
+    GfxStateSave(gfx->state);
+    GrSaveState(gstring);
 
-    oldParser = parser;
+    GfxApplyMatrix6(gstring, f->matrix[0], f->matrix[1], f->matrix[2],
+        f->matrix[3], f->matrix[4], f->matrix[5]);
+    GrSetClipRect(gstring, PCT_INTERSECTION,
+        GdoubleToWord(f->bbox[0]), GdoubleToWord(f->bbox[1]),
+        GdoubleToWord(f->bbox[2]), GdoubleToWord(f->bbox[3]));
 
-    for (i = 0; i < 6; ++i)
-    {
-        matrixObj.arrayGet(i, &obj1);
-        m[i] = obj1.getNum();
-        obj1.free();
-    }
-    state->concatCTM(m[0], m[1], m[2], m[3], m[4], m[5]);
-    out->updateCTM(state, m[0], m[1], m[2], m[3], m[4], m[5]);
+    gfx->formDepth++;
+    GfxDisplay(gfx, str);
+    gfx->formDepth--;
 
-    for (i = 0; i < 4; ++i)
-    {
-        bboxObj.arrayGet(i, &obj1);
-        m[i] = obj1.getNum();
-        obj1.free();
-    }
-    state->moveTo(m[0], m[1]);
-    state->lineTo(m[0] + m[2], m[1]);
-    state->lineTo(m[0] + m[2], m[1] + m[3]);
-    state->lineTo(m[0], m[1] + m[3]);
-    state->closePath();
-    out->clip(state);
-    state->clearPath();
+    GfxStateRestore(gfx->state);
+    GrRestoreState(gstring);
 
-    display(str);
-
-    matrixObj.free();
-    bboxObj.free();
-
-    /* restore parser */
-    parser = oldParser;
-
-    /* restore graphics state */
-    state = state->restore();
-    out->restoreState(state);
-
-    /* pop resource stack */
-    resPtr = res->next;
-    delete res;
-    res = resPtr;
-
-    return;
-#endif
+    gfx->res = f->res.next;
+    GfxResourcesFree(&f->res);
+    gfree(f);
 }
 
 /* Annotation appearance streams */
