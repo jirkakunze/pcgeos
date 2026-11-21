@@ -43,16 +43,12 @@ typedef struct _GMemHdr {
 #define gMemHdrSize ((sizeof(GMemHdr)+ 7) & ~7)
 #define gMemTrlSize (sizeof(long))
 
-#if gmemTrlSize==8
-#define gMemDeadVal 0xdeadbeefdeadbeef
-#else
-#define gMemDeadVal 0xdeadbeef
+/* the trailer is a long, which is 4 bytes on GEOS */
+#define gMemDeadVal 0xdeadbeefL
 
 /* round data size so trailer will be aligned */
 #define gMemDataSize(size) \
     ((((size) + gMemTrlSize - 1) / gMemTrlSize) * gMemTrlSize)
-
-#endif
 
 static GMemHdr *gMemList = NULL;
 static long gMemIndex = 0;
@@ -229,7 +225,7 @@ GBool PdfCheckedMul(long a, long b, long *result)
  ***********************************************************************/
 void *gmalloc(long size)
 {
-#if DEBUG_MEM
+#ifdef DEBUG_MEM
     long size1;
     char *mem;
     GMemHdr *hdr;
@@ -300,7 +296,7 @@ void *gmalloc(long size)
  ***********************************************************************/
 void *grealloc(void *p, long size)
 {
-#if DEBUG_MEM
+#ifdef DEBUG_MEM
     GMemHdr *hdr;
     void *q;
     long oldSize;
@@ -404,9 +400,8 @@ void gfree(void *p)
             trl = (long *)((char *)hdr + gMemHdrSize + size);
             if (*trl != gMemDeadVal)
             {
-                fprintf(stderr,
-                    "Overwrite past end of block %d at address %p\n",
-                    hdr->index, p);
+                /* overwrite past end of block */
+                EC_WARNING(-1);
             }
             for (clr = (long *)hdr; clr <= trl; ++clr)
             {
@@ -416,7 +411,8 @@ void gfree(void *p)
         }
         else
         {
-            fprintf(stderr, "Attempted to free bad address %p\n", p);
+            /* attempted to free a bad address */
+            EC_WARNING(-1);
         }
     }
 #else

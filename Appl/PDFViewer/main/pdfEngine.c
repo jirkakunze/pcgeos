@@ -656,6 +656,14 @@ void PdfClose(PdfDocHandle doc)
     }
 
     pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL)
+    {
+        return;
+    }
+
+    /* No more progress reports or cancel requests for this document. */
+    pdoc->progressCallback = NULL;
+    pdoc->cancelRequested = FALSE;
 
     /* Page-cache cleanup replaces the old disabled VMFreeVMChain loop. */
 

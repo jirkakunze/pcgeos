@@ -1291,6 +1291,13 @@ errorClose:
  ***********************************************************************/
 @method PDFDocumentClass, MSG_GEN_DOCUMENT_CLOSE
 {
+    /*
+     * The Stop trigger (UI thread) cancels whatever currentlyDecodingDoc
+     * names; never leave it pointing at a handle PdfClose is about to free.
+     */
+    if (currentlyDecodingDoc == pself->PDFDoc_engine) {
+	currentlyDecodingDoc = PDF_NULL_DOC;
+    }
     PdfClose(pself->PDFDoc_engine);
     pself->PDFDoc_engine = PDF_NULL_DOC;
     pself->PDFDoc_sourceFile = 0;
