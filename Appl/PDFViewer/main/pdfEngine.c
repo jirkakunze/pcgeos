@@ -1062,12 +1062,10 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
         PdfUnlockDoc(doc);
         return PDF_ERR_INVALID_PAGE;
     }
-    if (pdoc->cancelRequested)
-    {
-        pdoc->cancelRequested = FALSE;
-        PdfUnlockDoc(doc);
-        return PDF_ERR_CANCELLED;
-    }
+    /* A cancel request belongs to the decode that was running when the
+     * user pressed Stop. Drop a leftover one instead of failing the next,
+     * unrelated page with PDF_ERR_CANCELLED. */
+    pdoc->cancelRequested = FALSE;
 
     cacheEntry = PdfFindCachedPage(pdoc, pageNum);
     pageData = (cacheEntry != NULL) ? cacheEntry->gstringBlock : NullHandle;

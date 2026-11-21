@@ -55,6 +55,7 @@ void PDFUpdatePageControl (word totalPages, word curPage);
  * in MSG_GEN_DOCUMENT_PHYSICAL_OPEN; defined near MSG_VIS_DRAW.
  */
 void PDFDocProgressCallback(dword kind, dword current, dword total, void *userData);
+void PDFDismissProgress(void);
 
 /*
  * PDFSetupGState and PDFGetPageGString used to be declared here and
@@ -1335,6 +1336,9 @@ errorClose:
     currentlyDecodingDoc = pself->PDFDoc_engine;
     err = PdfDecodePage(pself->PDFDoc_engine, pagenum);
     currentlyDecodingDoc = PDF_NULL_DOC;
+    if (err != PDF_OK) {
+	PDFDismissProgress();
+    }
 
 /*
  * Draw the page
@@ -1390,45 +1394,72 @@ errorClose:
  *		are the same singleton UI objects the four original
  *		functions sent to; only the entry point changed.
  *
+ *		The decode runs on the process thread; the dialogs live
+ *		in the Interface resource (ui-object), i.e. on the UI
+ *		thread. INITIATE and IC_DISMISS are @call so the dialog
+ *		is really up/down when the engine continues; the value
+ *		updates are @send so the decode never waits for them.
  *		MSG_GEN_VALUE_SET_VALUE's second parameter is a
- *		VisUpdateMode, not a plain Boolean -- the original code
- *		passed FALSE, which is numerically VUM_MANUAL ("don't
- *		update the visual until told to"). That's fine for a
- *		fast decode where the value gets read again before
- *		anyone notices, but for a slow decode (real images,
- *		~1s+) it means the progress bar visibly never moves and
- *		the dialog doesn't dismiss cleanly either, since the
- *		visual pipeline for this dialog never got a proper
- *		update in between. VUM_DELAYED_VIA_APP_QUEUE (same flag
- *		already used elsewhere in this file, e.g.
- *		MSG_GEN_SET_USABLE for the toolbar) defers the redraw
- *		until the app queue is empty instead of suppressing it
- *		outright.
+ *		VisUpdateMode (not a Boolean).
  *
- *		IC_DISMISS below uses @call, not @send, matching the
- *		SDK's own example for dismissing a GenInteraction
- *		programmatically: @send is queued and never gets
- *		processed from this deeply synchronous decode context,
- *		while @call runs immediately and matches
- *		MSG_GEN_GUP_INTERACTION_COMMAND's documented Boolean
- *		return value.
+ *		The engine calls this through ProcCallFixedOrMovable_cdecl,
+ *		which has no parameter prototype; GfxReportProgress in
+ *		gfx.goc makes sure all arguments arrive as dwords.
  *
  ***********************************************************************/
+/*
+ * PDFProgressFraction: current/total as a WWFixed in the range 0..1 (the
+ * range of ppValue/ipValue). The old MakeWWFixed(current)/total shifted
+ * `current` left by 16 bits and overflowed for current >= 32768, and
+ * divided by zero for total == 0.
+ */
+static dword
+PDFProgressFraction(dword current, dword total)
+{
+    if (total == 0) {
+	return 0;
+    }
+    if (current >= total) {
+	return MakeWWFixed(1);
+    }
+    while (current >= 0x8000L) {
+	current >>= 1;
+	total >>= 1;
+    }
+    if (total == 0) {
+	return MakeWWFixed(1);
+    }
+    return MakeWWFixed(current)/total;
+}
+
+/*
+ * PDFDismissProgress: safety net, called after a decode returns. Makes
+ * sure the image progress dialog is closed on every path, e.g. when an
+ * error ended the decode before PDF_PROGRESS_IMAGE_END was sent.
+ */
+void
+PDFDismissProgress(void)
+{
+    @call PDFImageProgressDialog::MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
+}
+
 void
 PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 {
     switch (kind) {
     case PDF_PROGRESS_PAGE:
-	@send ppValue::MSG_GEN_VALUE_SET_VALUE(MakeWWFixed(current)/total, VUM_DELAYED_VIA_APP_QUEUE);
+	@send ppValue::MSG_GEN_VALUE_SET_VALUE(
+	    PDFProgressFraction(current, total), VUM_NOW);
 	break;
 
     case PDF_PROGRESS_IMAGE_BEGIN:
-	@send ipValue::MSG_GEN_VALUE_SET_VALUE(0, VUM_DELAYED_VIA_APP_QUEUE);
-	@send PDFImageProgressDialog::MSG_GEN_INTERACTION_INITIATE();
+	@send ipValue::MSG_GEN_VALUE_SET_VALUE(0, VUM_NOW);
+	@call PDFImageProgressDialog::MSG_GEN_INTERACTION_INITIATE();
 	break;
 
     case PDF_PROGRESS_IMAGE_UPDATE:
-	@send ipValue::MSG_GEN_VALUE_SET_VALUE(MakeWWFixed(current)/total, VUM_DELAYED_VIA_APP_QUEUE);
+	@send ipValue::MSG_GEN_VALUE_SET_VALUE(
+	    PDFProgressFraction(current, total), VUM_NOW);
 	break;
 
     case PDF_PROGRESS_IMAGE_END:
@@ -1802,6 +1833,9 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	currentlyDecodingDoc = pself->PDFDoc_engine;
 	err = PdfDecodePage(pself->PDFDoc_engine, pagenum);
 	currentlyDecodingDoc = PDF_NULL_DOC;
+	if (err != PDF_OK) {
+	    PDFDismissProgress();
+	}
 
 	if (err == PDF_OK) {
 
@@ -2233,6 +2267,9 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	 currentlyDecodingDoc = pself->PDFDoc_engine;
 	 err = PdfDecodePage(pself->PDFDoc_engine, pself->PDFDoc_pageNum);
 	 currentlyDecodingDoc = PDF_NULL_DOC;
+	 if (err != PDF_OK) {
+	     PDFDismissProgress();
+	 }
 
 	if (err != PDF_OK)
 		return;						/* No copy for you! Get out! */

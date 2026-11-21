@@ -73,6 +73,8 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg);
 #define PDF_PAGE_RESOURCE_OBJECT_LIMIT    2048
 
 static GBool GfxCheckPageResourceBudget(Gfx *gfx, dword bytes);
+static void GfxReportProgress(Gfx *gfx, dword kind, dword current,
+    dword total);
 static void GfxDoForm(Gfx *gfx, Obj *str);
 static void buildImageStream(Gfx *gfx, Stream **str);
 static GBool GfxLookupXObject(Gfx *this, char *name, Obj *obj);
@@ -731,11 +733,7 @@ static GBool GfxGo(Gfx *this, Parser *parser)
                 numCmds = 0;
                 if (this->progressCallback)
                 {
-                    ProcCallFixedOrMovable_cdecl(this->progressCallback,
-                        PDF_PROGRESS_PAGE,
-                        ParserGetPos(parser) - streamStart,
-                        streamLen,
-                        this->progressUserData);
+                    GfxReportProgress(this, PDF_PROGRESS_PAGE, ParserGetPos(parser) - streamStart, streamLen);
                 }
                 /*
                  * Check for a cancel request at the same checkpoint as the
@@ -4207,6 +4205,37 @@ static void GfxUpdateFont(Gfx *gfx)
 #endif
 
 /***********************************************************************
+ *      GfxReportProgress
+ ***********************************************************************
+ * SYNOPSIS:        Call the engine's progress callback, if any.
+ * PARAMETERS:      Gfx *gfx        gfx
+ *                  dword kind      PDF_PROGRESS_*
+ *                  dword current   progress so far
+ *                  dword total     total amount of work
+ *
+ * RETURNS:         nothing
+ *
+ * STRATEGY:
+ *      ProcCallFixedOrMovable_cdecl has no parameter prototype, so the
+ *      compiler pushes every argument at its own size: a PDF_PROGRESS_*
+ *      constant or a word height went on the stack as 16 bits, while
+ *      PdfProgressCallback reads three dwords. The callback then saw
+ *      kind = PDF_PROGRESS_IMAGE_END | (height << 16), matched no case,
+ *      and the image progress dialog was never dismissed. Routing every
+ *      call through this prototyped function converts all arguments to
+ *      dword before they are pushed.
+ ***********************************************************************/
+static void GfxReportProgress(Gfx *gfx, dword kind, dword current,
+    dword total)
+{
+    if (gfx->progressCallback)
+    {
+        ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
+            kind, current, total, gfx->progressUserData);
+    }
+}
+
+/***********************************************************************
  *      GfxCheckPageResourceBudget
  ***********************************************************************
  * SYNOPSIS:        Check page resource budget.
@@ -5551,9 +5580,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     /* Put up the image-progress dialog */
     if (!inlineImage && gfx->progressCallback)
     {
-        ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-            PDF_PROGRESS_IMAGE_BEGIN, 0, height,
-            gfx->progressUserData);
+        GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_BEGIN, 0, height);
     }
 
     /*
@@ -5583,9 +5610,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
         GrRestoreTransform(gstring);
         if (!inlineImage && gfx->progressCallback)
         {
-            ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-                PDF_PROGRESS_IMAGE_END, height, height,
-                gfx->progressUserData);
+            GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
         }
         return;
     }
@@ -5603,9 +5628,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
         GrRestoreTransform(gstring);
         if (!inlineImage && gfx->progressCallback)
         {
-            ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-                PDF_PROGRESS_IMAGE_END, height, height,
-                gfx->progressUserData);
+            GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
         }
         return;
     }
@@ -5713,9 +5736,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
             {
                 if (gfx->progressCallback)
                 {
-                    ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-                        PDF_PROGRESS_IMAGE_UPDATE, i, height,
-                        gfx->progressUserData);
+                    GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_UPDATE, i, height);
                 }
             }
             if (gfx->cancelFlag && *gfx->cancelFlag)
@@ -5737,9 +5758,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     /* Take down the image-decode progress dialog */
     if (!inlineImage && gfx->progressCallback)
     {
-        ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-            PDF_PROGRESS_IMAGE_END, height, height,
-            gfx->progressUserData);
+        GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
     }
 }
 
@@ -5842,8 +5861,7 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     /* Put up the image-progress dialog */
     if (!inlineImage && gfx->progressCallback)
     {
-        ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-            PDF_PROGRESS_IMAGE_BEGIN, 0, height, gfx->progressUserData);
+        GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_BEGIN, 0, height);
     }
 
     /* Scale image coordinates because PDF image space is a unit square. */
@@ -5859,9 +5877,7 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
         GrRestoreTransform(gstring);
         if (!inlineImage && gfx->progressCallback)
         {
-            ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-                PDF_PROGRESS_IMAGE_END, height, height,
-                gfx->progressUserData);
+            GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
         }
         if (smaskRowBuf)
         {
@@ -5883,9 +5899,7 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
         GrRestoreTransform(gstring);
         if (!inlineImage && gfx->progressCallback)
         {
-            ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-                PDF_PROGRESS_IMAGE_END, height, height,
-                gfx->progressUserData);
+            GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
         }
         if (smaskRowBuf)
         {
@@ -6053,8 +6067,7 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
             {
                 if (gfx->progressCallback)
                 {
-                    ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-                        PDF_PROGRESS_IMAGE_UPDATE, i, height, gfx->progressUserData);
+                    GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_UPDATE, i, height);
                 }
             }
             if (gfx->cancelFlag && *gfx->cancelFlag)
@@ -6072,8 +6085,7 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     /* Take down the image-decode progress dialog */
     if (!inlineImage && gfx->progressCallback)
     {
-        ProcCallFixedOrMovable_cdecl(gfx->progressCallback,
-            PDF_PROGRESS_IMAGE_END, height, height, gfx->progressUserData);
+        GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
     }
     if (smaskRowBuf)
     {
