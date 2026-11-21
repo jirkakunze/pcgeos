@@ -1449,8 +1449,10 @@ errorClose:
  *		thread. INITIATE and IC_DISMISS are @call so the dialog
  *		is really up/down when the engine continues; the value
  *		updates are @send so the decode never waits for them.
- *		MSG_GEN_VALUE_SET_VALUE's second parameter is a
- *		VisUpdateMode (not a Boolean).
+ *		MSG_GEN_VALUE_SET_VALUE's second parameter is the
+ *		`indeterminate' flag (not a VisUpdateMode): passing
+ *		VUM_NOW (1) marked the value as unknown and the bar
+ *		stayed empty.
  *
  *		The engine calls this through ProcCallFixedOrMovable_cdecl,
  *		which has no parameter prototype; GfxReportProgress in
@@ -1530,17 +1532,17 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     switch (kind) {
     case PDF_PROGRESS_PAGE:
 	@send ppValue::MSG_GEN_VALUE_SET_VALUE(
-	    PDFProgressFraction(current, total), VUM_NOW);
+	    PDFProgressFraction(current, total), FALSE);
 	break;
 
     case PDF_PROGRESS_IMAGE_BEGIN:
-	@send ipValue::MSG_GEN_VALUE_SET_VALUE(0, VUM_NOW);
+	@send ipValue::MSG_GEN_VALUE_SET_VALUE(0, FALSE);
 	@call PDFImageProgressDialog::MSG_GEN_INTERACTION_INITIATE();
 	break;
 
     case PDF_PROGRESS_IMAGE_UPDATE:
 	@send ipValue::MSG_GEN_VALUE_SET_VALUE(
-	    PDFProgressFraction(current, total), VUM_NOW);
+	    PDFProgressFraction(current, total), FALSE);
 	break;
 
     case PDF_PROGRESS_IMAGE_END:
