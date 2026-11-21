@@ -500,7 +500,8 @@ typedef enum StreamKind
         strEOF,
         strWeird, /* internal-use stream types */
         strSubStream,
-        strRC4
+        strRC4,
+        strPredictor /* PNG/TIFF predictor behind Flate/LZW */
 } StreamKind;
 
 typedef struct Stream
@@ -511,11 +512,9 @@ typedef struct Stream
 
     struct Stream *str; /* pointer to generic stream feeding this stream */
 
-    /* ----- image stuff */
-    short predictor; /* predictor */
+    /* ----- image stuff (StreamResetImage/StreamGetImagePixel) */
     short nComps; /* components per pixel */
     short nBits; /* bits per component */
-    short pixBytes; /* bytes per pixel */
     long width; /* pixels per line */
     long nVals; /* components per line */
     long rowBytes; /* bytes per line */
@@ -538,6 +537,7 @@ typedef struct Stream
         struct DCTData *dct;
         struct RC4Data *rc4;
         struct ObjStmCacheStreamData *objStmCache;
+        struct PredictorData *pred;
     } u;
 
 } Stream;
@@ -592,15 +592,33 @@ typedef struct RC4Data
     long peekedChar;
 } RC4Data;
 
+/*
+ * PredictorStream: undoes a PNG (10-15) or TIFF (2) predictor on the
+ * bytes coming out of a Flate/LZW stream, so every reader (images, xref
+ * streams, object streams) sees plain sample data.
+ */
+#define PDF_PREDICTOR_MAX_COMPS 32
+typedef struct PredictorData
+{
+    short predictor;
+    short nComps;
+    short nBits;
+    short pixBytes; /* bytes per pixel, at least 1 */
+    long width; /* pixels per row */
+    word rowBytes; /* bytes per row, without the PNG tag byte */
+    word lineIdx; /* next byte to hand out from curLine */
+    GBool eof;
+    Guchar *lines; /* 2 * rowBytes: previous and current row */
+    Guchar *prevLine;
+    Guchar *curLine;
+    Guchar compBuf[PDF_PREDICTOR_MAX_COMPS]; /* TIFF: running sums */
+} PredictorData;
+
 /* LZWStream */
 
 typedef struct LZWData
 {
 
-    long predictor; /* parameters */
-    long columns;
-    long colors;
-    long bits;
     long early;
     long inputBuf; /* input buffer */
     long inputBits; /* number of bits in input buffer */

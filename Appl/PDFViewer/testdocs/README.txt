@@ -95,6 +95,15 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Neuzeichnen erneut) und darf nicht abstürzen. Drucken von Seite 1-2
     muss mit derselben Meldung abbrechen.
 
+19_predictors.pdf
+    PDF 1.5 ohne klassische xref-Tabelle: Xref-Stream mit /Predictor 12,
+    Catalog/Pages/Page/Font liegen in einem Objekt-Stream -- öffnet nur,
+    wenn der Predictor auch für Xref-Streams greift. Vier 64x64-Bilder:
+    A PNG-Predictor mit allen fünf Filtertypen (zeilenweise wechselnd),
+    B TIFF-Predictor RGB 8 Bit, C 16-Bit-RGB mit PNG-Predictor (Paeth),
+    D 4-Bit-Graustufen mit TIFF-Predictor. A, B und C müssen gleich
+    aussehen (Farbverlauf schwarz/rot/grün/weiß), D zeigt 16 Graustufen.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

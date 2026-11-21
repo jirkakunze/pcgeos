@@ -155,9 +155,7 @@ void SubStreamReset(Stream *str);
 /* LZWStream */
 
 extern
-void LZWStreamInit(Stream *str, Stream *str2, long predictor1, long columns1,
-    long colors1,
-    long bits1, long early1);
+void LZWStreamInit(Stream *str, Stream *str2, long early1);
     
 /* Release. */
 extern
@@ -178,8 +176,7 @@ long LZWStreamLookChar(Stream *str);
 /* FlateStream */
 
 extern
-void FlateStreamInit(Stream *str, Stream *str1, long predictor1, long columns1,
-    long colors1, long bits1);
+void FlateStreamInit(Stream *str, Stream *str1);
 /* Release. */
 extern
 /* Release. */

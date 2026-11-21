@@ -852,7 +852,8 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
 
     /* bits per component and colorspace */
     this->bits = bits1;
-    maxPixel = (1 << this->bits) - 1;
+    /* StreamGetImagePixel delivers 16-bit samples as their high byte */
+    maxPixel = (1 << ((bits1 > 8) ? 8 : bits1)) - 1;
     this->colorSpace = colorSpace1;
     this->mode = colorSpace1->mode;
 
@@ -917,7 +918,7 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
      * decodeLow/decodeRange are all finalized, and before the lookup table is
      * built below .
      */
-    this->isIdentity = !this->indexed && this->bits == 8 &&
+    this->isIdentity = !this->indexed && this->bits >= 8 &&
         !this->colorSpace->hasFunction &&
         !this->colorSpace->tintApprox;
     if (this->isIdentity)
