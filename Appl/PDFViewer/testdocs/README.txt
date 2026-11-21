@@ -88,6 +88,13 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     muss nach PDF_MAX_FORM_DEPTH abbrechen, darf nicht hängen oder
     abstürzen. Der Text "End of page reached." muss erscheinen.
 
+18_broken_page.pdf
+    Zwei Seiten, die zweite verweist auf ein nicht existierendes Objekt.
+    Seite 1 muss normal erscheinen; Seite 2 muss genau einmal die
+    Meldung "could not display this page" zeigen (nicht bei jedem
+    Neuzeichnen erneut) und darf nicht abstürzen. Drucken von Seite 1-2
+    muss mit derselben Meldung abbrechen.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

@@ -56,6 +56,7 @@ void PDFUpdatePageControl (word totalPages, word curPage);
  */
 void PDFDocProgressCallback(dword kind, dword current, dword total, void *userData);
 void PDFDismissProgress(void);
+void PDFShowError(optr msg);
 
 /*
  * PDFSetupGState and PDFGetPageGString used to be declared here and
@@ -138,6 +139,12 @@ Boolean onTV, g_showTools;
  * Sent to app model when the Save dialog is acknowledged.
  */
 
+@message void MSG_PDF_DOCUMENT_REPORT_ERROR(word err);
+/*
+ * Queued to ourselves when decoding/drawing a page failed; shows the
+ * error dialog outside of MSG_VIS_DRAW/printing.
+ */
+
 
 /* data from the 'pdf doc' object in xpdf */
 
@@ -166,6 +173,16 @@ Boolean onTV, g_showTools;
 
 /* User can 'save' this document to SP_DOCUMENT if this value is TRUE. */
 @instance  Boolean	PDFDoc_saveable = FALSE;
+
+/* Page whose decode error was already reported (0 = none), so every
+ * redraw of a broken page doesn't pop up the dialog again. */
+@instance  word		PDFDoc_errorPage = 0;
+
+/* Page whose decode the user stopped (0 = none). MSG_VIS_DRAW leaves it
+ * blank instead of decoding again -- closing the progress dialog causes
+ * a redraw, which would otherwise restart the decode right away.
+ * Cleared when the user navigates (also to the same page again). */
+@instance  word		PDFDoc_cancelledPage = 0;
 
 @endc
 
@@ -859,6 +876,13 @@ Boolean onTV, g_showTools;
                         "PDF Viewer does not currently support opening encrypted "
                         "PDF files. The file itself is not corrupt.";
 
+@chunk char PDFOutOfMemoryError[] = "There is not enough memory to open the "
+                        "file or to display this page.";
+
+@chunk char PDFPageError[] = "PDF Viewer could not display this page. "
+                        "The page may be damaged or use features that are "
+                        "not supported.";
+
 @chunk TCHAR SaveFileExistsStr[] = "The file already exists - please choose another name.";
 
 @chunk TCHAR SaveFileErrorStr[] = "Unkown error in saving file - try again possibly with a different file name.";
@@ -1157,8 +1181,6 @@ Boolean onTV, g_showTools;
 
     err = PdfOpen(*fileOrError, &pself->PDFDoc_engine);
     if (err != PDF_OK) {
-	EC_WARNING(-1);
-//	error(-1, "Couldn't open PDF document");
 	goto errorClose;
     }
 
@@ -1209,15 +1231,11 @@ errorClose:
  */
 
     if (err == PDF_ERR_ENCRYPTED) {
-	UserStandardDialogOptr(NULL, NULL, NullOptr, NullOptr,
-	  @PDFOpenEncryptedError,
-	  (CDT_ERROR << CDBF_DIALOG_TYPE_OFFSET) |
-	  (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+	PDFShowError(@PDFOpenEncryptedError);
+    } else if (err == PDF_ERR_OUT_OF_MEMORY) {
+	PDFShowError(@PDFOutOfMemoryError);
     } else {
-	UserStandardDialogOptr(NULL, NULL, NullOptr, NullOptr,
-	  @PDFOpenError,
-	  (CDT_ERROR << CDBF_DIALOG_TYPE_OFFSET) |
-	  (GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+	PDFShowError(@PDFOpenError);
     }
 
     return TRUE;
@@ -1340,11 +1358,20 @@ errorClose:
 
 /* Decode (or fetch from cache) this page */
 
+    if (pagenum == pself->PDFDoc_cancelledPage) {
+	GrRestoreState(gstate);
+	return;
+    }
+
     currentlyDecodingDoc = pself->PDFDoc_engine;
     err = PdfDecodePage(pself->PDFDoc_engine, pagenum);
     currentlyDecodingDoc = PDF_NULL_DOC;
+    pself = ObjDerefGen(oself);
     if (err != PDF_OK) {
 	PDFDismissProgress();
+	if (err == PDF_ERR_CANCELLED) {
+	    pself->PDFDoc_cancelledPage = pagenum;
+	}
     }
 
 /*
@@ -1364,6 +1391,18 @@ errorClose:
 		pageSize.P_y, pageSize.P_x, 0, 0);
 	}
 
+    }
+
+/* Report a failure once per page. The dialog is queued instead of shown
+ * here: a modal dialog inside MSG_VIS_DRAW would trigger the next
+ * redraw (and the next dialog) when it closes. A cancelled decode is
+ * the user's own doing and needs no message. */
+
+    if (err == PDF_OK) {
+	pself->PDFDoc_errorPage = 0;
+    } else if (err != PDF_ERR_CANCELLED && pself->PDFDoc_errorPage != pagenum) {
+	pself->PDFDoc_errorPage = pagenum;
+	@send, forceQueue oself::MSG_PDF_DOCUMENT_REPORT_ERROR(err);
     }
 
     GrRestoreState(gstate);
@@ -1448,6 +1487,37 @@ void
 PDFDismissProgress(void)
 {
     @call PDFImageProgressDialog::MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
+}
+
+/***********************************************************************
+ *		PDFShowError
+ ***********************************************************************
+ * SYNOPSIS:	Show an error notification with a string from
+ *		StringResource.
+ ***********************************************************************/
+void
+PDFShowError(optr msg)
+{
+    UserStandardDialogOptr(NULL, NULL, NullOptr, NullOptr, msg,
+	(CDT_ERROR << CDBF_DIALOG_TYPE_OFFSET) |
+	(GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
+}
+
+/***********************************************************************
+ *		MSG_PDF_DOCUMENT_REPORT_ERROR for PDFDocumentClass
+ ***********************************************************************
+ * SYNOPSIS:	Tell the user that a page couldn't be decoded/drawn.
+ * PARAMETERS:	word err (a PdfError)
+ * STRATEGY:	Queued by MSG_VIS_DRAW, printing and clipboard copy so
+ *		the modal dialog runs outside of those handlers.
+ ***********************************************************************/
+@method PDFDocumentClass, MSG_PDF_DOCUMENT_REPORT_ERROR
+{
+    if (err == PDF_ERR_OUT_OF_MEMORY) {
+	PDFShowError(@PDFOutOfMemoryError);
+    } else {
+	PDFShowError(@PDFPageError);
+    }
 }
 
 void
@@ -1570,6 +1640,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 /* else, advance */
 
     ++pself->PDFDoc_pageNum;
+    pself->PDFDoc_cancelledPage = 0;
     view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
     if (pself->GDI_display & 0xff00) {
 	view = (view & 0xffff) | ((long)pself->GDI_display << 16);
@@ -1618,6 +1689,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 /* else, retreat */
 
     --pself->PDFDoc_pageNum;
+    pself->PDFDoc_cancelledPage = 0;
     view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
     if (pself->GDI_display & 0xff00) {
 	view = (view & 0xffff) | ((long)pself->GDI_display << 16);
@@ -1691,6 +1763,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 /* update page number */
 
     pself->PDFDoc_pageNum = page;
+    pself->PDFDoc_cancelledPage = 0;
 
 /* redraw view */
 
@@ -1845,14 +1918,20 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	}
 
 	if (err == PDF_OK) {
-
-		 err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, TRUE, NULL);
-
-
-	 /* emit page-finished command */
-
-	    GrNewPage(gstate, PEC_FORM_FEED);
+	    err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, TRUE, NULL);
 	}
+
+	/* stop at the first failing page -- otherwise the next page's
+	 * result would hide the error and the job would count as done */
+	if (err != PDF_OK) {
+	    if (err != PDF_ERR_CANCELLED) {
+		@send, forceQueue oself::MSG_PDF_DOCUMENT_REPORT_ERROR(err);
+	    }
+	    break;
+	}
+
+	/* emit page-finished command */
+	GrNewPage(gstate, PEC_FORM_FEED);
     }
     /*
      * Send 'finished' message, which depends on whether we were canceled
@@ -2276,10 +2355,11 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	 currentlyDecodingDoc = PDF_NULL_DOC;
 	 if (err != PDF_OK) {
 	     PDFDismissProgress();
+	     if (err != PDF_ERR_CANCELLED) {
+		 @send, forceQueue oself::MSG_PDF_DOCUMENT_REPORT_ERROR(err);
+	     }
+	     return;
 	 }
-
-	if (err != PDF_OK)
-		return;						/* No copy for you! Get out! */
 
     /* Now get the transfer VM file. */
     transferVMFile = ClipboardGetClipboardFile();
@@ -2298,6 +2378,7 @@ EC( ECCheckEventHandle( notifyEvent ); )
 
 	if (err != PDF_OK) {
 	    GrDestroyGString(gstate, NULL, GSKT_KILL_DATA);
+	    @send, forceQueue oself::MSG_PDF_DOCUMENT_REPORT_ERROR(err);
 	    return;
 	}
 

@@ -771,15 +771,16 @@ static GBool GfxGo(Gfx *this, Parser *parser)
                 {
                     GfxReportProgress(this, PDF_PROGRESS_PAGE, ParserGetPos(parser) - streamStart, streamLen);
                 }
-                /*
-                 * Check for a cancel request at the same checkpoint as the
-                 * progress callback -- previously, cancellation was only
-                 * checked inside the image-drawing loops (see U5).
-                 */
-                if (this->cancelFlag && *this->cancelFlag)
-                {
-                    break;
-                }
+            }
+            /*
+             * Stop after every command once a cancel was requested. The
+             * flag stays set for the rest of the page (it is only cleared
+             * by PdfDecodePage), so a Stop during one image also skips all
+             * later images instead of opening the next progress dialog.
+             */
+            if (this->cancelFlag && *this->cancelFlag)
+            {
+                break;
             }
 
             /* got an argument - save it */
@@ -5625,11 +5626,6 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
         return;
     }
 
-    /* reset cancel flag */
-    if (gfx->cancelFlag)
-    {
-        * gfx->cancelFlag = gFalse;
-    }
     /* Put up the image-progress dialog */
     if (!inlineImage && gfx->progressCallback)
     {
@@ -5905,11 +5901,6 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     {
         gfree(smaskRowBuf);
         return;
-    }
-    /* reset cancel flag */
-    if (gfx->cancelFlag)
-    {
-        * gfx->cancelFlag = gFalse;
     }
     /* Put up the image-progress dialog */
     if (!inlineImage && gfx->progressCallback)
