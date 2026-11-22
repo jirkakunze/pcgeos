@@ -318,6 +318,25 @@ PdfFreePageCacheEntry(PdfDocInternal *pdoc, PdfPageCacheEntry *entry)
 
 
 /***********************************************************************
+ *      PdfFreeAllPageCacheEntries
+ ***********************************************************************
+ * SYNOPSIS:        Drop every decoded page of the document.
+ ***********************************************************************/
+static void PdfFreeAllPageCacheEntries(PdfDocInternal *pdoc)
+{
+    word i;
+
+    for (i = 0; i < PDF_MAX_CACHED_PAGES; ++i)
+    {
+        if (pdoc->pageCache[i].gstringBlock != NullHandle ||
+            pdoc->pageCache[i].resourceList != NullHandle)
+        {
+            PdfFreePageCacheEntry(pdoc, &pdoc->pageCache[i]);
+        }
+    }
+}
+
+/***********************************************************************
  *      PdfTouchPageCacheEntry
  ***********************************************************************
  * SYNOPSIS:        Touch page cache entry.
@@ -1090,6 +1109,24 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
     if (!pageData)
     {
         err = PdfDecodePageContent(pdoc, pageNum, &pageData);
+
+        /*
+         * Out of memory is often only temporary in real mode: fixed blocks
+         * (malloc, zlib's 32 KB window) fragment the heap, and the failed
+         * attempt has just released all of its own memory. Drop the other
+         * cached pages and try once more before reporting the error.
+         * Only for real allocation failures -- the page resource budget
+         * (also PDF_ERR_OUT_OF_MEMORY, but without GMemHadError) would
+         * just fail again.
+         */
+        if (err == PDF_ERR_OUT_OF_MEMORY && GMemHadError() &&
+            !pdoc->cancelRequested)
+        {
+            EC_WARNING(-1);
+            PdfFreeAllPageCacheEntries(pdoc);
+            GMemClearError();
+            err = PdfDecodePageContent(pdoc, pageNum, &pageData);
+        }
         if (err != PDF_OK)
         {
             PdfUnlockDoc(doc);
@@ -1292,7 +1329,6 @@ void PdfDiscardPage(PdfDocHandle doc, word pageNum)
 void PdfDiscardAllPages(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;
-    word i;
 
     pdoc = PdfLockDoc(doc);
     if (pdoc == NULL)
@@ -1300,14 +1336,7 @@ void PdfDiscardAllPages(PdfDocHandle doc)
         return;
     }
 
-    for (i = 0; i < PDF_MAX_CACHED_PAGES; ++i)
-    {
-        if (pdoc->pageCache[i].gstringBlock != NullHandle ||
-            pdoc->pageCache[i].resourceList != NullHandle)
-        {
-            PdfFreePageCacheEntry(pdoc, &pdoc->pageCache[i]);
-        }
-    }
+    PdfFreeAllPageCacheEntries(pdoc);
     PdfUnlockDoc(doc);
 }
 

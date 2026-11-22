@@ -43,6 +43,14 @@
  * character pair, I suppose because of its kerning attributes.
  */
 #define C_FI_LIGATURE   C_CTRL_F
+/*
+ * Further ligatures (Type0 fonts: ToUnicode or glyph names). Like
+ * C_FI_LIGATURE these are no GEOS chars; doShowText draws them as text.
+ */
+#define C_FF_LIGATURE   C_CTRL_A
+#define C_FFI_LIGATURE  C_CTRL_B
+#define C_FFL_LIGATURE  C_CTRL_C
+#define C_FL_LIGATURE   C_CTRL_D
 
 /* GfxFont */
 
@@ -64,6 +72,15 @@ char GfxFontFindChar(GfxFont *this, unsigned char ch);
 
 /* Handle gfx unicode to geos char. */
 word GfxUnicodeToGeosChar(word unicodeVal);
+
+/* Unicode value of a GEOS char (0 if none). */
+word GfxGeosCharToUnicode(byte ch);
+
+/* GEOS char (or C_xx_LIGATURE) for a glyph name, 0 if unknown. */
+byte GfxGlyphNameToGeosChar(char *name);
+
+/* Pick the GEOS substitute font class (flags) from the font name. */
+void GfxFontMapName(GfxFont *this, const char *name);
 
 /* Process gfx font matches. */
 extern

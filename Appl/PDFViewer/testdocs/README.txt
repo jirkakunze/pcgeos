@@ -125,6 +125,30 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Passwortdialog, sondern die Meldung, dass die Verschlüsselungsart
     nicht unterstützt wird.
 
+24_cid_fonts.pdf
+    Type0-Schriften mit /Encoding /Identity-H (wie von Word, LibreOffice
+    und Browsern erzeugt), dargestellt mit GEOS-Ersatzschriften.
+    Seite 1: CIDFontType2 (TrueType) mit /ToUnicode (bfchar, bfrange,
+    bfrange mit Array) in Sans, Serif (URW Roman), Mono (URW Mono) und
+    Bold: Umlaute, ß, €, Gedankenstrich, deutsche Anführungszeichen,
+    Ligaturen "fi"/"fl" (Profi-Fluss). Breiten aus /W (Array- und
+    Bereichsform). Darunter TJ mit Kerning (Lücke nach "Gr"), Tc 2
+    (gesperrt) und Tw 20, das bei 2-Byte-Codes keine Wirkung haben darf.
+    Seite 2: Wahl der Ersatzschrift - allgemeine Namensregeln
+    ("VintageSerif" -> Serif, "OfficeCode" -> Mono, beide mit /Flags 32),
+    unbekannte Namen über /Flags (34 Serif, 33 Mono), Namenstabelle
+    (TimesNewRomanPSMT mit /Flags 32 -> Serif).
+    Seite 3: ohne /ToUnicode (auch mit /CIDToGIDMap-Stream): PDF Viewer
+    zeichnet bewusst keinen Text (die Codes sind Glyphnummern ohne
+    eigene Bedeutung), nur die Beschriftungen; kein Absturz.
+    Seite 4: CIDFontType0 mit eingebettetem CFF: oben ohne /ToUnicode
+    (kein Text), unten mit /ToUnicode (Serif).
+    Seite 5: nicht unterstützte CMaps (Identity-V, UniJIS-UCS2-H): der
+    Text wird übersprungen, die Beschriftungen und die untere Zeile
+    erscheinen.
+    Die TrueType-Schriften sind Liberation-Schriften, nur mit den
+    benutzten Glyphen gefüllt (~250 KB).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

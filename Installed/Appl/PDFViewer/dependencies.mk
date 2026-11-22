@@ -35,7 +35,7 @@ gfx.eobj: Ansi/string.h geos.h Ansi/stdio.h pdfEngine.h graphics.h \
                 Ansi/ctype.h timedate.h file.h sllang.h ec.h lmem.h \
                 hugearr.h resource.h gfx.h gtypes.h pdfGeode.h parser.h \
                 lexer.h obj.h dict.h gfxFont.h gstring.h object.h geode.h \
-                gfxState.h array.h stream.h gmem.h gstr.h
+                cidFont.h gfxState.h array.h stream.h gmem.h gstr.h
 stream.obj \
 stream.eobj: ccitt.goh
 stream.obj \
@@ -49,7 +49,7 @@ gfxFont.eobj: Ansi/stdlib.h geos.h Ansi/string.h char.h Ansi/ctype.h \
                 ec.h obj.h pdfGeode.h file.h gtypes.h array.h dict.h \
                 stream.h lexer.h parser.h xref.h gfxFont.h gstring.h \
                 graphics.h fontID.h font.h color.h object.h geode.h \
-                lmem.h gstr.h gmem.h Ansi/stdio.h heap.h
+                lmem.h cidFont.h gstr.h gmem.h Ansi/stdio.h heap.h
 crypt.obj \
 crypt.eobj: 
 crypt.obj \
@@ -128,6 +128,12 @@ dict.eobj: Ansi/string.h geos.h obj.h pdfGeode.h file.h gtypes.h \
 array.obj \
 array.eobj: pdfGeode.h geos.h file.h gtypes.h array.h gmem.h \
                 Ansi/stdio.h obj.h
+cidFont.obj \
+cidFont.eobj: geos.h heap.h ec.h Ansi/string.h obj.h pdfGeode.h file.h \
+                gtypes.h array.h dict.h stream.h lexer.h parser.h xref.h \
+                gfxFont.h gstring.h graphics.h fontID.h font.h color.h \
+                object.h geode.h lmem.h cidFont.h gstr.h gmem.h \
+                Ansi/stdio.h
 gstr.obj \
 gstr.eobj: Ansi/string.h geos.h pdfGeode.h file.h gtypes.h gstr.h \
                 gmem.h Ansi/stdio.h

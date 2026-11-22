@@ -406,6 +406,16 @@ typedef struct GfxFont
     GBool hasCharSet; /* true if font descriptor has 'charset' entry */
     sdword fontWidthFactor; /* Used to tweak font width based on char widths */
 
+    /*
+     * Type0 fonts (is16): tables built by GfxCidFontInit (main/cidFont.c),
+     * movable blocks locked only while a string is drawn.
+     */
+    MemHandle cidMap; /* GfxCidEntry[cidCount], 0 = none */
+    word cidCount;
+    MemHandle cidRanges; /* GfxCidRange[cidRangeCount], 0 = none */
+    word cidRangeCount;
+    word cidDefaultWidth; /* /DW */
+
     unsigned short widths[256]; /* char widths(x1000) */
     unsigned char charMap[256]; /* char encoding map */
     /* Widths are computed inline; charNames[256] is no longer needed. */

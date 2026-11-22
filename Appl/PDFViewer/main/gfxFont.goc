@@ -45,6 +45,7 @@
 #include "xref.h"
 @include "gfxFont2.goh"
 #include "gfxFont.h"
+#include "cidFont.h"
 #include "gstr.h"
 #include "gmem.h"
 #include <heap.h>
@@ -69,29 +70,65 @@ int GfxFontEncodingBinarySearch(char *name, int start, int end,
 /* GfxFont */
 
 /***********************************************************************
- *      GfxFontCheckWellKnown
+ *      GfxFontNameRule
  ***********************************************************************
- * SYNOPSIS:        Check well known.
- * PARAMETERS:      GfxFont *this    this
- *                  const char *name    name
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ * SYNOPSIS:        Generic name rules for fonts not in fontNameMap.
+ * RETURNS:         class letter (see fontNameMap), 0 = no rule applies
  ***********************************************************************/
-
-void GfxFontCheckWellKnown(GfxFont *this, const char *name)
+static char GfxFontNameRule(const char *name)
 {
-    WellKnownFont *pFont = wellKnownFonts;
-    int i;
+    const char *p;
+
+    /* "Mono" as a word: not "Monotype", "Monoline" */
+    for (p = strstr(name, "Mono"); p; p = strstr(p + 1, "Mono"))
+    {
+        if (!islower(p[4]) || !strncmp(p + 4, "space", 5))
+        {
+            return 'M';
+        }
+    }
+    if (strstr(name, "Code") || strstr(name, "Console") ||
+        strstr(name, "Typewriter"))
+    {
+        return 'M';
+    }
+    if (strstr(name, "Serif") && !strstr(name, "Sans"))
+    {
+        return 'S';
+    }
+    if (strstr(name, "Sans") || strstr(name, "Gothic") ||
+        strstr(name, "Grotesk"))
+    {
+        return 'N';
+    }
+    if (strstr(name, "Roman") || strstr(name, "Antiqua"))
+    {
+        return 'S';
+    }
+    return 0;
+}
+
+/***********************************************************************
+ *      GfxFontMapName
+ ***********************************************************************
+ * SYNOPSIS:        Pick the GEOS substitute font class from the name.
+ * PARAMETERS:      GfxFont *this       font, flags already set from
+ *                                      /Flags (or the default)
+ *                  const char *name    PDF font name (BaseFont)
+ * STRATEGY:        Font names are far more reliable than /Flags (many
+ *                  producers write 32 = "nonsymbolic" for every font).
+ *                  The name is normalized (subset tag "AAAAAA+", spaces
+ *                  and '_' dropped), then looked up as a prefix in
+ *                  fontNameMap, then the generic rules. If either knows
+ *                  the font, its class replaces the serif / fixed /
+ *                  symbolic flags; otherwise the flags stay.
+ ***********************************************************************/
+void GfxFontMapName(GfxFont *this, const char *name)
+{
+    char buf[48];
+    char *map, *entry, *end;
+    char cls = 0;
+    word len, n = 0;
 
     /* Ignore any unique tag (name starts with "AAAAAA+"). */
     if (strlen(name) > 8 && isalpha(name[0]) && isalpha(name[1])
@@ -100,22 +137,76 @@ void GfxFontCheckWellKnown(GfxFont *this, const char *name)
     {
         name = &name[7];
     }
-
-    /*
-     * A match is found if the well-known font name matches a substring of the
-     * passed name, where the substring must begin at the first character.
-     */
-
-    for (i = 0, pFont = wellKnownFonts;
-        i < ARRAY_LEN(wellKnownFonts, WellKnownFont);
-        i++, pFont++)
+    for (; *name && n < sizeof(buf) - 1; ++name)
     {
-        if (!strncmp(name, pFont->WKF_name, strlen(pFont->WKF_name)))
+        if (*name != ' ' && *name != '_')
         {
-            this->flags &= ~(fontSymbolic | fontSerif | fontFixedWidth);
-            this->flags |= pFont->WKF_flags;
+            buf[n++] = *name;
+        }
+    }
+    buf[n] = '\0';
+    if (n == 0)
+    {
+        return;
+    }
+
+    MemLock(OptrToHandle(@fontNameMap));
+    map = LMemDeref(@fontNameMap);
+    for (entry = map; *entry; entry = (*end) ? end + 1 : end)
+    {
+        for (end = entry + 1; *end && *end != '|'; ++end)
+        {
+        }
+        len = end - entry - 1;
+        if (len && !strncmp(buf, entry + 1, len))
+        {
+            cls = entry[0];
             break;
         }
+    }
+    MemUnlock(OptrToHandle(@fontNameMap));
+
+    if (cls == 0)
+    {
+        cls = GfxFontNameRule(buf);
+    }
+    if (cls == 0)
+    {
+        return;
+    }
+    this->flags &= ~(fontSymbolic | fontSerif | fontFixedWidth);
+    switch (cls)
+    {
+        case 'M':
+            this->flags |= fontFixedWidth;
+            break;
+        case 'S':
+            this->flags |= fontSerif;
+            break;
+        case 'Y':
+            this->flags |= fontSymbolic;
+            break;
+    }
+}
+
+/***********************************************************************
+ *      GfxFontNameStyle
+ ***********************************************************************
+ * SYNOPSIS:        Derive bold/italic from the font name.
+ * STRATEGY:        The font code uses the fontBold and fontItalic flags
+ *                  to set the bold and italic text styles.
+ ***********************************************************************/
+static void GfxFontNameStyle(GfxFont *this)
+{
+    if (strstr(GStrGetCString(&this->name), "Bold")
+        || strstr(GStrGetCString(&this->name), "Black"))
+    {
+        this->flags |= fontBold;
+    }
+    if (strstr(GStrGetCString(&this->name), "Italic")
+        || strstr(GStrGetCString(&this->name), "Oblique"))
+    {
+        this->flags |= fontItalic;
     }
 }
 
@@ -156,6 +247,9 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
     GBool hasWidthsArray;
 
     /* make cleanup safe even if a string allocation below fails */
+    this->cidMap = this->cidRanges = NullHandle;
+    this->cidCount = this->cidRangeCount = 0;
+    this->cidDefaultWidth = 1000;
     this->tag.s = this->name.s = this->embFontName.s = this->extFontFile.s =
         NULL;
     this->tag.length = this->name.length = this->embFontName.length =
@@ -204,15 +298,12 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
     ObjFree(&obj1);
     this->is16 = gFalse;
 
-    /* consult the WellKnownFonts table for anything more specific -- */
-    /* unified with the /FontDescriptor-symbolic-correction path below, */
-    /* which used to be the *only* place this table got consulted (see */
-    /* the project roadmap's fontmapping-unification entry). */
-    /* conditioned on font Subtype (TrueType vs Type1): a real-world PDF */
-    /* can legitimately have either type carry any of these names, and */
-    /* gating on Subtype only ever narrowed the match, never broadened it. */
-    this->flags = fontSerif; /* assume Times-Roman by default */
-    GfxFontCheckWellKnown(this, GStrGetCString(&this->name));
+    /*
+     * Substitute font class: Times-Roman by default, the font name
+     * (GfxFontMapName) overrides it -- also over the /Flags read below.
+     */
+    this->flags = fontSerif;
+    GfxFontMapName(this, GStrGetCString(&this->name));
 
     this->embFontID.num = -1;
     this->embFontID.gen = -1;
@@ -246,13 +337,10 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
         }
         ObjFree(&obj2);
         /*
-         * I've had trouble with various fonts having 'symbol' set in their
-         * flags.
+         * The name decides over the flags (often just 32, or 'symbolic'
+         * set for ordinary text fonts).
          */
-        if (this->flags & fontSymbolic)
-        {
-            GfxFontCheckWellKnown(this, GStrGetCString(&this->name));
-        }
+        GfxFontMapName(this, GStrGetCString(&this->name));
         /*
          * Maybe this is too tailored to a specific problem, but I've had a
          * case of the 'symbol' flag getting set for non-symbol fonts:
@@ -327,6 +415,18 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
     ObjFree(&obj1);
 
     /*
+     * Type0: codes, widths and char mapping come from the CIDFont
+     * descendant and /ToUnicode (main/cidFont.c), none of the 8 bit
+     * encoding work below applies.
+     */
+    if (this->type == fontType0)
+    {
+        GfxCidFontInit(this, fontDict, xref);
+        GfxFontNameStyle(this);
+        return;
+    }
+
+    /*
      * Check for an explicit /Widths array EARLY, before any of the inline
      * standard-font fallback width lookups below ~= 85760 comparisons.
      */
@@ -396,20 +496,7 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
         this->flags &= ~fontSymbolic;
     }
 
-    /*
-     * The font code uses the fontBold and fontItalic flags to set the bold and
-     * italic text styles, respectively.
-     */
-    if (strstr(GStrGetCString(&this->name), "Bold")
-        || strstr(GStrGetCString(&this->name), "Black"))
-    {
-        this->flags |= fontBold;
-    }
-    if (strstr(GStrGetCString(&this->name), "Italic")
-        || strstr(GStrGetCString(&this->name), "Oblique"))
-    {
-        this->flags |= fontItalic;
-    }
+    GfxFontNameStyle(this);
 
 #if 0
     if (this->type == fontType0)
@@ -464,6 +551,7 @@ void GfxFontFree(GfxFont *this)
 
     GStrFree(&this->embFontName);
     GStrFree(&this->extFontFile);
+    GfxCidFontFree(this);
 
 }
 
@@ -574,6 +662,12 @@ static short GfxFontLookupStandardWidth(GfxFont *this, char *name)
     }
     MemUnlock(OptrToHandle(@standardEncodingNames));
     MemUnlock(OptrToHandle(owidths));
+    if (result == 0 && !strcmp(name, "Euro"))
+    {
+        /* not in the old standard tables; current Adobe core font AFMs */
+        result = (this->flags & fontFixedWidth) ? 600 :
+            (this->flags & fontSerif) ? 500 : 556;
+    }
     return result;
 }
 
@@ -891,6 +985,11 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
         this->charMap[code] = 0;
     }
     MemUnlock(OptrToHandle(@charGEOSEquiv));
+    if (searchResult == -1)
+    {
+        /* "Euro", "uniXXXX", "uXXXX" are not in charNames */
+        this->charMap[code] = GfxGlyphNameToGeosChar(name);
+    }
     if (!hasWidthsArray)
     {
         this->widths[code] = GfxFontLookupStandardWidth(this, name);
@@ -1052,6 +1151,105 @@ word GfxUnicodeToGeosChar(word unicodeVal)
         }
     }
     return 0;
+}
+
+/***********************************************************************
+ *      GfxGeosCharToUnicode
+ ***********************************************************************
+ * SYNOPSIS:        Unicode value of a GEOS char.
+ * RETURNS:         Unicode value, 0 for control codes
+ ***********************************************************************/
+word GfxGeosCharToUnicode(byte ch)
+{
+    if (ch < MIN_GEOS_CHAR ||
+        (word)GEOS_CHAR_INDEX(ch) >= (word)NUM_CHARMAPENTRIES)
+    {
+        return 0;
+    }
+    return geosCharMap[GEOS_CHAR_INDEX(ch)];
+}
+
+/***********************************************************************
+ *      GfxGlyphNameToGeosChar
+ ***********************************************************************
+ * SYNOPSIS:        GEOS char for a PostScript glyph name.
+ * RETURNS:         GEOS char or C_xx_LIGATURE, 0 if unknown
+ * STRATEGY:        Same name table as GfxFontAddChar, plus the ligatures
+ *                  and the "uniXXXX" / "uXXXX" names of the Adobe Glyph
+ *                  List specification.
+ ***********************************************************************/
+byte GfxGlyphNameToGeosChar(char *name)
+{
+    char **pCharNames;
+    char *pCharGEOSEquiv;
+    int searchResult;
+    byte ch = 0;
+    word uni;
+    char *p;
+
+    if (name[0] == '\0')
+    {
+        return 0;
+    }
+    if (name[1] == '\0')
+    {
+        return (name[0] >= ' ' && name[0] < C_DELETE) ? (byte)name[0] : 0;
+    }
+    if (!strcmp(name, "ff"))
+    {
+        return C_FF_LIGATURE;
+    }
+    if (!strcmp(name, "fi"))
+    {
+        return C_FI_LIGATURE;
+    }
+    if (!strcmp(name, "fl"))
+    {
+        return C_FL_LIGATURE;
+    }
+    if (!strcmp(name, "ffi"))
+    {
+        return C_FFI_LIGATURE;
+    }
+    if (!strcmp(name, "ffl"))
+    {
+        return C_FFL_LIGATURE;
+    }
+    if (!strcmp(name, "Euro"))
+    {
+        /* not in charNames (predates the Euro) */
+        return (byte)GfxUnicodeToGeosChar(0x20AC);
+    }
+    if ((name[0] == 'u' && name[1] == 'n' && name[2] == 'i' &&
+         strlen(name) == 7) || (name[0] == 'u' && strlen(name) == 5))
+    {
+        p = (name[1] == 'n') ? name + 3 : name + 1;
+        uni = 0;
+        while (*p && isxdigit(*p))
+        {
+            uni = (uni << 4) |
+                (word)(isdigit(*p) ? *p - '0' : (toupper(*p) - 'A' + 10));
+            ++p;
+        }
+        if (*p == '\0')
+        {
+            return (byte)GfxUnicodeToGeosChar(uni);
+        }
+    }
+
+    MemLock(OptrToHandle(@charGEOSEquiv));
+    pCharNames = LMemDeref(@charNames);
+    pCharGEOSEquiv = LMemDeref(@charGEOSEquiv);
+    searchResult = GfxFontEncodingBinarySearch(name,
+        0,
+        (LMemGetChunkSize(@charNames) >> 2) - 1,
+        pCharNames);
+    if (searchResult != -1)
+    {
+        ch = (byte)pCharGEOSEquiv[searchResult];
+    }
+    MemUnlock(OptrToHandle(@charGEOSEquiv));
+    return ch;
 }
 
 /***********************************************************************

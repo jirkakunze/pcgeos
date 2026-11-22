@@ -48,6 +48,7 @@
 #include "obj.h"
 #include "dict.h"
 #include "gfxFont.h"
+#include "cidFont.h"
 #include "gfxState.h"
 #include "array.h"
 #include "stream.h"
@@ -3895,6 +3896,37 @@ void resetTextTransform(Gfx *gfx)
  *
  ***********************************************************************/
 
+/***********************************************************************
+ *      GfxDrawMappedChar
+ ***********************************************************************
+ * SYNOPSIS:        Draw a mapped char at the pen position; ligature
+ *                  codes (no GEOS chars) are drawn as their letters.
+ ***********************************************************************/
+static void GfxDrawMappedChar(Handle gstring, byte ch)
+{
+    switch (ch)
+    {
+        case C_FI_LIGATURE:
+            GrDrawTextAtCP(gstring, "fi", 2);
+            break;
+        case C_FL_LIGATURE:
+            GrDrawTextAtCP(gstring, "fl", 2);
+            break;
+        case C_FF_LIGATURE:
+            GrDrawTextAtCP(gstring, "ff", 2);
+            break;
+        case C_FFI_LIGATURE:
+            GrDrawTextAtCP(gstring, "ffi", 3);
+            break;
+        case C_FFL_LIGATURE:
+            GrDrawTextAtCP(gstring, "ffl", 3);
+            break;
+        default:
+            GrDrawCharAtCP(gstring, ch);
+            break;
+    }
+}
+
 static void doShowText(Gfx *gfx, GooString *s)
 {
     GfxFont *font;
@@ -3939,6 +3971,39 @@ static void doShowText(Gfx *gfx, GooString *s)
     /* ----- 16-bit font */
     if (GfxFontIs16Bit(font))
     {
+        /*
+         * Type0 font, Identity-H: every 2 bytes are one CID. Width and
+         * GEOS char come from the font's CID tables (main/cidFont.c);
+         * the word spacing Tw only applies to the 1 byte code 32, so
+         * never here.
+         */
+        GfxCidLock cidLock;
+        word cid, cidWidth;
+        byte ch;
+        Guchar *bp;
+
+        len = GStrGetLength(s);
+        bp = (Guchar *)GStrGetCString(s);
+        GfxCidFontLock(font, &cidLock);
+        for (i = 0; i + 1 < (short)len; i += 2)
+        {
+            cid = ((word)bp[i] << 8) | bp[i + 1];
+            GfxCidFontLookup(&cidLock, cid, &cidWidth, &ch);
+            if (ch != 0 && ch != C_SPACE)
+            {
+                if (i > 0 || render != 0)
+                {
+                    GrMoveToWWFixed(gstring,
+                        ((sdword)((dword)state->curTextX << 5)),
+                        ((sdword)((dword)(-state->lineY) << 5)));
+                }
+                GfxDrawMappedChar(gstring, ch);
+            }
+            fWidth = MakeWWFixed(cidWidth);
+            width = GrMulWWFixed(widthScale, fWidth) + charSpace;
+            state->curTextX += width;
+        }
+        GfxCidFontUnlock(font);
 
         /* ----- 8-bit font */
     }
@@ -3970,14 +4035,7 @@ static void doShowText(Gfx *gfx, GooString *s)
                             ((sdword)((dword)(-state->lineY) << 5)));
                     }
 
-                    if (c == C_FI_LIGATURE)
-                    {
-                        GrDrawTextAtCP(gstring, "fi", 2);
-                    }
-                    else
-                    {
-                        GrDrawCharAtCP(gstring, (byte)c);
-                    }
+                    GfxDrawMappedChar(gstring, (byte)c);
                 }
 
                 /*
