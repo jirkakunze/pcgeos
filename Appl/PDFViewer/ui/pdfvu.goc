@@ -400,7 +400,7 @@ Boolean onTV, g_showTools;
             UIIL_BEGINNING,
             GVCF_ZOOM_IN | GVCF_ZOOM_OUT | GVCF_MAIN_100
             | GVCF_CUSTOM_SCALE | GVCF_REDUCE | GVCF_100 | GVCF_ENLARGE
-            | GVCF_BIG_ENLARGE
+            | GVCF_BIG_ENLARGE | GVCF_MAIN_SCALE_TO_FIT | GVCF_SCALE_TO_FIT
         }
     };
 
