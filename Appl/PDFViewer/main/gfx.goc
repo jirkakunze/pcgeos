@@ -68,6 +68,9 @@ void resetTextTransform(Gfx *gfx);
 static void doShowText(Gfx *gfx, GooString *s);
 static void GfxUpdateFont(Gfx *gfx);
 static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg);
+static void GfxDrawImageRows(GStateHandle gstring, VMFileHandle vmFile,
+    VMBlockHandle bitmap, word sampledWidth, word sampledHeight,
+    word validRows);
 
 #define PDF_PAGE_RESOURCE_VM_BUDGET       0x00800000UL
 #define PDF_PAGE_RESOURCE_OBJECT_LIMIT    2048
@@ -5571,6 +5574,44 @@ static void _near opEndIgnoreUndef(Gfx *gfx, Obj args[], int numArgs)
 #endif
 
 /***********************************************************************
+ *      GfxDrawImageRows
+ ***********************************************************************
+ * SYNOPSIS:        Draw the decoded part of an image bitmap.
+ * PARAMETERS:      gstring, vmFile, bitmap    image bitmap at (0,0)
+ *                  sampledWidth, sampledHeight    bitmap size
+ *                  validRows    complete rows, counted from the image
+ *                               top (= bitmap bottom, the image is
+ *                               stored flipped)
+ *
+ * STRATEGY:
+ *      Image data that ends early (truncated or broken JPEG, short
+ *      stream) leaves the remaining bitmap rows unset. Like other
+ *      viewers, draw only the rows that were decoded -- nothing at all
+ *      if there are none -- instead of a black area.
+ ***********************************************************************/
+
+static void GfxDrawImageRows(GStateHandle gstring, VMFileHandle vmFile,
+    VMBlockHandle bitmap, word sampledWidth, word sampledHeight,
+    word validRows)
+{
+    if (validRows == 0)
+    {
+        return;
+    }
+    if (validRows >= sampledHeight)
+    {
+        GrDrawHugeBitmap(gstring, 0, 0, vmFile, bitmap);
+        return;
+    }
+    GrSaveState(gstring);
+    GrSetClipRect(gstring, PCT_INTERSECTION,
+        0, (sword)(sampledHeight - validRows),
+        (sword)sampledWidth, (sword)sampledHeight);
+    GrDrawHugeBitmap(gstring, 0, 0, vmFile, bitmap);
+    GrRestoreState(gstring);
+}
+
+/***********************************************************************
  *      GfxDrawImageMask
  ***********************************************************************
  * SYNOPSIS:        Draw image mask.
@@ -5614,6 +5655,8 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     word xSamp, ySamp, xMod, yCount;
     word sampledWidth, sampledHeight, arrayInd;
     GBool useLine;
+    GBool dataEnd = gFalse;  /* image data ended early */
+    word validRows = 0;      /* complete bitmap rows */
     /* reverse the sense of the 'invert' test */
     invert = !invert;
 
@@ -5741,7 +5784,11 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
                     break;
                 }
 
-                StreamGetImagePixel(str, pixBuf);
+                if (StreamGetImagePixel(str, pixBuf) == EOF)
+                {
+                    dataEnd = gTrue;
+                    break;
+                }
 
                 if (nElements & 0xffff0000 && xMod == 0)
                 {
@@ -5778,6 +5825,14 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
                 HugeArrayDirty(line);
                 HugeArrayUnlock(line);
             }
+            if (dataEnd)
+            {
+                break;
+            }
+            if (useLine)
+            {
+                ++validRows;
+            }
             /*
              * Update the image-progress dialog every so often (every 32 lines)
              */
@@ -5797,10 +5852,8 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     /* Draw the bitmap into our gstring at coords (0,0). */
     if (bitmap && !(gfx->cancelFlag && *gfx->cancelFlag))
     {
-        GrDrawHugeBitmap(gstring,
-            0, 0,
-            gfx->vmFile,
-            bitmap);
+        GfxDrawImageRows(gstring, gfx->vmFile, bitmap, sampledWidth,
+            sampledHeight, validRows);
     }
     /* Restore the transformation matrix */
     GrRestoreTransform(gstring);
@@ -5865,6 +5918,8 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     Handle gstring = gfx->state->gstring;
     word xSamp, ySamp, xMod, yCount;
     GBool useLine;
+    GBool dataEnd = gFalse;  /* image data ended early */
+    word validRows = 0;      /* complete bitmap rows */
     
     /* Some pdf files have pages that are one big image. */
     xSamp = width / 1500 + 1;
@@ -6053,7 +6108,11 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
                     break;
                 }
 
-                StreamGetImagePixel(str, pixBuf);
+                if (StreamGetImagePixel(str, pixBuf) == EOF)
+                {
+                    dataEnd = gTrue;
+                    break;
+                }
                 /*
                  * If we got the bitmap line locked down, and sampling is
                  * correct, transfer the pixel
@@ -6104,6 +6163,14 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
                 HugeArrayDirty(line);
                 HugeArrayUnlock(line);
             }
+            if (dataEnd)
+            {
+                break;
+            }
+            if (useLine)
+            {
+                ++validRows;
+            }
             /*
              * Update the image-progress dialog every so often (every 32 lines)
              */
@@ -6122,7 +6189,8 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     }
     if (bitmap && !(gfx->cancelFlag && *gfx->cancelFlag))
     {
-        GrDrawHugeBitmap(gstring, 0, 0, gfx->vmFile, bitmap);
+        GfxDrawImageRows(gstring, gfx->vmFile, bitmap, sampledWidth,
+            sampledHeight, validRows);
     }
     /* Restore the transformation matrix */
     GrRestoreTransform(gstring);

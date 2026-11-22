@@ -104,6 +104,17 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     D 4-Bit-Graustufen mit TIFF-Predictor. A, B und C müssen gleich
     aussehen (Farbverlauf schwarz/rot/grün/weiß), D zeigt 16 Graustufen.
 
+20_jpeg_variants.pdf
+    Sieben DCTDecode-Bilder (JPEG über die IJG-Library): A Baseline
+    YCbCr 4:2:0, B progressiv, C Graustufen, D CMYK (Adobe, invertiert,
+    /Decode [1 0 1 0 1 0 1 0]), E 4:4:4 mit Restart-Markern. A, B, D und
+    E müssen gleich aussehen (Farbverlauf, weißer Rahmen, schwarze
+    Diagonale), C in Grau. F ist nach 40 % der Scan-Daten abgeschnitten:
+    nur der obere Teil erscheint, darunter bleibt die Seite frei (wie in
+    poppler). G hat einen kaputten Header: es wird nichts gezeichnet,
+    kein schwarzes Quadrat. Beide dürfen weder abstürzen noch einen
+    Dialog der JPEG-Library zeigen; der Rest der Seite muss erscheinen.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

@@ -40,19 +40,23 @@ tokenid 0
 
 
 heapspace 70k
-stack 3000
+stack 5000
 
 library	geos
 library ui
 library ansic
 library spool
 library zlib
+library ijgjpeg
 
 
 resource DisplayUI   object shared read-only
 resource AppResource ui-object
 resource Interface   ui-object
 resource DocumentUI  object
+
+# set_error_handler (JpegErr/jpegerrManager.asm) must be fixed, see there
+resource ASM_FIXED code read-only shared fixed
 
 resource ENCODINGS lmem read-only shared
 resource OPTABLE   lmem read-only shared

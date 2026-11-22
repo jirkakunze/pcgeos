@@ -679,57 +679,7 @@ typedef struct CCITTFaxData
     long buf; /* character buffer */
 } CCITTFaxData;
 
-/* DCTStream */
-
-/* DCT component info */
-typedef struct DCTCompInfo
-{
-    long id; /* component ID */
-    GBool inScan; /* is this component in the current scan? */
-    long hSample, vSample; /* horiz/vert sampling resolutions */
-    long quantTable; /* quantization table number */
-    long dcHuffTable, acHuffTable; /* Huffman table numbers */
-    long prevDC; /* DC coefficient accumulator */
-} DCTCompInfo;
-
-/* DCT Huffman decoding table */
-typedef struct DCTHuffTable
-{
-    Guchar firstSym[17]; /* first symbol for this bit length */
-    Gushort firstCode[17]; /* first code for this bit length */
-    Gushort numCodes[17]; /* number of codes of this bit length */
-    Guchar sym[256]; /* symbols */
-} DCTHuffTable;
-
-typedef struct DCTData
-{
-    long width, height; /* image size */
-    long mcuWidth, mcuHeight; /* size of min coding unit, in data units */
-    DCTCompInfo compInfo[4]; /* info for each component */
-    short numComps; /* number of components in image */
-    short colorXform; /* need YCbCr-to-RGB transform? */
-    GBool sawAdobeMarker; /* TRUE if an Adobe APP14 marker was */
-    /* actually found -- colorXform==0 is */
-    /* ambiguous otherwise (never-set default */
-    /* vs. */
-    long restartInterval; /* restart interval, in MCUs */
-    Guchar quantTables[4][64]; /* quantization tables */
-    short numQuantTables; /* number of quantization tables */
-    DCTHuffTable dcHuffTables[4]; /* DC Huffman tables */
-    DCTHuffTable acHuffTables[4]; /* AC Huffman tables */
-    short numDCHuffTables; /* number of DC Huffman tables */
-    short numACHuffTables; /* number of AC Huffman tables */
-    MemHandle rowBufHandle[4][32]; /* swapable buffers for one MCU row */
-    /* valid only while corresponding handle is locked */
-    Guchar *rowBuf[4][32];
-    short lockedRow; /* output row currently locked, -1 if none */
-    long comp, x, y, dy; /* current position within image/MCU */
-    long restartCtr; /* MCUs left until restart */
-    long restartMarker; /* next restart marker */
-    long inputBuf; /* input buffer for variable length codes */
-    long inputBits; /* number of valid bits in input buffer */
-    MemHandle idctWorkspaceHandle;
-} DCTData;
+/* DCTStream: DCTData is private to main/dctStream.c (wraps ijgjpeg) */
 
 #endif  /* PDFGEODE_H */
 

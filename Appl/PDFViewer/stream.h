@@ -173,6 +173,21 @@ long LZWStreamGetChar(Stream *str);
 extern
 long LZWStreamLookChar(Stream *str);
 
+/* DCTStream (main/dctStream.c, IJG JPEG library) */
+
+extern
+void DCTStreamInit(Stream *str, Stream *str1);
+extern
+void DCTStreamFree(Stream *str);
+extern
+void DCTStreamReset(Stream *str);
+extern
+long DCTStreamGetChar(Stream *str);
+extern
+long DCTStreamLookChar(Stream *str);
+extern
+word DCTStreamRead(Stream *str, Guchar *buf, word size);
+
 /* FlateStream */
 
 extern
