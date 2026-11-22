@@ -218,6 +218,7 @@ typedef struct XRef
      * password actually opens the file (PDF spec Algorithm 6).
      */
     GBool encrypted;
+    GBool needPassword; /* supported encryption, password did not match */
     Guchar fileKey[16];
     short fileKeyLen;
     short encryptRevision;

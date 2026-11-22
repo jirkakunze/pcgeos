@@ -330,8 +330,10 @@ static Guchar pdfPadding[32] = {
 /***********************************************************************
  *      XRefDeriveFileKey
  ***********************************************************************
- * SYNOPSIS:        Process cross-reference table derive file key.
- * PARAMETERS:      Guchar *ownerHash    owner hash
+ * SYNOPSIS:        Compute the file key from a padded user password
+ *                  (PDF spec Algorithm 2).
+ * PARAMETERS:      Guchar *paddedPw    password, padded to 32 bytes
+ *                  Guchar *ownerHash    owner hash
  *                  dword perms    perms
  *                  Guchar *id0    id0
  *                  word id0Len    id0 len
@@ -352,7 +354,8 @@ static Guchar pdfPadding[32] = {
  *  JK      08/22/26    Style cleanup
  *
  ***********************************************************************/
-static void XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word id0Len,
+static void XRefDeriveFileKey(Guchar *paddedPw, Guchar *ownerHash, dword perms,
+    Guchar *id0, word id0Len,
     short revision, short keyLenBytes, GBool encryptMetadata, Guchar outKey[16])
 {
     Guchar buf[32 + 32 + 4 + 64 + 4];
@@ -361,7 +364,7 @@ static void XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word 
     short round;
 
     pos = 0;
-    memcpy(&buf[pos], pdfPadding, 32);
+    memcpy(&buf[pos], paddedPw, 32);
     pos += 32;
     memcpy(&buf[pos], ownerHash, 32);
     pos += 32;
@@ -397,9 +400,11 @@ static void XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word 
 }
 
 /***********************************************************************
- *      XRefVerifyEmptyPassword
+ *      XRefCheckUValue
  ***********************************************************************
- * SYNOPSIS:        Process cross-reference table verify empty password.
+ * SYNOPSIS:        Check a file key against /U (PDF spec Algorithm 4/5;
+ *                  /U is computed from the padding string, not from
+ *                  the password).
  * PARAMETERS:      Guchar *fileKey    file key
  *                  short keyLenBytes    key len bytes
  *                  short revision    revision
@@ -419,7 +424,7 @@ static void XRefDeriveFileKey(Guchar *ownerHash, dword perms, Guchar *id0, word 
  *  JK      08/22/26    Style cleanup
  *
  ***********************************************************************/
-static GBool XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes, 
+static GBool XRefCheckUValue(Guchar *fileKey, short keyLenBytes, 
     short revision, Guchar *id0, word id0Len, Guchar *uValue)
 {
     Guchar result[32];
@@ -459,13 +464,123 @@ static GBool XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes,
     return memcmp(result, uValue, 16) == 0;
 }
 
+/*
+ * Everything from the /Encrypt dictionary and the trailer /ID that the
+ * password checks need (heap: the process stack is small).
+ */
+typedef struct CryptParams
+{
+    Guchar oValue[32];
+    Guchar uValue[32];
+    Guchar id0[64];
+    word id0Len;
+    dword perms;
+    short revision;
+    short keyLenBytes;
+    GBool encryptMetadata;
+} CryptParams;
+
+/***********************************************************************
+ *      XRefPadPassword
+ ***********************************************************************
+ * SYNOPSIS:        Pad/truncate a password to 32 bytes with the
+ *                  standard padding string (PDF spec Algorithm 2 a).
+ ***********************************************************************/
+
+static void XRefPadPassword(const char *password, Guchar out[32])
+{
+    word len = 0;
+
+    if (password)
+    {
+        while (len < 32 && password[len])
+        {
+            out[len] = (Guchar)password[len];
+            ++len;
+        }
+    }
+    memcpy(out + len, pdfPadding, 32 - len);
+}
+
+/***********************************************************************
+ *      XRefTryUserPassword
+ ***********************************************************************
+ * SYNOPSIS:        Authenticate a padded user password (Algorithm 6).
+ * RETURNS:         gTrue and the file key in outKey if it matches
+ ***********************************************************************/
+
+static GBool XRefTryUserPassword(CryptParams *cp, Guchar padded[32],
+    Guchar outKey[16])
+{
+    XRefDeriveFileKey(padded, cp->oValue, cp->perms, cp->id0, cp->id0Len,
+        cp->revision, cp->keyLenBytes, cp->encryptMetadata, outKey);
+    return XRefCheckUValue(outKey, cp->keyLenBytes, cp->revision,
+        cp->id0, cp->id0Len, cp->uValue);
+}
+
+/***********************************************************************
+ *      XRefTryOwnerPassword
+ ***********************************************************************
+ * SYNOPSIS:        Authenticate a padded owner password (Algorithm 7).
+ * RETURNS:         gTrue and the file key in outKey if it matches
+ *
+ * STRATEGY:
+ *      The RC4 key derived from the owner password (Algorithm 3 a-d)
+ *      decrypts /O back to the padded user password, which is then
+ *      checked like a typed-in user password.
+ ***********************************************************************/
+
+static GBool XRefTryOwnerPassword(CryptParams *cp, Guchar padded[32],
+    Guchar outKey[16])
+{
+    Guchar digest[16];
+    Guchar key[16];
+    Guchar userPw[32];
+    short round, i;
+
+    MD5Compute(padded, 32, digest);
+    if (cp->revision >= 3)
+    {
+        for (round = 0; round < 50; ++round)
+        {
+            MD5Compute(digest, 16, digest);
+        }
+    }
+
+    memcpy(userPw, cp->oValue, 32);
+    if (cp->revision == 2)
+    {
+        RC4Apply(digest, cp->keyLenBytes, userPw, 32);
+    }
+    else
+    {
+        /* reverse of Algorithm 3 f: keys XORed with 19 down to 0 */
+        for (round = 19; round >= 0; --round)
+        {
+            for (i = 0; i < cp->keyLenBytes; ++i)
+            {
+                key[i] = digest[i] ^ (Guchar)round;
+            }
+            RC4Apply(key, cp->keyLenBytes, userPw, 32);
+        }
+    }
+
+    return XRefTryUserPassword(cp, userPw, outKey);
+}
+
 /***********************************************************************
  *      XRefSetupEncryption
  ***********************************************************************
- * SYNOPSIS:        Set up encryption.
+ * SYNOPSIS:        Set up decryption for the Standard security handler
+ *                  (RC4, /V 1-2, /R 2-3).
  * PARAMETERS:      XRef *xref    cross-reference table
+ *                  const char *password    user or owner password,
+ *                                  "" for none (bytes as in the PDF:
+ *                                  PDFDocEncoding / Latin-1)
  *
- * RETURNS:         success flag
+ * RETURNS:         CRYPT_OK, CRYPT_BAD_PASSWORD (supported, but the
+ *                  password does not open the file) or
+ *                  CRYPT_UNSUPPORTED (other handler, AES, damaged)
  *
  * CONTEXT:
  *
@@ -478,7 +593,7 @@ static GBool XRefVerifyEmptyPassword(Guchar *fileKey, short keyLenBytes,
  *
  ***********************************************************************/
 
-GBool XRefSetupEncryption(XRef *xref)
+XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
 {
     Obj encryptObj, fieldObj, idObj, id0Obj;
     Dict *encryptDict;
@@ -493,6 +608,8 @@ GBool XRefSetupEncryption(XRef *xref)
     long id0Len;
     GBool encryptMetadata;
     GBool ok;
+    Guchar padded[32];
+    CryptParams *cp;
 
     xref->encrypted = gFalse;
 
@@ -500,7 +617,7 @@ GBool XRefSetupEncryption(XRef *xref)
     if (!isDict(&encryptObj))
     {
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
     encryptDict = getDict(&encryptObj);
 
@@ -510,7 +627,7 @@ GBool XRefSetupEncryption(XRef *xref)
     if (!ok)
     {
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
 
     DictLookup(encryptDict, "V", &fieldObj, xref);
@@ -519,7 +636,7 @@ GBool XRefSetupEncryption(XRef *xref)
     if (v != 1 && v != 2)
     {
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
 
     DictLookup(encryptDict, "R", &fieldObj, xref);
@@ -528,7 +645,7 @@ GBool XRefSetupEncryption(XRef *xref)
     if (r != 2 && r != 3)
     {
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
 
     DictLookup(encryptDict, "Length", &fieldObj, xref);
@@ -538,7 +655,7 @@ GBool XRefSetupEncryption(XRef *xref)
     if (keyLenBytes < 5 || keyLenBytes > 16)
     {
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
 
     DictLookup(encryptDict, "O", &fieldObj, xref);
@@ -546,7 +663,7 @@ GBool XRefSetupEncryption(XRef *xref)
     {
         ObjFree(&fieldObj);
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
     memcpy(oValue, GStrGetCString(getString(&fieldObj)), 32);
     ObjFree(&fieldObj);
@@ -556,7 +673,7 @@ GBool XRefSetupEncryption(XRef *xref)
     {
         ObjFree(&fieldObj);
         ObjFree(&encryptObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
     memcpy(uValue, GStrGetCString(getString(&fieldObj)), 32);
     ObjFree(&fieldObj);
@@ -575,14 +692,14 @@ GBool XRefSetupEncryption(XRef *xref)
     if (!isArray(&idObj) || ObjArrayGetLength(&idObj) < 1)
     {
         ObjFree(&idObj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
     ObjArrayGet(&idObj, 0, &id0Obj, xref);
     ObjFree(&idObj);
     if (!isString(&id0Obj))
     {
         ObjFree(&id0Obj);
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
     }
     id0Len = GStrGetLength(getString(&id0Obj));
     if (id0Len > 64)
@@ -592,19 +709,38 @@ GBool XRefSetupEncryption(XRef *xref)
     memcpy(id0, GStrGetCString(getString(&id0Obj)), id0Len);
     ObjFree(&id0Obj);
 
-    XRefDeriveFileKey(oValue, (dword)p, id0, (word)id0Len, r, keyLenBytes,
-        encryptMetadata, xref->fileKey);
-
-    if (!XRefVerifyEmptyPassword(xref->fileKey, keyLenBytes, r,
-        id0, (word)id0Len, uValue))
+    cp = gmalloc(sizeof(CryptParams));
+    if (!cp)
     {
-        return gFalse;
+        return CRYPT_UNSUPPORTED;
+    }
+    memcpy(cp->oValue, oValue, 32);
+    memcpy(cp->uValue, uValue, 32);
+    memcpy(cp->id0, id0, (word)id0Len);
+    cp->id0Len = (word)id0Len;
+    cp->perms = (dword)p;
+    cp->revision = (short)r;
+    cp->keyLenBytes = keyLenBytes;
+    cp->encryptMetadata = encryptMetadata;
+
+    /*
+     * The password may be the user password (Algorithm 6) or the owner
+     * password (Algorithm 7); the empty password is tried the same way.
+     */
+    XRefPadPassword(password, padded);
+    ok = XRefTryUserPassword(cp, padded, xref->fileKey) ||
+        XRefTryOwnerPassword(cp, padded, xref->fileKey);
+    gfree(cp);
+    if (!ok)
+    {
+        return CRYPT_BAD_PASSWORD;
     }
 
     xref->fileKeyLen = keyLenBytes;
     xref->encryptRevision = (short)r;
+    xref->permissions = p;
     xref->encrypted = gTrue;
-    return gTrue;
+    return CRYPT_OK;
 }
 
 /***********************************************************************

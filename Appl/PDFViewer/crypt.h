@@ -38,8 +38,16 @@ Guchar RC4NextByte(Guchar sBox[256], Guchar *rc4i, Guchar *rc4j);
 /* Handle rc4 apply. */
 void RC4Apply(Guchar *key, short keyLen, Guchar *data, long len);
 
-/* Set up encryption. */
-GBool XRefSetupEncryption(XRef *xref);
+/* Result of XRefSetupEncryption. */
+typedef enum
+{
+    CRYPT_OK,           /* password accepted, decryption set up */
+    CRYPT_BAD_PASSWORD, /* supported encryption, wrong password */
+    CRYPT_UNSUPPORTED   /* other security handler, AES, damaged */
+} XRefCryptStatus;
+
+/* Set up decryption with a user or owner password ("" = none). */
+XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password);
 
 /* Process cross-reference table derive object key. */
 void XRefDeriveObjectKey(XRef *xref, long num, long gen,

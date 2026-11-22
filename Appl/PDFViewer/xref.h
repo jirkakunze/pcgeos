@@ -42,7 +42,7 @@
 extern void XRefInitNull(XRef *xref);
 
 /* Constructor */
-extern Boolean XRefInit(XRef *xref, FileHandle fileHan);
+extern Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password);
 
 /* Destructor */
 extern void XRefFree(XRef *xref);

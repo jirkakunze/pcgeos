@@ -56,13 +56,22 @@ typedef enum {
         PDF_ERR_OUT_OF_MEMORY,
         PDF_ERR_INVALID_PAGE,  /* page number out of range */
         PDF_ERR_CANCELLED,     /* decode aborted via PdfCancelDecode */
-        PDF_ERR_INVALID_HANDLE
+        PDF_ERR_INVALID_HANDLE,
+        PDF_ERR_PASSWORD       /* encrypted, password missing or wrong */
 } PdfError;
 
 /* A. */
 
 /* Open a PDF document from an already-open GEOS file handle . */
-PdfError PdfOpen(FileHandle file, PdfDocHandle *docOut);
+/*
+ * password: user or owner password of an encrypted file, NULL or "" for
+ * none; bytes as stored in the PDF (Latin-1). PDF_ERR_PASSWORD means the
+ * file can be opened, but needs (another) password.
+ */
+PdfError PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut);
+
+/* buffer size for a password: PDF passwords have at most 32 bytes */
+#define PDF_PASSWORD_BUF_SIZE 33
 
 /*
  * Close a document and free everything associated with it, including any pages

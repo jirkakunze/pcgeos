@@ -70,3 +70,4 @@ export PDFDocumentClass
 export PDFDocumentControlClass
 export PDFImageInteractionClass
 export PDFPageControlClass
+export PDFPasswordTextClass

@@ -91,6 +91,7 @@ void XRefInitNull(XRef *xref)
     xref->vmFile = 0;
     initNull(&xref->trailerDict);
     xref->encrypted = gFalse;
+    xref->needPassword = gFalse;
 }
 
 /***********************************************************************
@@ -113,7 +114,7 @@ void XRefInitNull(XRef *xref)
  *
  ***********************************************************************/
 
-Boolean XRefInit(XRef *xref, FileHandle fileHan)
+Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
 {
     XRefEntry entryTemplate;
     XRefEntry *batchBuf;
@@ -232,13 +233,21 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan)
     }
 
     xref->encrypted = gFalse;
+    xref->needPassword = gFalse;
     if (XRefCheckEncrypted(xref))
     {
-        /* Try the empty user password for encrypted PDFs. */
-        if (!XRefSetupEncryption(xref))
+        /* password: user or owner password, "" tries the empty one */
+        switch (XRefSetupEncryption(xref, password ? password : ""))
         {
-            xref->ok = gFalse;
-            goto err;
+            case CRYPT_OK:
+                break;
+            case CRYPT_BAD_PASSWORD:
+                xref->needPassword = gTrue;
+                xref->ok = gFalse;
+                goto err;
+            default:
+                xref->ok = gFalse;
+                goto err;
         }
     }
 

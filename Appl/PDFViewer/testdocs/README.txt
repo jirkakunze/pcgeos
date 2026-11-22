@@ -58,12 +58,9 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Variante davon.
 
 09_encrypted.pdf
-    Mit leerem Nutzer-Passwort RC4-128-verschlüsselt (bewusst der
-    schwache, zeitgemäße Algorithmus für einen xpdf-0.80-Port, nicht
-    modernes AES). XRefCheckEncrypted() sollte die Verschlüsselung
-    erkennen; XRefIsEncrypted() ist aktuell hart auf gFalse gestubbt.
-    Erwartetes Ergebnis: sauberer Fehlschlag/Ablehnung, kein Absturz
-    und keine Darstellung von Datenmüll.
+    Mit leerem Nutzer-Passwort RC4-128-verschlüsselt. Muss ohne
+    Passwortabfrage öffnen und normal dargestellt werden (die meisten
+    verschlüsselten PDFs schränken nur Drucken/Kopieren ein).
 
 10_malformed_xref.pdf
     Xref-Tabelle mit durchgängig um 5 Byte verschobenen Offsets --
@@ -114,6 +111,19 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     poppler). G hat einen kaputten Header: es wird nichts gezeichnet,
     kein schwarzes Quadrat. Beide dürfen weder abstürzen noch einen
     Dialog der JPEG-Library zeigen; der Rest der Seite muss erscheinen.
+
+21_password_rc4_128.pdf, 22_password_rc4_40.pdf
+    01_basic_text.pdf mit qpdf verschlüsselt, RC4 128 Bit (R3) bzw.
+    40 Bit (R2). Benutzerpasswort "geos", Besitzerpasswort "owner".
+    Beim Öffnen erscheint der Passwortdialog (Eingabe verdeckt); beide
+    Passwörter öffnen die Datei. Ein falsches Passwort zeigt den Dialog
+    erneut mit dem Hinweis "The password is not correct"; Cancel
+    bricht ohne weitere Meldung ab.
+
+23_password_aes.pdf
+    Wie 21, aber AES-128 (R4). Wird nicht unterstützt: kein
+    Passwortdialog, sondern die Meldung, dass die Verschlüsselungsart
+    nicht unterstützt wird.
 
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,

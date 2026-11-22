@@ -507,6 +507,8 @@ PdfEnforceCacheByteBudget(PdfDocInternal *pdoc, PdfPageCacheEntry *keepEntry)
  ***********************************************************************
  * SYNOPSIS:        Open.
  * PARAMETERS:      FileHandle file    file
+ *                  const char *password    user/owner password of an
+ *                                  encrypted file, NULL or "" for none
  *                  PdfDocHandle *docOut    doc out
  *
  * RETURNS:         result value
@@ -524,7 +526,7 @@ PdfEnforceCacheByteBudget(PdfDocInternal *pdoc, PdfPageCacheEntry *keepEntry)
  *
  ***********************************************************************/
 PdfError
-PdfOpen(FileHandle file, PdfDocHandle *docOut)
+PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
 {
     MemHandle mh;
     PdfDocInternal *pdoc;
@@ -561,7 +563,7 @@ PdfOpen(FileHandle file, PdfDocHandle *docOut)
     pdoc->cancelRequested = FALSE;
 
     /* ----- xref table ----- */
-    XRefInit(&pdoc->xref, file);
+    XRefInit(&pdoc->xref, file, password);
     if (GMemHadError())
     {
         err = PDF_ERR_OUT_OF_MEMORY;
@@ -573,8 +575,15 @@ PdfOpen(FileHandle file, PdfDocHandle *docOut)
          * xref->trailerDict is still valid at this point s its local stream,
          * it doesn't touch the trailer dict).
          */
-        err = XRefCheckEncrypted(&pdoc->xref) ?
-            PDF_ERR_ENCRYPTED : PDF_ERR_BAD_XREF;
+        if (pdoc->xref.needPassword)
+        {
+            err = PDF_ERR_PASSWORD;
+        }
+        else
+        {
+            err = XRefCheckEncrypted(&pdoc->xref) ?
+                PDF_ERR_ENCRYPTED : PDF_ERR_BAD_XREF;
+        }
         goto errorClose;
     }
 

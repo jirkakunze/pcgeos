@@ -39,6 +39,7 @@
 @include "spool.goh"
 #include "initfile.h"
 #include <Ansi/string.h>
+#include <localize.h>
 
 @include <Objects/gViewCC.goh>
 @include <Objects/gPageCC.goh>
@@ -204,6 +205,20 @@ Boolean onTV, g_showTools;
 @class PDFPageControlClass, GenPageControlClass;
 @endc
 
+/*
+ * Password entry field: GEOS text objects have no hidden mode (the
+ * VTES_HIDDEN text style is not implemented by the text library), so the
+ * typed characters are kept in instance data and only '*' are shown.
+ * Editing is limited to typing and Backspace; clipboard and quick
+ * copy are blocked.
+ */
+@class PDFPasswordTextClass, GenTextClass;
+	/* copy the password (without '*') into buf, returns its length */
+	@message word MSG_PDF_PASSWORD_TEXT_GET(char *buf);
+	@instance char PDFPTI_password[PDF_PASSWORD_BUF_SIZE] = "";
+	@instance word PDFPTI_length = 0;
+@endc
+
 @classdecl	PDFDocumentControlClass ;
 @classdecl	PDFImageInteractionClass ;
 
@@ -211,6 +226,7 @@ Boolean onTV, g_showTools;
 @classdecl	PDFDocumentClass ;
 
 @classdecl  PDFPageControlClass;
+@classdecl  PDFPasswordTextClass;
 
 /*
  ***************************************************************************
@@ -304,6 +320,7 @@ Boolean onTV, g_showTools;
 @endif
     		@PDFViewMenu, 
 		@PDFSaveDB,
+		@PDFPasswordDB,
 		@PDFOptionsMenu,
 		@PDFWindowMenu,
 		@Toolbar,
@@ -727,6 +744,61 @@ Boolean onTV, g_showTools;
     ATTR_GEN_TRIGGER_INTERACTION_COMMAND = IC_DISMISS;
 }
 
+/*
+ * Password dialog for encrypted PDFs, run with UserDoDialog from
+ * MSG_GEN_DOCUMENT_PHYSICAL_OPEN (see PDFAskPassword).
+ */
+@object GenInteractionClass PDFPasswordDB =
+{
+    GI_visMoniker = "Password";
+    GI_comp = @PDFPasswordGlyph,
+	      @PDFPasswordWrongGlyph,
+	      @PDFPasswordText,
+	      @PDFPasswordOK,
+	      @PDFPasswordCancel;
+    GII_type = GIT_COMMAND;
+    GII_visibility = GIV_DIALOG;
+    GII_attrs = @default | GIA_NOT_USER_INITIATABLE | GIA_MODAL |
+		GIA_INITIATED_VIA_USER_DO_DIALOG;
+}
+
+@object GenGlyphClass PDFPasswordGlyph = {
+    GI_visMoniker = "This document is password protected.";
+    HINT_EXPAND_WIDTH_TO_FIT_PARENT;
+}
+
+@object GenGlyphClass PDFPasswordWrongGlyph = {
+    GI_visMoniker = "The password is not correct. Please try again.";
+    GI_states = @default & ~GS_USABLE;
+    HINT_EXPAND_WIDTH_TO_FIT_PARENT;
+}
+
+
+/* PDF passwords are at most 32 bytes */
+@object PDFPasswordTextClass PDFPasswordText = {
+    GI_visMoniker = 'P', "Password:";
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    GTXI_maxLength = (32);
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 24, 0, 0};
+    HINT_DEFAULT_FOCUS;
+}
+
+@object GenTriggerClass PDFPasswordOK =
+{
+    GI_visMoniker = "OK";
+    GI_attrs = @default | GA_SIGNAL_INTERACTION_COMPLETE;
+    ATTR_GEN_TRIGGER_INTERACTION_COMMAND = IC_OK;
+    HINT_SEEK_REPLY_BAR;
+    HINT_DEFAULT_DEFAULT_ACTION;
+}
+
+@object GenTriggerClass PDFPasswordCancel =
+{
+    GI_attrs = @default | GA_SIGNAL_INTERACTION_COMPLETE;
+    ATTR_GEN_TRIGGER_INTERACTION_COMMAND = IC_DISMISS;
+    HINT_SEEK_REPLY_BAR;
+}
+
 
 @end Interface ;
 
@@ -878,9 +950,9 @@ Boolean onTV, g_showTools;
                         "open the file.  The file may be corrupt or may not "
                         "be a PDF file.";
 
-@chunk char PDFOpenEncryptedError[] = "This PDF file is encrypted/password-protected. "
-                        "PDF Viewer does not currently support opening encrypted "
-                        "PDF files. The file itself is not corrupt.";
+@chunk char PDFOpenEncryptedError[] = "This PDF file is encrypted with a method "
+                        "PDF Viewer does not support (for example AES). "
+                        "The file itself is not corrupt.";
 
 @chunk char PDFOutOfMemoryError[] = "There is not enough memory to open the "
                         "file or to display this page.";
@@ -1137,6 +1209,135 @@ Boolean onTV, g_showTools;
 
 
 /***********************************************************************
+ *		PDFPasswordTextClass
+ ***********************************************************************
+ * SYNOPSIS:	Text field that shows '*' for every typed character.
+ * STRATEGY:	Printable keys go into PDFPTI_password, Backspace removes
+ *		the last one; after each change the visible text is
+ *		replaced by as many '*' (so cursor or selection changes
+ *		can never get the display out of step). Enter, Tab and
+ *		Escape go to the superclass (default action, navigation,
+ *		cancel); all other editing keys are ignored.
+ ***********************************************************************/
+static void
+PDFPasswordTextShow(optr oself, word len)
+{
+    char stars[PDF_PASSWORD_BUF_SIZE];
+
+    memset(stars, '*', len);
+    stars[len] = 0;
+    @call oself::MSG_VIS_TEXT_REPLACE_ALL_PTR(stars, len);
+}
+
+@method PDFPasswordTextClass, MSG_META_KBD_CHAR
+{
+    if (flags & CF_RELEASE) {
+	@callsuper();
+	return;
+    }
+    if ((character >> 8) == CS_BSW &&
+	!(flags & ((SS_LCTRL | SS_RCTRL | SS_LALT | SS_RALT) << 8))) {
+	if ((character & 0xff) >= ' ' &&
+	    pself->PDFPTI_length < PDF_PASSWORD_BUF_SIZE - 1) {
+	    pself->PDFPTI_password[pself->PDFPTI_length++] =
+		(char)(character & 0xff);
+	    PDFPasswordTextShow(oself, pself->PDFPTI_length);
+	}
+	return;
+    }
+    switch (character) {
+    case ((CS_CONTROL << 8) | VC_BACKSPACE):
+	if (pself->PDFPTI_length) {
+	    pself->PDFPTI_password[--pself->PDFPTI_length] = 0;
+	    PDFPasswordTextShow(oself, pself->PDFPTI_length);
+	}
+	break;
+    case ((CS_CONTROL << 8) | VC_ENTER):
+    case ((CS_CONTROL << 8) | VC_TAB):
+    case ((CS_CONTROL << 8) | VC_ESCAPE):
+	@callsuper();
+	break;
+    default:
+	if ((character >> 8) != CS_BSW) {
+	    /* function keys, shortcuts etc. -- but no text editing */
+	    switch (character & 0xff) {
+	    case VC_DEL:
+		break;
+	    default:
+		@callsuper();
+		break;
+	    }
+	}
+	break;
+    }
+}
+
+@method PDFPasswordTextClass, MSG_VIS_TEXT_DELETE_ALL
+{
+    memset(pself->PDFPTI_password, 0, sizeof(pself->PDFPTI_password));
+    pself->PDFPTI_length = 0;
+    @callsuper();
+}
+
+@method PDFPasswordTextClass, MSG_PDF_PASSWORD_TEXT_GET
+{
+    memcpy(buf, pself->PDFPTI_password, pself->PDFPTI_length);
+    buf[pself->PDFPTI_length] = 0;
+    return pself->PDFPTI_length;
+}
+
+/* no clipboard or quick copy/paste of the password field */
+@method PDFPasswordTextClass, MSG_META_CLIPBOARD_CUT,
+			      MSG_META_CLIPBOARD_COPY,
+			      MSG_META_CLIPBOARD_PASTE
+{
+}
+
+@method PDFPasswordTextClass, MSG_META_START_MOVE_COPY
+{
+    /* consume quick copy; tell the UI the event was handled */
+    retVal->flags = MRF_PROCESSED;
+}
+
+/***********************************************************************
+ *		PDFAskPassword
+ ***********************************************************************
+ * SYNOPSIS:	Ask for the password of an encrypted PDF.
+ * PARAMETERS:	char *password	buffer, PDF_PASSWORD_BUF_SIZE bytes
+ *		Boolean retry	TRUE: the last password was wrong
+ * RETURNS:	TRUE with the password in Latin-1 (the encoding of PDF
+ *		passwords), FALSE if the user cancelled
+ * STRATEGY:	Runs on the process thread from PHYSICAL_OPEN (not inside
+ *		a draw), so a modal UserDoDialog is fine here. The text
+ *		is cleared again right away, so the password does not
+ *		stay in the UI.
+ ***********************************************************************/
+static Boolean
+PDFAskPassword(char *password, Boolean retry)
+{
+    word len;
+
+    if (retry) {
+	@call PDFPasswordWrongGlyph::MSG_GEN_SET_USABLE(VUM_NOW);
+    } else {
+	@call PDFPasswordWrongGlyph::MSG_GEN_SET_NOT_USABLE(VUM_NOW);
+    }
+    @call PDFPasswordText::MSG_VIS_TEXT_DELETE_ALL();
+
+    if (UserDoDialog(@PDFPasswordDB) != IC_OK) {
+	@call PDFPasswordText::MSG_VIS_TEXT_DELETE_ALL();
+	return FALSE;
+    }
+
+    len = @call PDFPasswordText::MSG_PDF_PASSWORD_TEXT_GET(password);
+    @call PDFPasswordText::MSG_VIS_TEXT_DELETE_ALL();
+    if (len) {
+	LocalGeosToCodePage(password, len, CODE_PAGE_LATIN_1, '?');
+    }
+    return TRUE;
+}
+
+/***********************************************************************
  *		MSG_GEN_DOCUMENT_PHYSICAL_OPEN for PDFDocumentClass
  ***********************************************************************
  *
@@ -1164,6 +1365,10 @@ Boolean onTV, g_showTools;
 {
     Boolean status;
     PdfError err;
+    PdfDocHandle engine = PDF_NULL_DOC;
+    char password[PDF_PASSWORD_BUF_SIZE];
+    Boolean retry;
+    Boolean cancelled = FALSE;
 
   /* setup */
     pself->PDFDoc_engine = PDF_NULL_DOC;
@@ -1187,7 +1392,27 @@ Boolean onTV, g_showTools;
  * (in particular: it never closes `file` itself, on success or
  * failure -- that stays our job below). */
 
-    err = PdfOpen(*fileOrError, &pself->PDFDoc_engine);
+    /*
+     * Encrypted file: try without a password first (most encrypted PDFs
+     * only restrict printing/copying and open with the empty user
+     * password), then ask until the password fits or the user cancels.
+     */
+    password[0] = 0;
+    retry = FALSE;
+    for (;;) {
+	err = PdfOpen(*fileOrError, password, &engine);
+	if (err != PDF_ERR_PASSWORD) {
+	    break;
+	}
+	if (!PDFAskPassword(password, retry)) {
+	    cancelled = TRUE;
+	    break;
+	}
+	retry = TRUE;
+    }
+    memset(password, 0, sizeof(password));
+    pself = ObjDerefGen(oself);
+    pself->PDFDoc_engine = engine;
     if (err != PDF_OK) {
 	goto errorClose;
     }
@@ -1238,7 +1463,9 @@ errorClose:
  * the user read "may be corrupt" for a file that isn't.
  */
 
-    if (err == PDF_ERR_ENCRYPTED) {
+    if (cancelled) {
+	/* password dialog cancelled: nothing to report */
+    } else if (err == PDF_ERR_ENCRYPTED) {
 	PDFShowError(@PDFOpenEncryptedError);
     } else if (err == PDF_ERR_OUT_OF_MEMORY) {
 	PDFShowError(@PDFOutOfMemoryError);
