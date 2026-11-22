@@ -951,6 +951,9 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
             resDict = getDict(&resDictObj);
 
             GfxInit(&gfx, gstring, resDict, &pdoc->xref, pdoc->gstringFile);
+            GfxSetPageBox(&gfx, PageGetX1(&page), PageGetY1(&page),
+                PageGetX1(&page) + PageGetWidth(&page),
+                PageGetY1(&page) + PageGetHeight(&page));
             if (GMemHadError())
             {
                 GfxFree(&gfx);

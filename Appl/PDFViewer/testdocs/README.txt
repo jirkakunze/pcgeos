@@ -149,6 +149,35 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Die TrueType-Schriften sind Liberation-Schriften, nur mit den
     benutzten Glyphen gefüllt (~250 KB).
 
+25_shadings.pdf
+    Verläufe (Shadings) aller Typen, zum Vergleich mit poppler/Acrobat:
+    Seite 1: axial (Typ 2) mit allen Funktionstypen: A1 rot->blau im
+    Einheitsquadrat (per cm skaliert), A2 Achse 0,3..0,7 mit Extend,
+    A3 Stitching (gelb-grün-dunkelblau), A4 Sampled (Regenbogen), A5
+    PostScript-Funktion, A6 DeviceCMYK diagonal, A7 in Seitenkoordinaten
+    grau mit /BBox (rotes Rechteck) und Clip, A8 PostScript ifelse
+    (harte Kante bei 25 %).
+    Seite 2: radial (Typ 3): R1 weiß -> blau, R2 versetzter Brennpunkt,
+    R3 Ring mit Extend (innen grün, außen gelb), R4 Kegel rot -> blau,
+    R5 schrumpfender Radius mit Extend (außen dunkelblau, innen weiß),
+    R6 Stitching, darunter R1 als breite Ellipse.
+    Seite 3: funktionsbasiert (Typ 1): PostScript f(x,y), Sampled 4x4,
+    Kreis mit /Domain und /Matrix (rechts rot, links blau, Rand weiß).
+    Seite 4: Dreiecksnetze (Typ 4 mit Flags 0/1/2 und mit Funktion,
+    Typ 5 Gitter 4 x 3).
+    Seite 5: Patches (Typ 6: zwei Coons-Patches mit gemeinsamer Kante,
+    Typ 7: Tensor-Patch mit verschobenen Innenpunkten, P6F Coons-Patch
+    mit Funktion).
+    Netze mit Funktion (M4F, P6F): wie in den gängigen Viewern (poppler/
+    Cairo) wird die Funktion nur an den Ecken ausgewertet und die
+    Eckfarben gemischt (M4F: rot, magenta, grün; Referenz pdftocairo).
+    pdftoppm (Splash), Ghostscript und MuPDF interpolieren dagegen t und
+    zeigen senkrechte Regenbogenstreifen.
+    Seite 6: Shading-Pattern als Füllung (Rechteck, Kreispfad, mit
+    /Background, in einem Form-XObject); Text und Linie mit Pattern
+    erscheinen in einer mittleren Farbe des Verlaufs (keine echte
+    Verlaufsfüllung für Text/Linien), danach wieder schwarzer Text.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

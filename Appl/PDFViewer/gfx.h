@@ -82,6 +82,10 @@ extern void GfxResourcesFree(GfxResources *this);
 /* Interpret a content stream object, drawing into the bound gstring. */
 extern GBool GfxDisplay(Gfx *this, Obj *obj);
 
+/* page box (default user space) -- the area shadings may have to cover */
+extern void GfxSetPageBox(Gfx *this, gdouble x0, gdouble y0, gdouble x1,
+    gdouble y1);
+
 /* Draw annotations. */
 extern void GfxDrawAnnotations(Gfx *gfx, Obj *annotsObj);
 

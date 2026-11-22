@@ -49,6 +49,7 @@
 #include "dict.h"
 #include "gfxFont.h"
 #include "cidFont.h"
+#include "shading.h"
 #include "gfxState.h"
 #include "array.h"
 #include "stream.h"
@@ -146,6 +147,11 @@ static void _near opCloseEOFillStroke(Gfx *gfx, Obj args[], int numArgs);
 static GBool doEndPath(GfxState *state);
 static void GfxUpdatePathBounds(GfxState *state, gdouble x, gdouble y);
 static GBool GfxFillWithMinThickness(Gfx *gfx, RegionFillRule rule);
+static void GfxFillPath(Gfx *gfx, RegionFillRule rule);
+static void _near opShFill(Gfx *gfx, Obj args[], int numArgs);
+static void GfxLookupResource(Gfx *this, word which, char *name, Obj *obj);
+static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj);
+static GBool GfxPatternMidColor(Gfx *gfx, char *name, GfxColor *col);
 static void _near opClip(Gfx *gfx, Obj args[], int numArgs);
 static void _near opEOClip(Gfx *gfx, Obj args[], int numArgs);
 static void _near opBeginText(Gfx *gfx, Obj args[], int numArgs);
@@ -327,6 +333,8 @@ static void _near opMarkPoint(Gfx *gfx, Obj args[], int numArgs);
         {"scn", -5, {tchkSCN, tchkSCN, tchkSCN, tchkSCN,
                 tchkSCN},
             opSetFillColorN},
+        {"sh", 1, {tchkName},
+            opShFill},
         {"v", 4, {tchkNum, tchkNum, tchkNum, tchkNum},
             opCurveTo1},
         {"w", 1, {tchkNum},
@@ -338,7 +346,7 @@ static void _near opMarkPoint(Gfx *gfx, Obj args[], int numArgs);
 @end OPTABLE;
 
 
-#define numOps 71
+#define numOps 72
 
 /* 
  * Gfx
@@ -472,10 +480,14 @@ void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
     if (resDict)
     {
         DictLookup(resDict, "ExtGState", &this->res->extGStateDict, xref);
+        DictLookup(resDict, "Pattern", &this->res->patternDict, xref);
+        DictLookup(resDict, "Shading", &this->res->shadingDict, xref);
     }
     else
     {
         initNull(&this->res->extGStateDict);
+        initNull(&this->res->patternDict);
+        initNull(&this->res->shadingDict);
     }
 
     this->state = gmalloc(sizeof(GfxState));
@@ -571,6 +583,8 @@ void GfxResourcesInit(GfxResources *this, GfxResources *next1)
     initNull(&this->xObjDict);
     initNull(&this->colorSpaceDict);
     initNull(&this->extGStateDict);
+    initNull(&this->patternDict);
+    initNull(&this->shadingDict);
 }
 
 /***********************************************************************
@@ -602,6 +616,8 @@ void GfxResourcesFree(GfxResources *this)
     GfxObjFree(&this->xObjDict);
     GfxObjFree(&this->colorSpaceDict);
     GfxObjFree(&this->extGStateDict);
+    GfxObjFree(&this->patternDict);
+    GfxObjFree(&this->shadingDict);
 }
 
 /***********************************************************************
@@ -1203,6 +1219,65 @@ static void GfxLookupExtGState(Gfx *this, char *name, Obj *obj)
     initNull(obj);
 }
 
+/***********************************************************************
+ *      GfxLookupResource
+ ***********************************************************************
+ * SYNOPSIS:        Look up name in one resource category (Pattern,
+ *                  Shading), innermost resource dictionary first.
+ * PARAMETERS:      which   0 = Pattern, 1 = Shading
+ ***********************************************************************/
+static void GfxLookupResource(Gfx *this, word which, char *name, Obj *obj)
+{
+    GfxResources *resPtr;
+    Obj *dict;
+
+    for (resPtr = this->res; resPtr; resPtr = resPtr->next)
+    {
+        dict = which ? &resPtr->shadingDict : &resPtr->patternDict;
+        if (isDict(dict))
+        {
+            ObjDictLookup(dict, name, obj, this->xref);
+            if (!isNull(obj))
+            {
+                return;
+            }
+            GfxObjFree(obj);
+        }
+    }
+    initNull(obj);
+}
+
+/***********************************************************************
+ *      GfxSetPageBox
+ ***********************************************************************
+ * SYNOPSIS:        Initial clip box = the page (default user space).
+ ***********************************************************************/
+void GfxSetPageBox(Gfx *this, gdouble x0, gdouble y0, gdouble x1,
+    gdouble y1)
+{
+    if (this->state)
+    {
+        this->state->clipBox[0] = x0;
+        this->state->clipBox[1] = y0;
+        this->state->clipBox[2] = x1;
+        this->state->clipBox[3] = y1;
+    }
+}
+
+/***********************************************************************
+ *      GfxConcatCtm
+ ***********************************************************************
+ * SYNOPSIS:        Track a transformation applied to the gstring:
+ *                  CTM' = m x CTM.
+ ***********************************************************************/
+static void GfxConcatCtm(GfxState *state, const gdouble *m)
+{
+    gdouble tmp[6];
+
+    GfxMatMul(m, state->ctm, tmp);
+    memcpy(state->ctm, tmp, sizeof(tmp));
+}
+
 /* graphics state operators */
 
 /***********************************************************************
@@ -1312,6 +1387,16 @@ static void _near opConcat(Gfx *gfx, Obj args[], int numArgs)
     tm.TM_e32.DWF_frac = FractionOf(tmp);
 
     GrApplyTransform(gfx->state->gstring, &tm);
+    {
+        gdouble m[6];
+        word i;
+
+        for (i = 0; i < 6; ++i)
+        {
+            m[i] = getNum(&args[i]);
+        }
+        GfxConcatCtm(gfx->state, m);
+    }
     (void)numArgs;
 }
 
@@ -1656,6 +1741,8 @@ static void _near opSetFillGray(Gfx *gfx, Obj args[], int numArgs)
 {
     sword r, g, b;
 
+    gfx->state->fillPattern[0] = '\0';
+
     r = g = b = GdoubleToWord(getNum(&args[0]) * 255);
     GfxBlendAlpha(&r, &g, &b, gfx->state->fillAlpha);
     gfx->state->fillColor.r = r;
@@ -1724,6 +1811,8 @@ static void _near opSetFillCMYKColor(Gfx *gfx, Obj args[], int numArgs)
 {
     word c, m, y, k;
     sword r, g, b;
+
+    gfx->state->fillPattern[0] = '\0';
 
     c = GdoubleToWord(255 * getNum(&args[0]));
     m = GdoubleToWord(255 * getNum(&args[1]));
@@ -1828,6 +1917,8 @@ static void _near opSetStrokeCMYKColor(Gfx *gfx, Obj args[], int numArgs)
 static void _near opSetFillRGBColor(Gfx *gfx, Obj args[], int numArgs)
 {
     sword r, g, b;
+
+    gfx->state->fillPattern[0] = '\0';
 
     r = GdoubleToWord(getNum(&args[0]) * 255);
     g = GdoubleToWord(getNum(&args[1]) * 255);
@@ -2007,6 +2098,15 @@ static void _near opSetFillColorSpace(Gfx *gfx, Obj args[], int numArgs)
         ObjMove(&obj, &args[0]);
     }
 
+    /* Pattern: the color (pattern name) follows with scn */
+    if (GfxIsPatternSpace(gfx, &obj))
+    {
+        GfxObjFree(&obj);
+        (void)numArgs;
+        return;
+    }
+    gfx->state->fillPattern[0] = '\0';
+
     GfxColorSpaceInit(&cs, &obj, gfx->xref);
     GfxObjFree(&obj);
 
@@ -2067,6 +2167,12 @@ static void _near opSetStrokeColorSpace(Gfx *gfx, Obj args[], int numArgs)
         ObjMove(&obj, &args[0]);
     }
 
+    if (GfxIsPatternSpace(gfx, &obj))
+    {
+        GfxObjFree(&obj);
+        (void)numArgs;
+        return;
+    }
     GfxColorSpaceInit(&cs, &obj, gfx->xref);
     GfxObjFree(&obj);
 
@@ -2106,6 +2212,7 @@ static void _near opSetStrokeColorSpace(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opSetFillColor(Gfx *gfx, Obj args[], int numArgs)
 {
+    gfx->state->fillPattern[0] = '\0';
 
     if (numArgs == gfx->state->fillColorSpace.numComps)
     {
@@ -2188,6 +2295,51 @@ static void _near opSetStrokeColor(Gfx *gfx, Obj args[], int numArgs)
 }
 
 /***********************************************************************
+ *      GfxIsPatternSpace
+ ***********************************************************************
+ * SYNOPSIS:        /Pattern or [/Pattern base] color space?
+ ***********************************************************************/
+static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj)
+{
+    Obj first;
+    GBool isPattern = isNameSame(obj, "Pattern");
+
+    if (isArray(obj))
+    {
+        ObjArrayGet(obj, 0, &first, gfx->xref);
+        isPattern = isNameSame(&first, "Pattern");
+        ObjFree(&first);
+    }
+    return isPattern;
+}
+
+/***********************************************************************
+ *      GfxPatternMidColor
+ ***********************************************************************
+ * SYNOPSIS:        Representative color of a shading pattern, for
+ *                  what can't be painted with the pattern itself
+ *                  (strokes, text).
+ ***********************************************************************/
+static GBool GfxPatternMidColor(Gfx *gfx, char *name, GfxColor *col)
+{
+    Obj patObj, shObj;
+    Dict *dict;
+    GBool ok = gFalse;
+
+    GfxLookupResource(gfx, 0, name, &patObj);
+    dict = isDict(&patObj) ? getDict(&patObj) :
+        isStream(&patObj) ? ObjStreamGetDict(&patObj) : NULL;
+    if (dict)
+    {
+        DictLookup(dict, "Shading", &shObj, gfx->xref);
+        ok = ShadingGetMidColor(gfx, &shObj, col);
+        ObjFree(&shObj);
+    }
+    GfxObjFree(&patObj);
+    return ok;
+}
+
+/***********************************************************************
  *      opSetFillColorN
  ***********************************************************************
  * SYNOPSIS:        Set fill color n.
@@ -2210,12 +2362,32 @@ static void _near opSetStrokeColor(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opSetFillColorN(Gfx *gfx, Obj args[], int numArgs)
 {
+    char *name;
+    GfxColor col;
+
     if (numArgs > 0 && isName(&args[numArgs - 1]))
     {
-        /* Pattern colorspace fill -- not supported. */
-        EC_WARNING(-1);
+        /*
+         * Pattern: remembered for the fill operators. Strokes and text
+         * can't be painted with it -- they get a representative color
+         * of a shading pattern instead.
+         */
+        name = getName(&args[numArgs - 1]);
+        if (strlen(name) >= GFX_PATTERN_NAME_LEN)
+        {
+            EC_WARNING(-1);
+            return;
+        }
+        strcpy(gfx->state->fillPattern, name);
+        if (GfxPatternMidColor(gfx, name, &col))
+        {
+            gfx->state->fillColor = col;
+            GrSetAreaColor(gfx->state->gstring, CF_RGB, col.r, col.g, col.b);
+            GrSetTextColor(gfx->state->gstring, CF_RGB, col.r, col.g, col.b);
+        }
         return;
     }
+    gfx->state->fillPattern[0] = '\0';
     GfxApplyColorN(gfx, &gfx->state->fillColorSpace, args, numArgs, gFalse);
 }
 
@@ -2242,9 +2414,15 @@ static void _near opSetFillColorN(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opSetStrokeColorN(Gfx *gfx, Obj args[], int numArgs)
 {
+    GfxColor col;
+
     if (numArgs > 0 && isName(&args[numArgs - 1]))
     {
-        EC_WARNING(-1);
+        /* strokes can't be painted with a pattern: representative color */
+        if (GfxPatternMidColor(gfx, getName(&args[numArgs - 1]), &col))
+        {
+            GrSetLineColor(gfx->state->gstring, CF_RGB, col.r, col.g, col.b);
+        }
         return;
     }
     GfxApplyColorN(gfx, &gfx->state->strokeColorSpace, args, numArgs, gTrue);
@@ -2743,11 +2921,127 @@ GfxFillWithMinThickness(Gfx *gfx, RegionFillRule rule)
     GrDrawLineTo(gstring, minX, minY);
     GrCloseSubPath(gstring);
     GrEndPath(gstring);
-    GrFillPath(gstring, rule);
+    GfxFillPath(gfx, rule);
 
     state->pathType = PATH_NONE;
     state->pathSubpathStartValid = gFalse;
     return gTrue;
+}
+
+/***********************************************************************
+ *      GfxFillPattern
+ ***********************************************************************
+ * SYNOPSIS:        Fill the current (ended) path with the shading
+ *                  pattern named in state->fillPattern.
+ * RETURNS:         gFalse if the pattern can't be painted (unknown,
+ *                  tiling pattern) -- the caller fills with the color.
+ * STRATEGY:        Clip to the path, switch the gstring from user space
+ *                  to pattern space (T = Matrix x baseCtm x CTM^-1) and
+ *                  draw the shading over the path's page space bounds.
+ ***********************************************************************/
+static GBool GfxFillPattern(Gfx *gfx, RegionFillRule rule)
+{
+    GfxState *state = gfx->state;
+    Obj patObj, obj;
+    Dict *dict;
+    gdouble matrix[6], toPage[6], inv[6], t[6], raw[4], region[4];
+    GBool ok = gFalse;
+
+    GfxLookupResource(gfx, 0, state->fillPattern, &patObj);
+    dict = isDict(&patObj) ? getDict(&patObj) :
+        isStream(&patObj) ? ObjStreamGetDict(&patObj) : NULL;
+    if (dict)
+    {
+        DictLookup(dict, "PatternType", &obj, gfx->xref);
+        ok = isInt(&obj) && getInt(&obj) == 2;
+        ObjFree(&obj);
+    }
+    if (!ok)
+    {
+        /* tiling patterns: 13c */
+        GfxObjFree(&patObj);
+        return gFalse;
+    }
+
+    DictLookup(dict, "Matrix", &obj, gfx->xref);
+    if (isArray(&obj) && ObjArrayGetLength(&obj) >= 6)
+    {
+        GfxReadNumArray(&obj, matrix, 6, gfx->xref);
+    }
+    else
+    {
+        GfxMatIdentity(matrix);
+    }
+    ObjFree(&obj);
+
+    GfxMatMul(matrix, state->baseCtm, toPage);
+    ok = GfxMatInvert(state->ctm, inv);
+    if (ok)
+    {
+        GfxMatMul(toPage, inv, t);
+
+        memcpy(region, state->clipBox, sizeof(region));
+        if (state->pathRawBoundsValid)
+        {
+            raw[0] = state->pathRawMinX;
+            raw[1] = state->pathRawMinY;
+            raw[2] = state->pathRawMaxX;
+            raw[3] = state->pathRawMaxY;
+            GfxMatApplyBox(state->ctm, raw, raw);
+            if (raw[0] > region[0]) region[0] = raw[0];
+            if (raw[1] > region[1]) region[1] = raw[1];
+            if (raw[2] < region[2]) region[2] = raw[2];
+            if (raw[3] < region[3]) region[3] = raw[3];
+        }
+
+        DictLookup(dict, "Shading", &obj, gfx->xref);
+        GrSaveState(state->gstring);
+        GrSetClipPath(state->gstring, PCT_INTERSECTION, rule);
+        GfxApplyMatrix6(state->gstring, t[0], t[1], t[2], t[3], t[4], t[5]);
+        ShadingDraw(gfx, &obj, toPage, region, gTrue);
+        GrRestoreState(state->gstring);
+        ObjFree(&obj);
+    }
+    GfxObjFree(&patObj);
+    return gTrue;
+}
+
+/***********************************************************************
+ *      GfxFillPath
+ ***********************************************************************
+ * SYNOPSIS:        Fill the current (ended) path with the fill color
+ *                  or the fill pattern.
+ ***********************************************************************/
+static void GfxFillPath(Gfx *gfx, RegionFillRule rule)
+{
+    if (gfx->state->fillPattern[0] && GfxFillPattern(gfx, rule))
+    {
+        return;
+    }
+    GrFillPath(gfx->state->gstring, rule);
+}
+
+/***********************************************************************
+ *      opShFill
+ ***********************************************************************
+ * SYNOPSIS:        'sh': paint a shading over the current clip.
+ ***********************************************************************/
+static void _near opShFill(Gfx *gfx, Obj args[], int numArgs)
+{
+    Obj obj;
+
+    GfxLookupResource(gfx, 1, getName(&args[0]), &obj);
+    if (isDict(&obj) || isStream(&obj))
+    {
+        ShadingDraw(gfx, &obj, gfx->state->ctm, gfx->state->clipBox,
+            gFalse);
+    }
+    else
+    {
+        EC_WARNING(-1);
+    }
+    GfxObjFree(&obj);
+    (void)numArgs;
 }
 
 /***********************************************************************
@@ -2785,7 +3079,7 @@ static void _near opFill(Gfx *gfx, Obj args[], int numArgs)
     }
     if (doEndPath(gfx->state))
     {
-        GrFillPath(gfx->state->gstring, WINDING);
+        GfxFillPath(gfx, WINDING);
     }
     (void)args;
     (void)numArgs;
@@ -2826,7 +3120,7 @@ static void _near opEOFill(Gfx *gfx, Obj args[], int numArgs)
     }
     if (doEndPath(gfx->state))
     {
-        GrFillPath(gfx->state->gstring, ODD_EVEN);
+        GfxFillPath(gfx, ODD_EVEN);
     }
     (void)args;
     (void)numArgs;
@@ -2858,7 +3152,7 @@ static void _near opFillStroke(Gfx *gfx, Obj args[], int numArgs)
 
     if (doEndPath(gfx->state))
     {
-        GrFillPath(gfx->state->gstring, WINDING);
+        GfxFillPath(gfx, WINDING);
         GrDrawPath(gfx->state->gstring);
     }
     (void)args;
@@ -2898,7 +3192,7 @@ static void _near opCloseFillStroke(Gfx *gfx, Obj args[], int numArgs)
     }
     if (doEndPath(gfx->state))
     {
-        GrFillPath(gstring, WINDING);
+        GfxFillPath(gfx, WINDING);
         GrDrawPath(gstring);
     }
     (void)numArgs;
@@ -2932,7 +3226,7 @@ static void _near opEOFillStroke(Gfx *gfx, Obj args[], int numArgs)
 
     if (doEndPath(gfx->state))
     {
-        GrFillPath(gstring, ODD_EVEN);
+        GfxFillPath(gfx, ODD_EVEN);
         GrDrawPath(gstring);
     }
     (void)args;
@@ -2972,7 +3266,7 @@ static void _near opCloseEOFillStroke(Gfx *gfx, Obj args[], int numArgs)
     }
     if (doEndPath(gfx->state))
     {
-        GrFillPath(gstring, ODD_EVEN);
+        GfxFillPath(gfx, ODD_EVEN);
         GrDrawPath(gstring);
     }
     (void)args;
@@ -3048,6 +3342,29 @@ GfxUpdatePathBounds(GfxState *state, gdouble x, gdouble y)
  *
  ***********************************************************************/
 
+/*
+ * Clip path: shrink the page space clip box (used to bound shadings) to
+ * the path's bounds.
+ */
+static void GfxClipBoxToPath(GfxState *state)
+{
+    gdouble raw[4], box[4];
+
+    if (!state->pathRawBoundsValid)
+    {
+        return;
+    }
+    raw[0] = state->pathRawMinX;
+    raw[1] = state->pathRawMinY;
+    raw[2] = state->pathRawMaxX;
+    raw[3] = state->pathRawMaxY;
+    GfxMatApplyBox(state->ctm, raw, box);
+    if (box[0] > state->clipBox[0]) state->clipBox[0] = box[0];
+    if (box[1] > state->clipBox[1]) state->clipBox[1] = box[1];
+    if (box[2] < state->clipBox[2]) state->clipBox[2] = box[2];
+    if (box[3] < state->clipBox[3]) state->clipBox[3] = box[3];
+}
+
 static GBool doEndPath(GfxState *state)
 {
     Handle gstring = state->gstring;
@@ -3063,6 +3380,7 @@ static GBool doEndPath(GfxState *state)
 
     if (state->pathType == PATH_CLIP)
     {
+        GfxClipBoxToPath(state);
         GrSetClipPath(gstring, PCT_INTERSECTION, WINDING);
         state->pathType = PATH_NONE;
         return gTrue;
@@ -3070,6 +3388,7 @@ static GBool doEndPath(GfxState *state)
 
     if (state->pathType == PATH_CLIP_EO)
     {
+        GfxClipBoxToPath(state);
         GrSetClipPath(gstring, PCT_INTERSECTION, ODD_EVEN);
         state->pathType = PATH_NONE;
         return gTrue;
@@ -4839,6 +5158,8 @@ static void GfxDoForm(Gfx *gfx, Obj *str)
         DictLookup(resDict, "XObject", &f->res.xObjDict, gfx->xref);
         DictLookup(resDict, "ColorSpace", &f->res.colorSpaceDict, gfx->xref);
         DictLookup(resDict, "ExtGState", &f->res.extGStateDict, gfx->xref);
+        DictLookup(resDict, "Pattern", &f->res.patternDict, gfx->xref);
+        DictLookup(resDict, "Shading", &f->res.shadingDict, gfx->xref);
     }
     ObjFree(&f->obj1);
     gfx->res = &f->res;
@@ -4848,6 +5169,9 @@ static void GfxDoForm(Gfx *gfx, Obj *str)
 
     GfxApplyMatrix6(gstring, f->matrix[0], f->matrix[1], f->matrix[2],
         f->matrix[3], f->matrix[4], f->matrix[5]);
+    /* pattern space of a form = form space */
+    GfxConcatCtm(gfx->state, f->matrix);
+    memcpy(gfx->state->baseCtm, gfx->state->ctm, sizeof(gfx->state->ctm));
     GrSetClipRect(gstring, PCT_INTERSECTION,
         GdoubleToWord(f->bbox[0]), GdoubleToWord(f->bbox[1]),
         GdoubleToWord(f->bbox[2]), GdoubleToWord(f->bbox[3]));
@@ -5209,6 +5533,8 @@ static void GfxDrawOneAnnotation(Gfx *gfx, Obj *annotObj)
         DictLookup(resDict, "XObject", &newRes.xObjDict, gfx->xref);
         DictLookup(resDict, "ColorSpace", &newRes.colorSpaceDict, gfx->xref);
         DictLookup(resDict, "ExtGState", &newRes.extGStateDict, gfx->xref);
+        DictLookup(resDict, "Pattern", &newRes.patternDict, gfx->xref);
+        DictLookup(resDict, "Shading", &newRes.shadingDict, gfx->xref);
     }
     ObjFree(&resObj);
     gfx->res = &newRes;
@@ -5218,6 +5544,8 @@ static void GfxDrawOneAnnotation(Gfx *gfx, Obj *annotObj)
 
     GfxApplyMatrix6(gstring, combined[0], combined[1], combined[2],
         combined[3], combined[4], combined[5]);
+    GfxConcatCtm(gfx->state, combined);
+    memcpy(gfx->state->baseCtm, gfx->state->ctm, sizeof(gfx->state->ctm));
 
     /*
      * clip to BBox in its own (now current) coordinate system -- axis-aligned

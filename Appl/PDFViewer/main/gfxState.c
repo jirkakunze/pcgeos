@@ -1216,6 +1216,14 @@ void GfxStateInit(GfxState *state, Handle gstring)
     state->pathRawBoundsValid = gFalse;
     state->pathSubpathStartX = state->pathSubpathStartY = 0;
     state->pathSubpathStartValid = gFalse;
+
+    /* identity; the page box is set by GfxSetPageBox */
+    state->ctm[0] = state->ctm[3] = 1L << 16;
+    state->ctm[1] = state->ctm[2] = state->ctm[4] = state->ctm[5] = 0;
+    memcpy(state->baseCtm, state->ctm, sizeof(state->ctm));
+    state->clipBox[0] = state->clipBox[1] = -(2000L << 16);
+    state->clipBox[2] = state->clipBox[3] = 2000L << 16;
+    state->fillPattern[0] = '\0';
 }
 
 /***********************************************************************
