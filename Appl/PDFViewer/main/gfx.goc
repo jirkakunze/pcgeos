@@ -81,6 +81,7 @@ static GBool GfxCheckPageResourceBudget(Gfx *gfx, dword bytes);
 static void GfxReportProgress(Gfx *gfx, dword kind, dword current,
     dword total);
 static void GfxDoForm(Gfx *gfx, Obj *str);
+static void GfxPushResources(Gfx *gfx, GfxResources *res, Dict *dict);
 static void GfxApplyMatrix6(Handle gstring, gdouble m0, gdouble m1, gdouble m2,
     gdouble m3, gdouble m4, gdouble m5);
 static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref);
@@ -150,7 +151,8 @@ static GBool GfxFillWithMinThickness(Gfx *gfx, RegionFillRule rule);
 static void GfxFillPath(Gfx *gfx, RegionFillRule rule);
 static void _near opShFill(Gfx *gfx, Obj args[], int numArgs);
 static void GfxLookupResource(Gfx *this, word which, char *name, Obj *obj);
-static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj);
+static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj,
+    GfxColorSpace *base);
 static GBool GfxPatternMidColor(Gfx *gfx, char *name, GfxColor *col);
 static void _near opClip(Gfx *gfx, Obj args[], int numArgs);
 static void _near opEOClip(Gfx *gfx, Obj args[], int numArgs);
@@ -2099,9 +2101,14 @@ static void _near opSetFillColorSpace(Gfx *gfx, Obj args[], int numArgs)
     }
 
     /* Pattern: the color (pattern name) follows with scn */
-    if (GfxIsPatternSpace(gfx, &obj))
+    cs.ok = gFalse;
+    if (GfxIsPatternSpace(gfx, &obj, &cs))
     {
         GfxObjFree(&obj);
+        if (cs.ok)
+        {
+            gfx->state->fillColorSpace = cs;
+        }
         (void)numArgs;
         return;
     }
@@ -2167,9 +2174,14 @@ static void _near opSetStrokeColorSpace(Gfx *gfx, Obj args[], int numArgs)
         ObjMove(&obj, &args[0]);
     }
 
-    if (GfxIsPatternSpace(gfx, &obj))
+    cs.ok = gFalse;
+    if (GfxIsPatternSpace(gfx, &obj, &cs))
     {
         GfxObjFree(&obj);
+        if (cs.ok)
+        {
+            gfx->state->strokeColorSpace = cs;
+        }
         (void)numArgs;
         return;
     }
@@ -2299,7 +2311,7 @@ static void _near opSetStrokeColor(Gfx *gfx, Obj args[], int numArgs)
  ***********************************************************************
  * SYNOPSIS:        /Pattern or [/Pattern base] color space?
  ***********************************************************************/
-static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj)
+static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj, GfxColorSpace *base)
 {
     Obj first;
     GBool isPattern = isNameSame(obj, "Pattern");
@@ -2309,6 +2321,18 @@ static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj)
         ObjArrayGet(obj, 0, &first, gfx->xref);
         isPattern = isNameSame(&first, "Pattern");
         ObjFree(&first);
+
+        /* [/Pattern base]: uncolored patterns take their color from base */
+        if (isPattern && ObjArrayGetLength(obj) > 1)
+        {
+            ObjArrayGet(obj, 1, &first, gfx->xref);
+            GfxColorSpaceInit(base, &first, gfx->xref);
+            ObjFree(&first);
+            if (!base->ok || base->indexed)
+            {
+                base->ok = gFalse;
+            }
+        }
     }
     return isPattern;
 }
@@ -2369,8 +2393,8 @@ static void _near opSetFillColorN(Gfx *gfx, Obj args[], int numArgs)
     {
         /*
          * Pattern: remembered for the fill operators. Strokes and text
-         * can't be painted with it -- they get a representative color
-         * of a shading pattern instead.
+         * can't be painted with it -- they get the color of an uncolored
+         * tiling pattern or a representative color of a shading pattern.
          */
         name = getName(&args[numArgs - 1]);
         if (strlen(name) >= GFX_PATTERN_NAME_LEN)
@@ -2379,7 +2403,13 @@ static void _near opSetFillColorN(Gfx *gfx, Obj args[], int numArgs)
             return;
         }
         strcpy(gfx->state->fillPattern, name);
-        if (GfxPatternMidColor(gfx, name, &col))
+        if (numArgs > 1)
+        {
+            /* uncolored tiling pattern: c1..cn in the base color space */
+            GfxApplyColorN(gfx, &gfx->state->fillColorSpace, args,
+                numArgs - 1, gFalse);
+        }
+        else if (GfxPatternMidColor(gfx, name, &col))
         {
             gfx->state->fillColor = col;
             GrSetAreaColor(gfx->state->gstring, CF_RGB, col.r, col.g, col.b);
@@ -2418,8 +2448,16 @@ static void _near opSetStrokeColorN(Gfx *gfx, Obj args[], int numArgs)
 
     if (numArgs > 0 && isName(&args[numArgs - 1]))
     {
-        /* strokes can't be painted with a pattern: representative color */
-        if (GfxPatternMidColor(gfx, getName(&args[numArgs - 1]), &col))
+        /*
+         * strokes can't be painted with a pattern: the color of an
+         * uncolored pattern, else a representative color
+         */
+        if (numArgs > 1)
+        {
+            GfxApplyColorN(gfx, &gfx->state->strokeColorSpace, args,
+                numArgs - 1, gTrue);
+        }
+        else if (GfxPatternMidColor(gfx, getName(&args[numArgs - 1]), &col))
         {
             GrSetLineColor(gfx->state->gstring, CF_RGB, col.r, col.g, col.b);
         }
@@ -2943,22 +2981,24 @@ static GBool GfxFillPattern(Gfx *gfx, RegionFillRule rule)
 {
     GfxState *state = gfx->state;
     Obj patObj, obj;
-    Dict *dict;
+    Dict *dict = NULL;
     gdouble matrix[6], toPage[6], inv[6], t[6], raw[4], region[4];
     GBool ok = gFalse;
 
+    /* shading patterns only; tiling patterns (streams) keep the color */
     GfxLookupResource(gfx, 0, state->fillPattern, &patObj);
-    dict = isDict(&patObj) ? getDict(&patObj) :
-        isStream(&patObj) ? ObjStreamGetDict(&patObj) : NULL;
-    if (dict)
+    if (isDict(&patObj))
     {
+        dict = getDict(&patObj);
         DictLookup(dict, "PatternType", &obj, gfx->xref);
-        ok = isInt(&obj) && getInt(&obj) == 2;
+        if (!isInt(&obj) || getInt(&obj) != 2)
+        {
+            dict = NULL;
+        }
         ObjFree(&obj);
     }
-    if (!ok)
+    if (!dict)
     {
-        /* tiling patterns: 13c */
         GfxObjFree(&patObj);
         return gFalse;
     }
@@ -2995,6 +3035,13 @@ static GBool GfxFillPattern(Gfx *gfx, RegionFillRule rule)
         }
 
         DictLookup(dict, "Shading", &obj, gfx->xref);
+        if (!ShadingIsSupported(&obj, gfx->xref))
+        {
+            /* meshes/patches: the caller fills with the mid color */
+            ObjFree(&obj);
+            GfxObjFree(&patObj);
+            return gFalse;
+        }
         GrSaveState(state->gstring);
         GrSetClipPath(state->gstring, PCT_INTERSECTION, rule);
         GfxApplyMatrix6(state->gstring, t[0], t[1], t[2], t[3], t[4], t[5]);
@@ -5074,6 +5121,43 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
  *
  ***********************************************************************/
 
+/***********************************************************************
+ *      GfxPushResources
+ ***********************************************************************
+ * SYNOPSIS:        Push a resource layer for the /Resources of a form,
+ *                  pattern or appearance stream dictionary.
+ *                  Pop with gfx->res = res->next; GfxResourcesFree(res).
+ ***********************************************************************/
+static void GfxPushResources(Gfx *gfx, GfxResources *res, Dict *dict)
+{
+    Obj resObj, fontObj;
+    Dict *resDict;
+
+    GfxResourcesInit(res, gfx->res);
+    DictLookup(dict, "Resources", &resObj, gfx->xref);
+    if (isDict(&resObj))
+    {
+        resDict = getDict(&resObj);
+        DictLookup(resDict, "Font", &fontObj, gfx->xref);
+        if (isDict(&fontObj))
+        {
+            res->fonts = gmalloc(sizeof(GfxFontDict));
+            if (res->fonts)
+            {
+                GfxFontDictInit(res->fonts, getDict(&fontObj), gfx->xref);
+            }
+        }
+        ObjFree(&fontObj);
+        DictLookup(resDict, "XObject", &res->xObjDict, gfx->xref);
+        DictLookup(resDict, "ColorSpace", &res->colorSpaceDict, gfx->xref);
+        DictLookup(resDict, "ExtGState", &res->extGStateDict, gfx->xref);
+        DictLookup(resDict, "Pattern", &res->patternDict, gfx->xref);
+        DictLookup(resDict, "Shading", &res->shadingDict, gfx->xref);
+    }
+    ObjFree(&resObj);
+    gfx->res = res;
+}
+
 /* Per-level state of GfxDoForm, kept on the heap to save stack. */
 typedef struct GfxFormFrame
 {
@@ -5081,7 +5165,6 @@ typedef struct GfxFormFrame
     gdouble bbox[4];
     gdouble matrix[6];
     Obj obj1;
-    Obj obj2;
 } GfxFormFrame;
 
 static void GfxDoForm(Gfx *gfx, Obj *str)
@@ -5139,30 +5222,7 @@ static void GfxDoForm(Gfx *gfx, Obj *str)
     ObjFree(&f->obj1);
 
     /* push a resource layer for the form's own /Resources */
-    GfxResourcesInit(&f->res, gfx->res);
-    DictLookup(formDict, "Resources", &f->obj1, gfx->xref);
-    if (isDict(&f->obj1))
-    {
-        Dict *resDict = getDict(&f->obj1);
-
-        DictLookup(resDict, "Font", &f->obj2, gfx->xref);
-        if (isDict(&f->obj2))
-        {
-            f->res.fonts = gmalloc(sizeof(GfxFontDict));
-            if (f->res.fonts)
-            {
-                GfxFontDictInit(f->res.fonts, getDict(&f->obj2), gfx->xref);
-            }
-        }
-        ObjFree(&f->obj2);
-        DictLookup(resDict, "XObject", &f->res.xObjDict, gfx->xref);
-        DictLookup(resDict, "ColorSpace", &f->res.colorSpaceDict, gfx->xref);
-        DictLookup(resDict, "ExtGState", &f->res.extGStateDict, gfx->xref);
-        DictLookup(resDict, "Pattern", &f->res.patternDict, gfx->xref);
-        DictLookup(resDict, "Shading", &f->res.shadingDict, gfx->xref);
-    }
-    ObjFree(&f->obj1);
-    gfx->res = &f->res;
+    GfxPushResources(gfx, &f->res, formDict);
 
     GfxStateSave(gfx->state);
     GrSaveState(gstring);
@@ -5298,9 +5358,9 @@ static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref)
  ***********************************************************************/
 static void GfxDrawOneAnnotation(Gfx *gfx, Obj *annotObj)
 {
-    Dict *annotDict, *apDict, *formDict, *resDict;
+    Dict *annotDict, *apDict, *formDict;
     Obj rectObj, apObj, nObj, asObj, flagsObj;
-    Obj bboxObj, matrixObj, resObj;
+    Obj bboxObj, matrixObj;
     long flags;
     gdouble rect[4], bbox[4], matrix[6];
     gdouble tx0, ty0, tx1, ty1, nx, ny;
@@ -5514,30 +5574,7 @@ static void GfxDrawOneAnnotation(Gfx *gfx, Obj *annotObj)
      * --- push a resource layer for the appearance stream's own /Resources,
      * same construction GfxInit uses for the page's top- level resources.
      */
-    DictLookup(formDict, "Resources", &resObj, gfx->xref);
-    GfxResourcesInit(&newRes, gfx->res);
-    if (isDict(&resObj))
-    {
-        Obj fontObj;
-        resDict = getDict(&resObj);
-        DictLookup(resDict, "Font", &fontObj, gfx->xref);
-        if (isDict(&fontObj))
-        {
-            newRes.fonts = gmalloc(sizeof(GfxFontDict));
-            if (newRes.fonts)
-            {
-                GfxFontDictInit(newRes.fonts, getDict(&fontObj), gfx->xref);
-            }
-        }
-        ObjFree(&fontObj);
-        DictLookup(resDict, "XObject", &newRes.xObjDict, gfx->xref);
-        DictLookup(resDict, "ColorSpace", &newRes.colorSpaceDict, gfx->xref);
-        DictLookup(resDict, "ExtGState", &newRes.extGStateDict, gfx->xref);
-        DictLookup(resDict, "Pattern", &newRes.patternDict, gfx->xref);
-        DictLookup(resDict, "Shading", &newRes.shadingDict, gfx->xref);
-    }
-    ObjFree(&resObj);
-    gfx->res = &newRes;
+    GfxPushResources(gfx, &newRes, formDict);
 
     GfxStateSave(gfx->state);
     GrSaveState(gstring);

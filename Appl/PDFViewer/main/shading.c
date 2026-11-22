@@ -13,14 +13,14 @@
  * FILE:          main/shading.c
  *
  * DESCRIPTION:
- *      Smooth shadings (PDF 1.7, 8.7.4.5), all seven types:
- *        1 function-based, 2 axial, 3 radial,
- *        4 free-form / 5 lattice Gouraud triangle meshes,
- *        6 Coons / 7 tensor-product patch meshes.
+ *      Smooth shadings (PDF 1.7, 8.7.4.5), types 1 function-based,
+ *      2 axial and 3 radial. Meshes and patches (types 4-7) are left
+ *      out (code size, rare outside of drawing programs): ShadingDraw
+ *      fails and the caller fills with a representative color.
  *
  *      The output is a GString, so every shading is broken down into
- *      flat filled polygons: bands (axial), rings (radial), cells
- *      (function-based), sub-triangles and sub-quads (meshes). The
+ *      flat filled polygons: bands (axial), rings (radial) and cells
+ *      (function-based). The
  *      subdivision is adaptive: a piece is split while the colors of
  *      its corners/ends differ by more than SH_COLOR_TOL and it is
  *      larger than ~half a point on the page, up to a fixed depth.
@@ -61,18 +61,18 @@
 #define FIX_HALF        0x8000L
 
 #define SH_COLOR_TOL    6       /* max channel difference per piece */
-#define SH_MAX_DEPTH    8       /* axial/radial: up to 256 bands */
+/*
+ * Every band/ring/cell is a clipped polygon in the page gstring that is
+ * replayed on each redraw: keep the counts small.
+ */
+#define SH_MAX_DEPTH    6       /* axial/radial: up to 64 bands */
 #define SH_MIN_DEPTH    2
-#define SH_FUNC_DEPTH   5       /* function-based: up to 32 x 32 cells */
-#define SH_TRI_DEPTH    4       /* Gouraud: up to 256 sub-triangles */
-#define SH_PATCH_MAX    16      /* patches: up to 16 x 16 quads */
-#define SH_MAX_SEGS     64      /* circle segments */
+#define SH_FUNC_DEPTH   4       /* function-based: up to 16 x 16 cells */
+#define SH_MAX_SEGS     32      /* circle segments */
 #define SH_MAX_PTS      (2 * (SH_MAX_SEGS + 1))
 #define SH_COORD_MAX    8000    /* drawn area fits in +- this */
 #define SH_CLAMP        16000
 #define SH_MAX_EXTEND   FIX(64) /* radial extension limit (s units) */
-#define SH_MAX_ROW      1000    /* lattice vertices per row */
-#define SH_MAX_PIECES   20000L  /* mesh triangles / patches per shading */
 #define SH_MAX_VALS     4
 
 /***********************************************************************
@@ -186,12 +186,6 @@ void GfxMatApplyBox(const gdouble *m, const gdouble *box, gdouble *out)
 
 typedef struct
 {
-    gdouble x, y;
-    gdouble v[SH_MAX_VALS];     /* color components or t */
-} ShVertex;
-
-typedef struct
-{
     Gfx *gfx;
     Handle gs;
     XRef *xref;
@@ -203,7 +197,6 @@ typedef struct
     word nComps;                /* color components of cs */
     PdfFunction *funcs[FUNC_MAX_OUT];
     word nFuncs;
-    word nVals;                 /* values per color: nComps or 1 (t) */
 
     gdouble toPage[6];
     gdouble pageScale;          /* rough length scale shading -> page */
@@ -220,7 +213,6 @@ typedef struct
     gdouble sinTab[SH_MAX_SEGS + 1];
     Point pts[SH_MAX_PTS];
     gdouble ringXY[2 * SH_MAX_PTS];
-    dword pieces;
 } ShCtx;
 
 static word ShReadNums(Dict *dict, char *key, gdouble *out, word max,
@@ -320,7 +312,6 @@ static GBool ShInitColors(ShCtx *c)
         }
     }
     ObjFree(&obj);
-    c->nVals = c->nFuncs ? 1 : c->nComps;
     return gTrue;
 }
 
@@ -949,632 +940,6 @@ static void ShDrawFunctionBased(ShCtx *c)
 }
 
 /***********************************************************************
- *      Meshes: bit reader
- ***********************************************************************/
-
-typedef struct
-{
-    Stream *str;
-    word buf;
-    word bits;
-    GBool eof;
-    word bpc, bpf, bpComp;          /* bits per coordinate/flag/component */
-    gdouble decode[4 + 2 * SH_MAX_VALS];
-} ShMesh;
-
-static dword ShReadBits(ShMesh *m, word n)
-{
-    dword v = 0;
-    word take;
-    long ch;
-
-    while (n > 0)
-    {
-        if (m->bits == 0)
-        {
-            ch = StreamGetChar(m->str);
-            if (ch == EOF)
-            {
-                m->eof = gTrue;
-                return 0;
-            }
-            m->buf = (word)ch;
-            m->bits = 8;
-        }
-        take = (n < m->bits) ? n : m->bits;
-        v = (v << take) | ((m->buf >> (m->bits - take)) & ((1 << take) - 1));
-        m->bits -= take;
-        n -= take;
-    }
-    return v;
-}
-
-static void ShAlign(ShMesh *m)
-{
-    m->bits = 0;
-}
-
-/* dmin + raw / (2^bits - 1) * (dmax - dmin) */
-static gdouble ShDecode(dword raw, word bits, gdouble dmin, gdouble dmax)
-{
-    gdouble f, half;
-
-    if (bits >= 16)
-    {
-        f = (gdouble)(raw >> (bits - 16));
-        f += f >> 15;
-    }
-    else
-    {
-        f = (gdouble)((raw << 16) / ((1UL << bits) - 1));
-    }
-    /* the span can exceed 16.16 (e.g. -32768..32767): halve it */
-    half = (dmax >> 1) - (dmin >> 1);
-    return dmin + 2 * GrMulWWFixed(f, half);
-}
-
-static GBool ShReadVertex(ShCtx *c, ShMesh *m, ShVertex *v, word *flag,
-    GBool withFlag)
-{
-    word i;
-
-    if (withFlag)
-    {
-        *flag = (word)ShReadBits(m, m->bpf);
-    }
-    v->x = ShDecode(ShReadBits(m, m->bpc), m->bpc, m->decode[0],
-        m->decode[1]);
-    v->y = ShDecode(ShReadBits(m, m->bpc), m->bpc, m->decode[2],
-        m->decode[3]);
-    for (i = 0; i < c->nVals; ++i)
-    {
-        v->v[i] = ShDecode(ShReadBits(m, m->bpComp), m->bpComp,
-            m->decode[4 + 2 * i], m->decode[5 + 2 * i]);
-    }
-    return !m->eof;
-}
-
-/* BitsPerCoordinate etc. and Decode; also widens the drawing area */
-static GBool ShInitMesh(ShCtx *c, ShMesh *m, Obj *obj, GBool flags)
-{
-    gdouble tmp[1];
-    word need, i;
-    gdouble mx;
-
-    if (!isStream(obj))
-    {
-        return gFalse;
-    }
-    m->str = getStream(obj);
-    m->bits = 0;
-    m->eof = gFalse;
-    if (ShReadNums(c->dict, "BitsPerCoordinate", tmp, 1, c->xref) < 1)
-    {
-        return gFalse;
-    }
-    m->bpc = (word)(tmp[0] >> 16);
-    if (ShReadNums(c->dict, "BitsPerComponent", tmp, 1, c->xref) < 1)
-    {
-        return gFalse;
-    }
-    m->bpComp = (word)(tmp[0] >> 16);
-    m->bpf = 0;
-    if (flags)
-    {
-        if (ShReadNums(c->dict, "BitsPerFlag", tmp, 1, c->xref) < 1)
-        {
-            return gFalse;
-        }
-        m->bpf = (word)(tmp[0] >> 16);
-    }
-    if (m->bpc < 1 || m->bpc > 32 || m->bpComp < 1 || m->bpComp > 16 ||
-        m->bpf > 8)
-    {
-        return gFalse;
-    }
-    need = 4 + 2 * c->nVals;
-    if (ShReadNums(c->dict, "Decode", m->decode, need, c->xref) < need)
-    {
-        return gFalse;
-    }
-    /* the mesh coordinates must fit as well */
-    mx = 0;
-    for (i = 0; i < 4; ++i)
-    {
-        if (ShAbs(m->decode[i]) > mx)
-        {
-            mx = ShAbs(m->decode[i]);
-        }
-    }
-    ShSetShift(c, mx);
-    StreamReset(m->str);
-    return gTrue;
-}
-
-/***********************************************************************
- *      Types 4 and 5: Gouraud triangles
- ***********************************************************************/
-
-static void ShMidVertex(ShCtx *c, const ShVertex *a, const ShVertex *b,
-    ShVertex *m)
-{
-    word i;
-
-    m->x = a->x + (b->x - a->x) / 2;
-    m->y = a->y + (b->y - a->y) / 2;
-    for (i = 0; i < c->nVals; ++i)
-    {
-        m->v[i] = a->v[i] + (b->v[i] - a->v[i]) / 2;
-    }
-}
-
-static void ShMixColor(const GfxColor *a, const GfxColor *b, GfxColor *m)
-{
-    m->r = (a->r + b->r) / 2;
-    m->g = (a->g + b->g) / 2;
-    m->b = (a->b + b->b) / 2;
-}
-
-static void ShTriangle(ShCtx *c, const ShVertex *a, const ShVertex *b,
-    const ShVertex *d, const GfxColor *ca, const GfxColor *cb,
-    const GfxColor *cd, word depth)
-{
-    ShVertex ab, bd, da, ctr;
-    GfxColor cab, cbd, cda, cc;
-    gdouble xy[6], size;
-    word i;
-
-    size = ShPageLen(c, b->x - a->x, b->y - a->y) +
-        ShPageLen(c, d->x - b->x, d->y - b->y) +
-        ShPageLen(c, a->x - d->x, a->y - d->y);
-    if (depth >= SH_TRI_DEPTH || size < FIX(3) ||
-        (ShColorDiff(ca, cb) <= SH_COLOR_TOL &&
-         ShColorDiff(cb, cd) <= SH_COLOR_TOL &&
-         ShColorDiff(cd, ca) <= SH_COLOR_TOL))
-    {
-        if (c->nFuncs)
-        {
-            /* mix the corner colors (like common viewers) */
-            cc.r = (ca->r + cb->r + cd->r) / 3;
-            cc.g = (ca->g + cb->g + cd->g) / 3;
-            cc.b = (ca->b + cb->b + cd->b) / 3;
-        }
-        else
-        {
-            for (i = 0; i < c->nVals; ++i)
-            {
-                ctr.v[i] = (a->v[i] + b->v[i] + d->v[i]) / 3;
-            }
-            ShColor(c, ctr.v, &cc);
-        }
-        xy[0] = a->x; xy[1] = a->y;
-        xy[2] = b->x; xy[3] = b->y;
-        xy[4] = d->x; xy[5] = d->y;
-        ShFillPoly(c, xy, 3, &cc);
-        return;
-    }
-    ShMidVertex(c, a, b, &ab);
-    ShMidVertex(c, b, d, &bd);
-    ShMidVertex(c, d, a, &da);
-    if (c->nFuncs)
-    {
-        /* function shadings: the function only at the original corners */
-        ShMixColor(ca, cb, &cab);
-        ShMixColor(cb, cd, &cbd);
-        ShMixColor(cd, ca, &cda);
-    }
-    else
-    {
-        ShColor(c, ab.v, &cab);
-        ShColor(c, bd.v, &cbd);
-        ShColor(c, da.v, &cda);
-    }
-    ShTriangle(c, a, &ab, &da, ca, &cab, &cda, depth + 1);
-    ShTriangle(c, &ab, b, &bd, &cab, cb, &cbd, depth + 1);
-    ShTriangle(c, &da, &bd, d, &cda, &cbd, cd, depth + 1);
-    ShTriangle(c, &ab, &bd, &da, &cab, &cbd, &cda, depth + 1);
-}
-
-static void ShTriangleTop(ShCtx *c, const ShVertex *a, const ShVertex *b,
-    const ShVertex *d)
-{
-    GfxColor ca, cb, cd;
-
-    ShColor(c, a->v, &ca);
-    ShColor(c, b->v, &cb);
-    ShColor(c, d->v, &cd);
-    ShTriangle(c, a, b, d, &ca, &cb, &cd, 0);
-    ++c->pieces;
-}
-
-static void ShDrawFreeForm(ShCtx *c, Obj *obj)
-{
-    ShMesh m;
-    ShVertex v[4];      /* a, b, c, new */
-    word flag, dummy;
-    GBool have = gFalse;
-
-    if (!ShInitMesh(c, &m, obj, gTrue))
-    {
-        return;
-    }
-    while (c->pieces < SH_MAX_PIECES)
-    {
-        if (!ShReadVertex(c, &m, &v[3], &flag, gTrue))
-        {
-            break;
-        }
-        ShAlign(&m);
-        if (flag == 0 || !have)
-        {
-            v[0] = v[3];
-            if (!ShReadVertex(c, &m, &v[1], &dummy, gTrue))
-            {
-                break;
-            }
-            ShAlign(&m);
-            if (!ShReadVertex(c, &m, &v[2], &dummy, gTrue))
-            {
-                break;
-            }
-            ShAlign(&m);
-            have = gTrue;
-        }
-        else if (flag == 1)
-        {
-            v[0] = v[1];
-            v[1] = v[2];
-            v[2] = v[3];
-        }
-        else
-        {
-            v[1] = v[2];
-            v[2] = v[3];
-        }
-        ShTriangleTop(c, &v[0], &v[1], &v[2]);
-    }
-}
-
-static void ShDrawLattice(ShCtx *c, Obj *obj)
-{
-    ShMesh m;
-    gdouble tmp[1];
-    word perRow, i, dummy;
-    MemHandle han;
-    ShVertex *prev, *cur, *swap;
-    GBool first = gTrue;
-
-    if (ShReadNums(c->dict, "VerticesPerRow", tmp, 1, c->xref) < 1)
-    {
-        return;
-    }
-    perRow = (word)(tmp[0] >> 16);
-    if (perRow < 2 || perRow > SH_MAX_ROW || !ShInitMesh(c, &m, obj, gFalse))
-    {
-        return;
-    }
-    han = MemAlloc(2 * perRow * sizeof(ShVertex), HF_SWAPABLE, HAF_NO_ERR);
-    if (han == NullHandle)
-    {
-        GMemSetError();
-        return;
-    }
-    prev = MemLock(han);
-    cur = prev + perRow;
-    while (c->pieces < SH_MAX_PIECES)
-    {
-        for (i = 0; i < perRow; ++i)
-        {
-            if (!ShReadVertex(c, &m, &cur[i], &dummy, gFalse))
-            {
-                break;
-            }
-            ShAlign(&m);
-        }
-        if (i < perRow)
-        {
-            break;
-        }
-        if (!first)
-        {
-            for (i = 0; i + 1 < perRow; ++i)
-            {
-                ShTriangleTop(c, &prev[i], &prev[i + 1], &cur[i]);
-                ShTriangleTop(c, &prev[i + 1], &cur[i + 1], &cur[i]);
-            }
-        }
-        first = gFalse;
-        swap = prev;
-        prev = cur;
-        cur = swap;
-    }
-    MemUnlock(han);
-    MemFree(han);
-}
-
-/***********************************************************************
- *      Types 6 and 7: patches
- ***********************************************************************/
-
-typedef struct
-{
-    gdouble x[4][4], y[4][4];       /* p[i][j] */
-    gdouble v[4][SH_MAX_VALS];      /* c00, c03, c33, c30 */
-} ShPatch;
-
-/* boundary points in stream order (Coons and tensor) as (i, j) */
-static void ShPatchSet(ShPatch *p, word idx, gdouble x, gdouble y)
-{
-    /* p00 p01 p02 p03 p13 p23 p33 p32 p31 p30 p20 p10 p11 p12 p22 p21 */
-    static const byte ij[16] =
-    {
-        0x00, 0x01, 0x02, 0x03, 0x13, 0x23, 0x33, 0x32,
-        0x31, 0x30, 0x20, 0x10, 0x11, 0x12, 0x22, 0x21
-    };
-    byte k = ij[idx];
-
-    p->x[k >> 4][k & 15] = x;
-    p->y[k >> 4][k & 15] = y;
-}
-
-/* interior points of a Coons patch (PDF 1.7, 8.7.4.5.7) */
-static gdouble ShCoonsPt(gdouble a, gdouble b1, gdouble b2, gdouble c1,
-    gdouble c2, gdouble d1, gdouble d2, gdouble e)
-{
-    /* (-4 a + 6 (b1 + b2) - 2 (c1 + c2) + 3 (d1 + d2) - e) / 9 */
-    return GrMulWWFixed(a, -29127L) +           /* -4/9 */
-        GrMulWWFixed(b1 + b2, 43691L) -         /*  6/9 */
-        GrMulWWFixed(c1, 14564L) - GrMulWWFixed(c2, 14564L) +
-        GrMulWWFixed(d1, 21845L) + GrMulWWFixed(d2, 21845L) -
-        GrMulWWFixed(e, 7282L);                 /*  1/9 */
-}
-
-static void ShCoonsInterior(gdouble p[4][4])
-{
-    p[1][1] = ShCoonsPt(p[0][0], p[0][1], p[1][0], p[0][3], p[3][0],
-        p[3][1], p[1][3], p[3][3]);
-    p[1][2] = ShCoonsPt(p[0][3], p[0][2], p[1][3], p[0][0], p[3][3],
-        p[3][2], p[1][0], p[3][0]);
-    p[2][1] = ShCoonsPt(p[3][0], p[3][1], p[2][0], p[3][3], p[0][0],
-        p[0][1], p[2][3], p[0][3]);
-    p[2][2] = ShCoonsPt(p[3][3], p[3][2], p[2][3], p[3][0], p[0][3],
-        p[0][2], p[2][0], p[0][0]);
-}
-
-static void ShBernstein(gdouble u, gdouble *b)
-{
-    gdouble w = FIX_ONE - u;
-    gdouble u2 = GrMulWWFixed(u, u), w2 = GrMulWWFixed(w, w);
-
-    b[0] = GrMulWWFixed(w2, w);
-    b[1] = 3 * GrMulWWFixed(w2, u);
-    b[2] = 3 * GrMulWWFixed(w, u2);
-    b[3] = GrMulWWFixed(u2, u);
-}
-
-typedef struct
-{
-    gdouble x[SH_PATCH_MAX + 1][SH_PATCH_MAX + 1];
-    gdouble y[SH_PATCH_MAX + 1][SH_PATCH_MAX + 1];
-    ShPatch cur, prev;
-} ShGrid;
-
-static void ShDrawPatch(ShCtx *c, ShPatch *p, ShGrid *g)
-{
-    gdouble bu[4], bv[4], sx, sy, rx, ry, u, v, minx, maxx, miny, maxy;
-    gdouble vals[SH_MAX_VALS], xy[8], w[4];
-    GfxColor col[4], cc;
-    word n, i, j, k, l, d, maxd;
-
-    /* grid size from the size on the page and the color range */
-    minx = maxx = p->x[0][0];
-    miny = maxy = p->y[0][0];
-    for (i = 0; i < 4; ++i)
-    {
-        for (j = 0; j < 4; ++j)
-        {
-            if (p->x[i][j] < minx) minx = p->x[i][j];
-            if (p->x[i][j] > maxx) maxx = p->x[i][j];
-            if (p->y[i][j] < miny) miny = p->y[i][j];
-            if (p->y[i][j] > maxy) maxy = p->y[i][j];
-        }
-    }
-    n = (word)(ShPageLen(c, maxx - minx, maxy - miny) >> 16) / 12;
-    maxd = 0;
-    for (i = 0; i < 4; ++i)
-    {
-        ShColor(c, p->v[i], &col[i]);
-    }
-    for (i = 0; i < 4; ++i)
-    {
-        d = ShColorDiff(&col[i], &col[(i + 1) & 3]);
-        if (d > maxd)
-        {
-            maxd = d;
-        }
-    }
-    if (maxd / SH_COLOR_TOL > n)
-    {
-        n = maxd / SH_COLOR_TOL;
-    }
-    n = (n < 2) ? 2 : (n > SH_PATCH_MAX) ? SH_PATCH_MAX : n;
-
-    for (k = 0; k <= n; ++k)
-    {
-        ShBernstein(FIX_ONE / n * k, bu);
-        for (l = 0; l <= n; ++l)
-        {
-            ShBernstein(FIX_ONE / n * l, bv);
-            sx = sy = 0;
-            for (i = 0; i < 4; ++i)
-            {
-                rx = ry = 0;
-                for (j = 0; j < 4; ++j)
-                {
-                    rx += GrMulWWFixed(p->x[i][j], bv[j]);
-                    ry += GrMulWWFixed(p->y[i][j], bv[j]);
-                }
-                sx += GrMulWWFixed(rx, bu[i]);
-                sy += GrMulWWFixed(ry, bu[i]);
-            }
-            g->x[k][l] = sx;
-            g->y[k][l] = sy;
-        }
-    }
-
-    for (k = 0; k < n; ++k)
-    {
-        for (l = 0; l < n; ++l)
-        {
-            /* bilinear color at the cell center: u along i, v along j */
-            u = FIX_ONE / n * k + FIX_ONE / (2 * n);
-            v = FIX_ONE / n * l + FIX_ONE / (2 * n);
-            w[0] = GrMulWWFixed(FIX_ONE - u, FIX_ONE - v);
-            w[1] = GrMulWWFixed(FIX_ONE - u, v);
-            w[2] = GrMulWWFixed(u, v);
-            w[3] = GrMulWWFixed(u, FIX_ONE - v);
-            if (c->nFuncs)
-            {
-                /* function only at the corners, mix colors (like
-                   common viewers) */
-                cc.r = (short)((w[0] * col[0].r + w[1] * col[1].r +
-                    w[2] * col[2].r + w[3] * col[3].r + FIX_HALF) >> 16);
-                cc.g = (short)((w[0] * col[0].g + w[1] * col[1].g +
-                    w[2] * col[2].g + w[3] * col[3].g + FIX_HALF) >> 16);
-                cc.b = (short)((w[0] * col[0].b + w[1] * col[1].b +
-                    w[2] * col[2].b + w[3] * col[3].b + FIX_HALF) >> 16);
-            }
-            else
-            {
-                for (i = 0; i < c->nVals; ++i)
-                {
-                    vals[i] = GrMulWWFixed(w[0], p->v[0][i]) +
-                        GrMulWWFixed(w[1], p->v[1][i]) +
-                        GrMulWWFixed(w[2], p->v[2][i]) +
-                        GrMulWWFixed(w[3], p->v[3][i]);
-                }
-                ShColor(c, vals, &cc);
-            }
-            xy[0] = g->x[k][l];         xy[1] = g->y[k][l];
-            xy[2] = g->x[k + 1][l];     xy[3] = g->y[k + 1][l];
-            xy[4] = g->x[k + 1][l + 1]; xy[5] = g->y[k + 1][l + 1];
-            xy[6] = g->x[k][l + 1];     xy[7] = g->y[k][l + 1];
-            ShFillPoly(c, xy, 4, &cc);
-        }
-    }
-}
-
-static void ShDrawPatches(ShCtx *c, Obj *obj, GBool tensor)
-{
-    ShMesh m;
-    ShGrid *grid;
-    word flag, npts, ncol, i, j, first;
-    gdouble x, y;
-    GBool have = gFalse;
-
-    if (!ShInitMesh(c, &m, obj, gTrue))
-    {
-        return;
-    }
-    grid = gmalloc(sizeof(ShGrid));
-    if (!grid)
-    {
-        return;
-    }
-    while (c->pieces < SH_MAX_PIECES)
-    {
-        flag = (word)ShReadBits(&m, m.bpf);
-        if (m.eof)
-        {
-            break;
-        }
-        if (flag != 0 && !have)
-        {
-            break;              /* first patch must be complete */
-        }
-        if (flag == 0)
-        {
-            first = 0;
-            ncol = 4;
-        }
-        else
-        {
-            /* shared edge p00..p03 and c00, c03 from the previous patch */
-            first = 4;
-            ncol = 2;
-            for (j = 0; j < 4; ++j)
-            {
-                switch (flag)
-                {
-                    case 1:
-                        grid->cur.x[0][j] = grid->prev.x[j][3];
-                        grid->cur.y[0][j] = grid->prev.y[j][3];
-                        break;
-                    case 2:
-                        grid->cur.x[0][j] = grid->prev.x[3][3 - j];
-                        grid->cur.y[0][j] = grid->prev.y[3][3 - j];
-                        break;
-                    default:
-                        grid->cur.x[0][j] = grid->prev.x[3 - j][0];
-                        grid->cur.y[0][j] = grid->prev.y[3 - j][0];
-                        break;
-                }
-            }
-            for (i = 0; i < c->nVals; ++i)
-            {
-                switch (flag)
-                {
-                    case 1:
-                        grid->cur.v[0][i] = grid->prev.v[1][i];
-                        grid->cur.v[1][i] = grid->prev.v[2][i];
-                        break;
-                    case 2:
-                        grid->cur.v[0][i] = grid->prev.v[2][i];
-                        grid->cur.v[1][i] = grid->prev.v[3][i];
-                        break;
-                    default:
-                        grid->cur.v[0][i] = grid->prev.v[3][i];
-                        grid->cur.v[1][i] = grid->prev.v[0][i];
-                        break;
-                }
-            }
-        }
-        npts = tensor ? 16 : 12;
-        for (i = first; i < npts; ++i)
-        {
-            x = ShDecode(ShReadBits(&m, m.bpc), m.bpc, m.decode[0],
-                m.decode[1]);
-            y = ShDecode(ShReadBits(&m, m.bpc), m.bpc, m.decode[2],
-                m.decode[3]);
-            ShPatchSet(&grid->cur, i, x, y);
-        }
-        for (j = 4 - ncol; j < 4; ++j)
-        {
-            for (i = 0; i < c->nVals; ++i)
-            {
-                grid->cur.v[j][i] = ShDecode(ShReadBits(&m, m.bpComp), m.bpComp,
-                    m.decode[4 + 2 * i], m.decode[5 + 2 * i]);
-            }
-        }
-        ShAlign(&m);
-        if (m.eof)
-        {
-            break;
-        }
-        if (!tensor)
-        {
-            ShCoonsInterior(grid->cur.x);
-            ShCoonsInterior(grid->cur.y);
-        }
-        ShDrawPatch(c, &grid->cur, grid);
-        ++c->pieces;
-        grid->prev = grid->cur;
-        have = gTrue;
-    }
-    gfree(grid);
-}
-
-/***********************************************************************
  *      Public interface
  ***********************************************************************/
 
@@ -1587,7 +952,16 @@ static Dict *ShGetDict(Obj *shading)
     return isDict(shading) ? getDict(shading) : NULL;
 }
 
-void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
+GBool ShadingIsSupported(Obj *shading, XRef *xref)
+{
+    Dict *dict = ShGetDict(shading);
+    gdouble type;
+
+    return dict && ShReadNums(dict, "ShadingType", &type, 1, xref) == 1 &&
+        type >= FIX(1) && type <= FIX(3);
+}
+
+GBool ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     const gdouble *region, GBool background)
 {
     ShCtx *c;
@@ -1597,14 +971,18 @@ void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     word n, i;
     Dict *dict = ShGetDict(shading);
 
-    if (!dict || region[0] >= region[2] || region[1] >= region[3])
+    if (!dict)
     {
-        return;
+        return gFalse;
+    }
+    if (region[0] >= region[2] || region[1] >= region[3])
+    {
+        return gTrue;           /* nothing visible */
     }
     c = gmalloc(sizeof(ShCtx));
     if (!c)
     {
-        return;
+        return gFalse;
     }
     memset(c, 0, sizeof(ShCtx));
     c->gfx = gfx;
@@ -1615,13 +993,15 @@ void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     memcpy(c->toPage, toPage, sizeof(c->toPage));
     memcpy(c->pageRegion, region, sizeof(c->pageRegion));
 
+    /* types 4-7 (meshes, patches) are not supported (code size) */
     if (ShReadNums(dict, "ShadingType", tmp, 1, c->xref) < 1 ||
+        tmp[0] < FIX(1) || tmp[0] > FIX(3) ||
         !GfxMatInvert(toPage, inv) || !ShInitColors(c))
     {
         EC_WARNING(-1);
         ShFreeColors(c);
         gfree(c);
-        return;
+        return gFalse;
     }
     c->type = (word)(tmp[0] >> 16);
     GfxMatApplyBox(inv, region, c->region);
@@ -1631,47 +1011,13 @@ void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     ShSetShift(c, 0);
 
     GrSaveState(c->gs);
-    /* types 4-7 may change the shift (mesh coordinates): scale later */
-    if (c->type < 4)
+    if (c->shift >= 0)
     {
-        if (c->shift >= 0)
-        {
-            GrApplyScale(c->gs, FIX_ONE >> c->shift, FIX_ONE >> c->shift);
-        }
-        else
-        {
-            GrApplyScale(c->gs, FIX_ONE << (-c->shift),
-                FIX_ONE << (-c->shift));
-        }
+        GrApplyScale(c->gs, FIX_ONE >> c->shift, FIX_ONE >> c->shift);
     }
-
-    switch (c->type)
+    else
     {
-        case 4: case 5: case 6: case 7:
-        {
-            /* determine the shift before anything is drawn */
-            ShMesh probe;
-
-            if (isStream(shading) && ShInitMesh(c, &probe, shading,
-                c->type != 5))
-            {
-                if (c->shift >= 0)
-                {
-                    GrApplyScale(c->gs, FIX_ONE >> c->shift,
-                        FIX_ONE >> c->shift);
-                }
-                else
-                {
-                    GrApplyScale(c->gs, FIX_ONE << (-c->shift),
-                        FIX_ONE << (-c->shift));
-                }
-            }
-            else
-            {
-                c->type = 0;    /* nothing to draw */
-            }
-            break;
-        }
+        GrApplyScale(c->gs, FIX_ONE << (-c->shift), FIX_ONE << (-c->shift));
     }
 
     /* /BBox: clip in shading space */
@@ -1688,7 +1034,7 @@ void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     if (background)
     {
         n = ShReadNums(dict, "Background", tmp, SH_MAX_VALS, c->xref);
-        if (n == c->nComps && c->type != 0)
+        if (n == c->nComps)
         {
             word saveFuncs = c->nFuncs;
 
@@ -1715,23 +1061,12 @@ void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
         case 3:
             ShDrawRadial(c);
             break;
-        case 4:
-            ShDrawFreeForm(c, shading);
-            break;
-        case 5:
-            ShDrawLattice(c, shading);
-            break;
-        case 6:
-            ShDrawPatches(c, shading, gFalse);
-            break;
-        case 7:
-            ShDrawPatches(c, shading, gTrue);
-            break;
     }
     GrRestoreState(c->gs);
 
     ShFreeColors(c);
     gfree(c);
+    return gTrue;
 }
 
 GBool ShadingGetMidColor(Gfx *gfx, Obj *shading, GfxColor *color)

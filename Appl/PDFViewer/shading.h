@@ -13,7 +13,7 @@
  * FILE:          shading.h
  *
  * DESCRIPTION:
- *      Shadings (types 1-7) and the 2x3 matrix helpers they need.
+ *      Shadings (types 1-3) and the 2x3 matrix helpers they need.
  *      See main/shading.c.
  ***********************************************************************/
 
@@ -42,9 +42,13 @@ extern void GfxMatApplyBox(const gdouble *m, const gdouble *box,
  *   region      page space box [x0 y0 x1 y1] that has to be covered
  *               (clip box, path bounds); the GEOS clip does the rest
  *   background  paint /Background first (pattern fills, not 'sh')
+ * RETURNS: gFalse if the shading can't be drawn (malformed, types 4-7).
  */
-extern void ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
+extern GBool ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     const gdouble *region, GBool background);
+
+/* Shading type 1-3 (the types ShadingDraw can draw)? */
+extern GBool ShadingIsSupported(Obj *shading, XRef *xref);
 
 /*
  * A representative color of the shading (middle of the function

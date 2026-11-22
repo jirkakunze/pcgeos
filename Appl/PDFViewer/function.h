@@ -13,7 +13,7 @@
  * FILE:          function.h
  *
  * DESCRIPTION:
- *      PDF functions (types 0, 2, 3 and 4), evaluated in 16.16 fixed
+ *      PDF functions (types 0, 2 and 3), evaluated in 16.16 fixed
  *      point (gdouble). See main/function.c.
  ***********************************************************************/
 
@@ -42,9 +42,5 @@ extern word FuncGetOutputs(PdfFunction *f);
 
 /* Evaluate: in[FuncGetInputs], out[FuncGetOutputs]. */
 extern void FuncEval(PdfFunction *f, const gdouble *in, gdouble *out);
-
-/* Fixed point helpers shared with the shading code. */
-extern gdouble FuncFixedLn(gdouble x);
-extern gdouble FuncFixedExp(gdouble x);
 
 #endif /* FUNCTION_H */

@@ -150,7 +150,12 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     benutzten Glyphen gefüllt (~250 KB).
 
 25_shadings.pdf
-    Verläufe (Shadings) aller Typen, zum Vergleich mit poppler/Acrobat:
+    Verläufe (Shadings) aller Typen, zum Vergleich mit poppler/Acrobat.
+    GEOS zeichnet nur die Typen 1-3 mit Funktionstyp 0/2/3 (seit 13b′,
+    Codegröße); Netze/Patches (Typ 4-7) und PostScript-Funktionen
+    (Typ 4: A5, A8, Seite 3 links) bleiben bei 'sh' leer, als
+    Pattern-Füllung erscheint die Fläche einfarbig. Axial/radial mit
+    höchstens 64 Bändern/Ringen, Typ 1 mit höchstens 16 x 16 Zellen:
     Seite 1: axial (Typ 2) mit allen Funktionstypen: A1 rot->blau im
     Einheitsquadrat (per cm skaliert), A2 Achse 0,3..0,7 mit Extend,
     A3 Stitching (gelb-grün-dunkelblau), A4 Sampled (Regenbogen), A5
@@ -168,11 +173,7 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Seite 5: Patches (Typ 6: zwei Coons-Patches mit gemeinsamer Kante,
     Typ 7: Tensor-Patch mit verschobenen Innenpunkten, P6F Coons-Patch
     mit Funktion).
-    Netze mit Funktion (M4F, P6F): wie in den gängigen Viewern (poppler/
-    Cairo) wird die Funktion nur an den Ecken ausgewertet und die
-    Eckfarben gemischt (M4F: rot, magenta, grün; Referenz pdftocairo).
-    pdftoppm (Splash), Ghostscript und MuPDF interpolieren dagegen t und
-    zeigen senkrechte Regenbogenstreifen.
+    Seiten 4 und 5 bleiben in GEOS leer (nur Beschriftungen).
     Seite 6: Shading-Pattern als Füllung (Rechteck, Kreispfad, mit
     /Background, in einem Form-XObject); Text und Linie mit Pattern
     erscheinen in einer mittleren Farbe des Verlaufs (keine echte
