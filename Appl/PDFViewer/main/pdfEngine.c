@@ -763,6 +763,36 @@ Boolean PdfIsValid(PdfDocHandle doc)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
+Boolean PdfOkToPrint(PdfDocHandle doc)
+{
+    PdfDocInternal *pdoc;
+    Boolean ok;
+
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL)
+    {
+        return FALSE;
+    }
+    ok = XRefOkToPrint(&pdoc->xref) ? TRUE : FALSE;
+    PdfUnlockDoc(doc);
+    return ok;
+}
+
+Boolean PdfOkToCopy(PdfDocHandle doc)
+{
+    PdfDocInternal *pdoc;
+    Boolean ok;
+
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL)
+    {
+        return FALSE;
+    }
+    ok = XRefOkToCopy(&pdoc->xref) ? TRUE : FALSE;
+    PdfUnlockDoc(doc);
+    return ok;
+}
+
 word PdfGetPageCount(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;

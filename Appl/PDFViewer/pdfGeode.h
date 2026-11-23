@@ -223,6 +223,7 @@ typedef struct XRef
     short fileKeyLen;
     short encryptRevision;
     long permissions; /* Standard Security Handler /P flags */
+    GBool ownerAccess; /* opened with the owner password: no restrictions */
 
     /*
      * One-entry Object Stream header cache. Keeping it here gives the cache

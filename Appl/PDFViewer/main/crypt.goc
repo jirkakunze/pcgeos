@@ -728,8 +728,14 @@ XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
      * password (Algorithm 7); the empty password is tried the same way.
      */
     XRefPadPassword(password, padded);
-    ok = XRefTryUserPassword(cp, padded, xref->fileKey) ||
-        XRefTryOwnerPassword(cp, padded, xref->fileKey);
+    xref->ownerAccess = gFalse;
+    ok = XRefTryUserPassword(cp, padded, xref->fileKey);
+    if (!ok)
+    {
+        /* only the owner password lifts the /P restrictions */
+        ok = xref->ownerAccess =
+            XRefTryOwnerPassword(cp, padded, xref->fileKey);
+    }
     gfree(cp);
     if (!ok)
     {

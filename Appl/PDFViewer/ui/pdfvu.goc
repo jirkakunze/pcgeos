@@ -2097,6 +2097,12 @@ PDFUpdatePageControl (word totalPages, word curPage)
     PageSizeReport	sPageSize;
     Boolean		bContinue;
 
+    /* Print UI is disabled when /P forbids printing; guard anyway */
+    if (!PdfOkToPrint(pself->PDFDoc_engine)) {
+	@send printCtrlOD::MSG_PRINT_CONTROL_PRINTING_CANCELLED();
+	return;
+    }
+
 	 /*
      * Set page size 
      */
@@ -2224,6 +2230,13 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	 @call PDFPrintControl::
 	MSG_PRINT_CONTROL_SET_TOTAL_PAGE_RANGE(1,
 			PdfGetPageCount(pself->PDFDoc_engine));
+
+    /* /P of an encrypted file may forbid printing */
+    if (PdfOkToPrint(pself->PDFDoc_engine)) {
+	@send PDFPrintControl::MSG_GEN_SET_ENABLED(VUM_NOW);
+    } else {
+	@send PDFPrintControl::MSG_GEN_SET_NOT_ENABLED(VUM_NOW);
+    }
 
 }	/* End of MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES.	*/
 
@@ -2531,7 +2544,7 @@ PDFCopyOpenFile(FileHandle src, const char *destName)
  *
  ***********************************************************************/
 static void
-SendSelectNotify(void)
+SendSelectNotify(Boolean canCopy)
 {
     MemHandle	data;	    	    	/* Extra data block sent along with the
 					 * notification. */
@@ -2558,9 +2571,9 @@ EC( ECCheckBounds( nsscPtr ); )
     nsscPtr->NSSC_selectionType = SDT_GRAPHICS;
 
     /*
-     * We always have a "clipboardable" selection.
+     * The page is always "clipboardable" -- unless /P forbids copying.
      */
-    nsscPtr->NSSC_clipboardableSelection = TRUE;
+    nsscPtr->NSSC_clipboardableSelection = canCopy;
 
     MemUnlock(data);
     MemInitRefCount(data, 1);
@@ -2617,7 +2630,7 @@ EC( ECCheckEventHandle( notifyEvent ); )
     @send PDFDocumentSave::MSG_GEN_SET_ENABLED(VUM_NOW);
 
     @callsuper();
-	SendSelectNotify();
+	SendSelectNotify(PdfOkToCopy(pself->PDFDoc_engine));
 }
 
 /***********************************************************************
@@ -2675,6 +2688,11 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	 PdfError          err;
 	 GStateHandle        gstate;
 	 Point             pageSize;
+
+	/* Edit menu is disabled when /P forbids copying; guard anyway */
+	 if (!PdfOkToCopy(pself->PDFDoc_engine)) {
+	     return;
+	 }
 
 	/* Decode (or fetch from cache) the current page */
 	 currentlyDecodingDoc = pself->PDFDoc_engine;

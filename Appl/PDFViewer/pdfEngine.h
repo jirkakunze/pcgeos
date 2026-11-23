@@ -82,6 +82,10 @@ void PdfClose(PdfDocHandle doc);
 /* Cheap validity check, e.g. */
 Boolean PdfIsValid(PdfDocHandle doc);
 
+/* Permissions of an encrypted document (/P); TRUE for unencrypted ones. */
+Boolean PdfOkToPrint(PdfDocHandle doc);
+Boolean PdfOkToCopy(PdfDocHandle doc);
+
 /* B. */
 
 /* Wraps: CatalogGetNumPages. */

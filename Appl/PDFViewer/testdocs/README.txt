@@ -207,6 +207,17 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Besitzerpasswort "geheim"). Öffnet ohne Passwortabfrage, Ergebnis
     wie 28.
 
+28c_no_print_copy.pdf
+    Inhalt von 28, RC4-128 mit leerem Benutzerpasswort und /P ohne
+    Drucken und Kopieren (P = -2072). Öffnet ohne Passwortabfrage;
+    Drucken (Menü, Werkzeugleiste) und Bearbeiten > Kopieren sind
+    deaktiviert.
+
+28d_no_print_copy_pw.pdf
+    Wie 28c, aber mit Benutzerpasswort "user" (Besitzerpasswort
+    "geheim"). Mit "user": Drucken und Kopieren deaktiviert. Mit
+    "geheim": keine Einschränkung.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

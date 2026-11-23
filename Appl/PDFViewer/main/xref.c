@@ -92,6 +92,7 @@ void XRefInitNull(XRef *xref)
     initNull(&xref->trailerDict);
     xref->encrypted = gFalse;
     xref->needPassword = gFalse;
+    xref->ownerAccess = gFalse;
 }
 
 /***********************************************************************
@@ -1882,23 +1883,21 @@ void XRefGetCatalog(XRef *xref, Obj *obj)
  * SYNOPSIS:        Check whether printing is allowed.
  * PARAMETERS:      XRef *xref    cross-reference table
  *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
+ * RETURNS:         gTrue unless /P of an encrypted file clears bit 3
+ *                  and the owner password was not given
  *
  * REVISION HISTORY:
  *  Name    Date        Description
  *  ----    ----        -----------
  *  JK      08/22/26    Style cleanup
+ *  JK      11/23/26    Evaluate /P
  *
  ***********************************************************************/
 
 GBool XRefOkToPrint(XRef *xref)
 {
-    (void)xref;
-    return gTrue;
+    return !xref->encrypted || xref->ownerAccess ||
+        (xref->permissions & 0x0004L) != 0;
 }
 
 /***********************************************************************
@@ -1907,22 +1906,20 @@ GBool XRefOkToPrint(XRef *xref)
  * SYNOPSIS:        Check whether copying is allowed.
  * PARAMETERS:      XRef *xref    cross-reference table
  *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
+ * RETURNS:         gTrue unless /P of an encrypted file clears bit 5
+ *                  and the owner password was not given
  *
  * REVISION HISTORY:
  *  Name    Date        Description
  *  ----    ----        -----------
  *  JK      08/22/26    Style cleanup
+ *  JK      11/23/26    Evaluate /P
  *
  ***********************************************************************/
 
 GBool XRefOkToCopy(XRef *xref)
 {
-    (void)xref;
-    return gTrue;
+    return !xref->encrypted || xref->ownerAccess ||
+        (xref->permissions & 0x0010L) != 0;
 }
 
