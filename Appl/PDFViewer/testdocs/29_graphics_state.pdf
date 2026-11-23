@@ -4,7 +4,7 @@
 << /Type /Catalog /Pages 2 0 R >>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [8 0 R 10 0 R] /Count 2 >>
+<< /Type /Pages /Kids [31 0 R 33 0 R 35 0 R] /Count 3 >>
 endobj
 5 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
@@ -12,7 +12,31 @@ endobj
 6 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>
 endobj
-7 0 obj
+20 0 obj
+<< /N 3 /Alternate /DeviceRGB /Length 4 >>
+stream
+none
+endstream
+endobj
+21 0 obj
+<< /N 1 /Alternate /DeviceGray /Length 4 >>
+stream
+none
+endstream
+endobj
+22 0 obj
+<< /N 4 /Alternate /DeviceCMYK /Length 4 >>
+stream
+none
+endstream
+endobj
+23 0 obj
+<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 7 >>
+stream
+{ 0 0 }
+endstream
+endobj
+30 0 obj
 << /Length 1765 >>
 stream
 BT /F1 16 Tf 72 750 Td (29 Seite 1: ExtGState-Linienparameter (C1)) Tj ET
@@ -52,10 +76,10 @@ q /GF gs BT 360 197 Td (Schrift gs) Tj ET Q
 
 endstream
 endobj
-8 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> >> >>
+31 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 30 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> /ColorSpace << /ICC [/ICCBased 20 0 R] /ICC1 [/ICCBased 21 0 R] /ICC4 [/ICCBased 22 0 R] /CRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] /CGray [/CalGray << /WhitePoint [0.9505 1 1.089] >>] /Spot [/Separation /Orange /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.5 1 0] /N 1 >>] /DN [/DeviceN [/Cyan /Magenta] /DeviceCMYK 23 0 R] /DefaultRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] >> >> >>
 endobj
-9 0 obj
+32 0 obj
 << /Length 1150 >>
 stream
 BT /F1 16 Tf 72 750 Td (29 Seite 2: Pfade zeichnen (C1b)) Tj ET
@@ -77,24 +101,126 @@ q 6 w 0 j [10 5] 0 d 0.8 0.8 1 rg 0 0 0.6 RG 100 190 m 200 190 l 150 255 l h B Q
 
 endstream
 endobj
-10 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 9 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> >> >>
+33 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 32 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> /ColorSpace << /ICC [/ICCBased 20 0 R] /ICC1 [/ICCBased 21 0 R] /ICC4 [/ICCBased 22 0 R] /CRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] /CGray [/CalGray << /WhitePoint [0.9505 1 1.089] >>] /Spot [/Separation /Orange /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.5 1 0] /N 1 >>] /DN [/DeviceN [/Cyan /Magenta] /DeviceCMYK 23 0 R] /DefaultRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] >> >> >>
+endobj
+34 0 obj
+<< /Length 2719 >>
+stream
+BT /F1 16 Tf 72 750 Td (29 Seite 3: Farbraeume (C2, K2/K3)) Tj ET
+BT /F1 10 Tf 72 730 Td (Zeilen 2-4 wie Zeile 1 (rot, gruen, blau, grau 50 %). /DefaultRGB in den Ressourcen aendert nichts.) Tj ET
+BT /F1 9 Tf 72 688 Td (DeviceRGB (rg)) Tj ET
+q 1 0 0 rg 220 680 60 30 re f Q
+q 0.5 w 0 G 220 680 60 30 re S Q
+q 0 1 0 rg 300 680 60 30 re f Q
+q 0.5 w 0 G 300 680 60 30 re S Q
+q 0 0 1 rg 380 680 60 30 re f Q
+q 0.5 w 0 G 380 680 60 30 re S Q
+q 0.5 0.5 0.5 rg 460 680 60 30 re f Q
+q 0.5 w 0 G 460 680 60 30 re S Q
+BT /F1 9 Tf 72 638 Td (ICCBased N 3 (cs/sc)) Tj ET
+q /ICC cs 1 0 0 sc 220 630 60 30 re f Q
+q 0.5 w 0 G 220 630 60 30 re S Q
+q /ICC cs 0 1 0 sc 300 630 60 30 re f Q
+q 0.5 w 0 G 300 630 60 30 re S Q
+q /ICC cs 0 0 1 sc 380 630 60 30 re f Q
+q 0.5 w 0 G 380 630 60 30 re S Q
+q /ICC cs 0.5 0.5 0.5 sc 460 630 60 30 re f Q
+q 0.5 w 0 G 460 630 60 30 re S Q
+BT /F1 9 Tf 72 588 Td (CalRGB (cs/sc)) Tj ET
+q /CRGB cs 1 0 0 sc 220 580 60 30 re f Q
+q 0.5 w 0 G 220 580 60 30 re S Q
+q /CRGB cs 0 1 0 sc 300 580 60 30 re f Q
+q 0.5 w 0 G 300 580 60 30 re S Q
+q /CRGB cs 0 0 1 sc 380 580 60 30 re f Q
+q 0.5 w 0 G 380 580 60 30 re S Q
+q /CRGB cs 0.5 0.5 0.5 sc 460 580 60 30 re f Q
+q 0.5 w 0 G 460 580 60 30 re S Q
+BT /F1 9 Tf 72 538 Td (CalGray 0.5 / ICCBased N 1) Tj ET
+q /CGray cs 0.5 sc 220 530 60 30 re f Q
+q 0.5 w 0 G 220 530 60 30 re S Q
+q /ICC1 cs 0.5 sc 300 530 60 30 re f Q
+q 0.5 w 0 G 300 530 60 30 re S Q
+BT /F1 9 Tf 72 488 Td (DeviceCMYK (k)) Tj ET
+q 0 1 1 0 k 220 480 60 30 re f Q
+q 0.5 w 0 G 220 480 60 30 re S Q
+q 1 0 1 0 k 300 480 60 30 re f Q
+q 0.5 w 0 G 300 480 60 30 re S Q
+q 1 1 0 0 k 380 480 60 30 re f Q
+q 0.5 w 0 G 380 480 60 30 re S Q
+q 0 0 0 0.5 k 460 480 60 30 re f Q
+q 0.5 w 0 G 460 480 60 30 re S Q
+BT /F1 9 Tf 72 438 Td (ICCBased N 4 (wie DeviceCMYK)) Tj ET
+q /ICC4 cs 0 1 1 0 sc 220 430 60 30 re f Q
+q 0.5 w 0 G 220 430 60 30 re S Q
+q /ICC4 cs 1 0 1 0 sc 300 430 60 30 re f Q
+q 0.5 w 0 G 300 430 60 30 re S Q
+q /ICC4 cs 1 1 0 0 sc 380 430 60 30 re f Q
+q 0.5 w 0 G 380 430 60 30 re S Q
+q /ICC4 cs 0 0 0 0.5 sc 460 430 60 30 re f Q
+q 0.5 w 0 G 460 430 60 30 re S Q
+BT /F1 9 Tf 72 388 Td (Separation orange: Tint 1 / 0.5 / 0) Tj ET
+q /Spot cs 1 scn 220 380 60 30 re f Q
+q 0.5 w 0 G 220 380 60 30 re S Q
+q /Spot cs 0.5 scn 300 380 60 30 re f Q
+q 0.5 w 0 G 300 380 60 30 re S Q
+q /Spot cs 0 scn 380 380 60 30 re f Q
+q 0.5 w 0 G 380 380 60 30 re S Q
+BT /F1 9 Tf 72 338 Td (DeviceN 2 Farben (Naeherung grau)) Tj ET
+q /DN cs 1 0 scn 220 330 60 30 re f Q
+q 0.5 w 0 G 220 330 60 30 re S Q
+q /DN cs 0 1 scn 300 330 60 30 re f Q
+q 0.5 w 0 G 300 330 60 30 re S Q
+BT /F1 9 Tf 72 288 Td (Bild DeviceRGB 2x2 (rot gruen / blau weiss):) Tj ET
+q 120 0 0 60 300 250 cm BI /W 2 /H 2 /BPC 8 /CS /RGB ID
+ÿ   ÿ   ÿÿÿÿ
+EI Q
+
+endstream
+endobj
+35 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 34 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> /ColorSpace << /ICC [/ICCBased 20 0 R] /ICC1 [/ICCBased 21 0 R] /ICC4 [/ICCBased 22 0 R] /CRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] /CGray [/CalGray << /WhitePoint [0.9505 1 1.089] >>] /Spot [/Separation /Orange /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.5 1 0] /N 1 >>] /DN [/DeviceN [/Cyan /Magenta] /DeviceCMYK 23 0 R] /DefaultRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] >> >> >>
 endobj
 xref
-0 11
+0 36
 0000000000 65535 f 
 0000000015 00000 n 
 0000000064 00000 n 
 0000000000 00000 f 
 0000000000 00000 f 
-0000000128 00000 n 
-0000000198 00000 n 
-0000000269 00000 n 
-0000002086 00000 n 
-0000002497 00000 n 
-0000003699 00000 n 
+0000000136 00000 n 
+0000000206 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000277 00000 n 
+0000000358 00000 n 
+0000000440 00000 n 
+0000000522 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000638 00000 n 
+0000002456 00000 n 
+0000003284 00000 n 
+0000004487 00000 n 
+0000005315 00000 n 
+0000008087 00000 n 
 trailer
-<< /Size 11 /Root 1 0 R >>
+<< /Size 36 /Root 1 0 R >>
 startxref
-4111
+8915
 %%EOF

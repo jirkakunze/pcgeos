@@ -252,6 +252,15 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     (re) mit Gehrung/rund/abgeschrägt an allen Ecken, zwei offene
     Teilpfade in einem Pfad ohne Verbindungslinie, Kurve + Gerade (dort
     keine Eckform), gefülltes Dreieck mit gestrichelter Kontur (B).
+    Seite 3 (C2, K2/K3): Farbräume. Im Viewer zeigen die Zeilen
+    DeviceRGB, ICCBased N 3 und CalRGB dasselbe reine Rot/Grün/Blau/
+    Grau 50 %, CalGray/ICCBased N 1 Grau 50 %, ICCBased N 4 wie
+    DeviceCMYK, Separation Orange in Tint 1/0.5/0 (0 = weiß), DeviceN
+    mit zwei Farben als Grau-Näherung, das 2x2-Bild rot/grün/blau/weiß.
+    /DefaultRGB (CalRGB) in den Ressourcen ändert im Viewer nichts
+    (CalRGB/ICCBased werden wie DeviceRGB gezeichnet); pdftoppm wendet
+    es an und zeigt Zeilen 1, 3 und das Bild leicht rosa getönt, die
+    ICC-Platzhalterprofile meldet es als fehlerhaft (nutzt /Alternate).
     Generator mk29.py (nur Scratchpad).
 
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
