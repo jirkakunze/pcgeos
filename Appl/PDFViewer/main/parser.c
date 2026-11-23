@@ -39,6 +39,7 @@
 #include "stream.h"
 #include "gmem.h"
 #include "crypt.h"
+#include "gstr.h"
 #include <ec.h>
 
 GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict);
@@ -178,6 +179,47 @@ static void ParserSkipValue(Parser *parser)
  *  JK      08/22/26    Style cleanup
  *
  ***********************************************************************/
+
+/***********************************************************************
+ *      ParserDecryptString
+ ***********************************************************************
+ * SYNOPSIS:        Decrypt a string of an encrypted file in place (RC4).
+ * PARAMETERS:      Parser *parser    parser of an object XRefFetch
+ *                                    flagged via cryptNum/cryptGen
+ *                  Obj *obj    string object
+ *
+ * STRATEGY:        Strings use the same per-object key as streams
+ *                  (ISO 32000 7.6.2). Objects inside object streams are
+ *                  never decrypted separately (their parser is noCrypt).
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/23/26    Initial version (strings were left encrypted)
+ *
+ ***********************************************************************/
+
+static void ParserDecryptString(Parser *parser, Obj *obj)
+{
+    XRef *xref = LexerGetXRef(parser->lexer);
+    Guchar objKey[16];
+    short objKeyLen;
+    long len;
+
+    if (!xref || !xref->encrypted)
+    {
+        return;
+    }
+    len = GStrGetLength(getString(obj));
+    if (len <= 0)
+    {
+        return;
+    }
+    XRefDeriveObjectKey(xref, parser->cryptNum, parser->cryptGen,
+        objKey, &objKeyLen);
+    RC4Apply(objKey, objKeyLen, (Guchar *)GStrGetCString(getString(obj)),
+        len);
+}
 
 void ParserGetObj(Parser *parser, Obj *obj)
 {
@@ -362,6 +404,10 @@ void ParserGetObj(Parser *parser, Obj *obj)
     {
         ObjMove(obj, pbuf1);
         ParserShift(parser);
+        if (isString(obj) && !parser->noCrypt)
+        {
+            ParserDecryptString(parser, obj);
+        }
     }
     parserGetObjDone:
     --depth;
