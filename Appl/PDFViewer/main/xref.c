@@ -61,7 +61,7 @@ static long XRefStreamReadField(Obj *streamObj, long width, long defaultVal);
 static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos);
 GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection);
 GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos,
-    GBool isFirstSection);
+    GBool isFirstSection, GBool hybrid);
 static void XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm,
     Obj *obj);
 
@@ -212,7 +212,7 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
         {
             GBool isFirstSection = gTrue;
             while (XRefSectionIsStream(xref, &fs, pos)
-                ? XRefReadXRefStream(xref, &fs, &pos, isFirstSection)
+                ? XRefReadXRefStream(xref, &fs, &pos, isFirstSection, gFalse)
                 : XRefReadXRef(xref, &fs, &pos, isFirstSection))
             {
                 isFirstSection = gFalse;
@@ -554,8 +554,11 @@ static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
  *                  Stream *fs    input stream
  *                  long *pos    file position
  *                  GBool isFirstSection    is first section
+ *                  GBool hybrid    stream named by a table trailer's
+ *                                  /XRefStm: may also fill entries the
+ *                                  table marked free
  *
- * RETURNS:         success flag
+ * RETURNS:         gTrue if a /Prev section follows (*pos updated)
  *
  * CONTEXT:
  *
@@ -565,10 +568,12 @@ static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
  *  Name    Date        Description
  *  ----    ----        -----------
  *  JK      08/22/26    Style cleanup
+ *  JK      11/23/26    Hybrid files (/XRefStm)
  *
  ***********************************************************************/
 
-GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
+GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection,
+    GBool hybrid)
 {
     Parser parser;
     Lexer *lexer;
@@ -768,7 +773,13 @@ GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection
             {
                 HugeArrayLock(xref->vmFile, xref->entries, objNum,
                     (void **) & pEntry, &entrySize);
-                if (pEntry->type != xrefEntryFree)
+                /*
+                 * Newer sections win. A hybrid file's table lists objects
+                 * that live in object streams as free ('f') entries of the
+                 * same section; its /XRefStm supplies them.
+                 */
+                if (pEntry->type != xrefEntryFree &&
+                    (!hybrid || pEntry->used))
                 {
                     HugeArrayUnlock(pEntry);
                     continue;
@@ -1144,7 +1155,8 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
     Parser parser;
     Obj obj, obj2;
     char s[22];
-    GBool more;
+    GBool more, ok;
+    long stmPos;
     long first, n, i;
     long c;
     word j;
@@ -1371,10 +1383,26 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
     {
         more = gFalse;
     }
-    ObjFree(&obj);
     ObjFree(&obj2);
 
+    /*
+     * Hybrid file: the cross-reference stream named by /XRefStm belongs to
+     * this section and is read before /Prev. Its own /Prev is ignored. A
+     * broken stream leaves the table usable (readers without stream support
+     * see the same).
+     */
+    DictLookupNF(getDict(&obj), "XRefStm", &obj2);
+    stmPos = isInt(&obj2) ? getInt(&obj2) : -1;
+    ObjFree(&obj2);
+    ObjFree(&obj);
     ParserFree(&parser);
+
+    if (stmPos > 0)
+    {
+        ok = xref->ok;
+        XRefReadXRefStream(xref, fs, &stmPos, gFalse, gTrue);
+        xref->ok = ok;
+    }
     return more;
 
     err1:

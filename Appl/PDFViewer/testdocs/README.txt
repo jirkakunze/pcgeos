@@ -191,6 +191,22 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     mit Alpha-/SMask wird echt maskiert. A4 und der Text am Ende müssen
     wieder voll deckend sein.
 
+28_hybrid_xref.pdf
+    Hybrid-Datei (PDF 1.5): klassische xref-Tabelle, deren Trailer mit
+    /XRefStm auf einen Querverweis-Stream zeigt; die Ressourcen von
+    Seite 1 und das Seitenobjekt von Seite 2 stehen in einem Objekt-
+    Stream, der nur darüber erreichbar ist. Dazu ein inkrementelles
+    Update (klassische Tabelle mit /Prev), das Seite 1 ersetzt und
+    Seite 3 anhängt. Erwartet: 3 Seiten, Überschriften in Times fett,
+    Fließtext in Helvetica, auf Seite 1 kein "(ALT)". Generator mk28.py
+    (nur Scratchpad).
+
+28b_objstm_rc4.pdf
+    Inhalt von 28, mit qpdf in Objekt-Streams und Querverweis-Stream
+    umgeschrieben und RC4-128-verschlüsselt (leeres Benutzerpasswort,
+    Besitzerpasswort "geheim"). Öffnet ohne Passwortabfrage, Ergebnis
+    wie 28.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

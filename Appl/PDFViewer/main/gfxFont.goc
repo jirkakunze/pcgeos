@@ -1574,14 +1574,25 @@ void GfxFontDictInit(GfxFontDict *this, Dict *fontDict, XRef *xref)
     {
         DictGetValNF(fontDict, i, &obj1);
         ObjFetch(&obj2, &obj1, xref);
-        if (isRef(&obj1) && ObjIsDictSame(&obj2, "Font"))
+        /* Font dictionaries may also be direct objects (no reference). */
+        if (ObjIsDictSame(&obj2, "Font"))
         {
+            Ref fontRef;
+
+            if (isRef(&obj1))
+            {
+                fontRef = getRef(&obj1);
+            }
+            else
+            {
+                fontRef.num = -1;
+                fontRef.gen = 0;
+            }
             this->fonts[i] = gmalloc(sizeof(GfxFont));
             if (this->fonts[i])
             {
                 GfxFontInit(this->fonts[i], DictGetKey(fontDict, i),
-                    getRef(&obj1),
-                    getDict(&obj2), xref);
+                    fontRef, getDict(&obj2), xref);
             }
         }
         else
@@ -1661,7 +1672,7 @@ GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag)
 
     for (i = 0; i < this->numFonts; ++i)
     {
-        if (GfxFontMatches(this->fonts[i], tag))
+        if (this->fonts[i] && GfxFontMatches(this->fonts[i], tag))
         {
             this->lastFont = this->fonts[i];
             return this->fonts[i];
