@@ -27,6 +27,7 @@
 #include "pdfEngine.h"
 #include "catalog.h"
 #include "xref.h"
+#include "dict.h"
 #include "obj.h"
 #include "page.h"
 #include "gfx.h"
@@ -37,7 +38,12 @@
 #include <vm.h>
 #include <ec.h>
 #include <gstring.h>
+#include <Ansi/string.h>
 #include <graphics.h>
+#include <localize.h>
+#include <timedate.h>
+#include "gfxFont.h"
+#include "gstr.h"
 
 /* Keep page-cache policy private to the engine. */
 #define PDF_MAX_CACHED_PAGES    30
@@ -763,6 +769,133 @@ Boolean PdfIsValid(PdfDocHandle doc)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
+/***********************************************************************
+ *      PdfParseDateDigits
+ ***********************************************************************
+ * SYNOPSIS:        Read up to count decimal digits of a PDF date.
+ * RETURNS:         value, or def if no digit is present
+ ***********************************************************************/
+
+static word PdfParseDateDigits(const char **p, word count, word def)
+{
+    word val = 0, n = 0;
+
+    while (n < count && **p >= '0' && **p <= '9')
+    {
+        val = val * 10 + (word)(**p - '0');
+        ++*p;
+        ++n;
+    }
+    return n ? val : def;
+}
+
+/***********************************************************************
+ *      PdfFormatDate
+ ***********************************************************************
+ * SYNOPSIS:        Format a PDF date "D:YYYYMMDDHHmmSS..." with the
+ *                  system's short date and hour:minute formats.
+ * RETURNS:         FALSE if the string is not a date (buf unchanged)
+ *
+ * STRATEGY:        The time zone suffix is ignored (shown as written).
+ ***********************************************************************/
+
+static Boolean PdfFormatDate(const char *s, char *buf, word bufSize)
+{
+    TimerDateAndTime dt;
+    char tmp[DATE_TIME_BUFFER_SIZE];
+    word len;
+
+    if (s[0] == 'D' && s[1] == ':')
+    {
+        s += 2;
+    }
+    if (s[0] < '0' || s[0] > '9')
+    {
+        return FALSE;
+    }
+    dt.TDAT_year = PdfParseDateDigits(&s, 4, 0);
+    dt.TDAT_month = PdfParseDateDigits(&s, 2, 1);
+    dt.TDAT_day = PdfParseDateDigits(&s, 2, 1);
+    dt.TDAT_hours = PdfParseDateDigits(&s, 2, 0);
+    dt.TDAT_minutes = PdfParseDateDigits(&s, 2, 0);
+    dt.TDAT_seconds = PdfParseDateDigits(&s, 2, 0);
+    dt.TDAT_dayOfWeek = 0;
+    if (dt.TDAT_year < 1900 || dt.TDAT_month < 1 || dt.TDAT_month > 12 ||
+        dt.TDAT_day < 1 || dt.TDAT_day > 31 || dt.TDAT_hours > 23 ||
+        dt.TDAT_minutes > 59)
+    {
+        return FALSE;
+    }
+
+    len = LocalFormatDateTime(tmp, DTF_SHORT, &dt);
+    tmp[len++] = ' ';
+    len += LocalFormatDateTime(tmp + len, DTF_HM, &dt);
+    if (len >= bufSize)
+    {
+        len = bufSize - 1;
+    }
+    memcpy(buf, tmp, len);
+    buf[len] = 0;
+    return TRUE;
+}
+
+/***********************************************************************
+ *      PdfGetInfoField
+ ***********************************************************************
+ * SYNOPSIS:        Entry of the document information dictionary.
+ * PARAMETERS:      PdfDocHandle doc    document
+ *                  const char *key    entry name, e.g. "Title"
+ *                  char *buf    output (GEOS character set)
+ *                  word bufSize    size of buf
+ *
+ * RETURNS:         TRUE if the entry exists and is not empty
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/23/26    Initial version (B4)
+ *
+ ***********************************************************************/
+
+Boolean PdfGetInfoField(PdfDocHandle doc, const char *key, char *buf,
+                        word bufSize)
+{
+    PdfDocInternal *pdoc;
+    Obj info, val;
+    Boolean isDate;
+
+    if (bufSize == 0)
+    {
+        return FALSE;
+    }
+    buf[0] = 0;
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL)
+    {
+        return FALSE;
+    }
+
+    XRefGetDocInfo(&pdoc->xref, &info);
+    if (isDict(&info))
+    {
+        ObjDictLookup(&info, (char *)key, &val, &pdoc->xref);
+        if (isString(&val))
+        {
+            isDate = !strcmp(key, "CreationDate") || !strcmp(key, "ModDate");
+            if (!isDate || !PdfFormatDate(GStrGetCString(getString(&val)),
+                    buf, bufSize))
+            {
+                PdfTextStringToGeos(getString(&val), buf, bufSize);
+            }
+        }
+        ObjFree(&val);
+    }
+    ObjFree(&info);
+
+    PdfUnlockDoc(doc);
+    return buf[0] != 0;
+}
+
 Boolean PdfOkToPrint(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;

@@ -149,6 +149,11 @@ Boolean onTV, g_showTools;
  * error dialog outside of MSG_VIS_DRAW/printing.
  */
 
+@message void MSG_PDF_DOCUMENT_SHOW_INFO();
+/*
+ * Sent to app model by File > Document Info: fills and opens PDFInfoDB.
+ */
+
 
 /* data from the 'pdf doc' object in xpdf */
 
@@ -321,6 +326,7 @@ Boolean onTV, g_showTools;
     		@PDFViewMenu, 
 		@PDFSaveDB,
 		@PDFPasswordDB,
+		@PDFInfoDB,
 		@PDFOptionsMenu,
 		@PDFWindowMenu,
 		@Toolbar,
@@ -346,6 +352,7 @@ Boolean onTV, g_showTools;
 	 @PDFDocumentOpenTrigger,
     @PDFDocumentControlObj,
 		@PDFDocumentSave,
+		@PDFDocumentInfo,
 		@PDFPrintControl,
 
 	 @PDFExitAppTrigger;
@@ -667,6 +674,99 @@ Boolean onTV, g_showTools;
 	 GTI_actionMsg = MSG_PDF_DOCUMENT_SAVE;
 	 ATTR_GEN_DESTINATION_CLASS = &PDFDocumentClass;
 	 HINT_TRIGGER_BRINGS_UP_WINDOW;
+}
+
+@object GenTriggerClass PDFDocumentInfo = {
+    GI_visMoniker = 'I', "Document Info...";
+    GI_states = @default & ~GS_ENABLED;
+    GTI_destination = (TO_APP_MODEL);
+    GTI_actionMsg = MSG_PDF_DOCUMENT_SHOW_INFO;
+    ATTR_GEN_DESTINATION_CLASS = &PDFDocumentClass;
+    HINT_TRIGGER_BRINGS_UP_WINDOW;
+}
+
+/*
+ * Document Info dialog: entries of the /Info dictionary (filled by
+ * MSG_PDF_DOCUMENT_SHOW_INFO).
+ */
+@object GenInteractionClass PDFInfoDB = {
+    GI_visMoniker = "Document Info";
+    GI_comp = @PDFInfoTitle,
+	      @PDFInfoAuthor,
+	      @PDFInfoSubject,
+	      @PDFInfoKeywords,
+	      @PDFInfoCreator,
+	      @PDFInfoProducer,
+	      @PDFInfoCreated,
+	      @PDFInfoModified,
+	      @PDFInfoPages;
+    GII_type = GIT_NOTIFICATION;
+    GII_visibility = GIV_DIALOG;
+    GII_attrs = @default | GIA_NOT_USER_INITIATABLE;
+    HINT_CENTER_CHILDREN_ON_MONIKERS;
+}
+
+@object GenTextClass PDFInfoTitle = {
+    GI_visMoniker = "Title:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoAuthor = {
+    GI_visMoniker = "Author:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoSubject = {
+    GI_visMoniker = "Subject:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoKeywords = {
+    GI_visMoniker = "Keywords:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoCreator = {
+    GI_visMoniker = "Application:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoProducer = {
+    GI_visMoniker = "PDF Producer:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoCreated = {
+    GI_visMoniker = "Created:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoModified = {
+    GI_visMoniker = "Modified:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
+}
+
+@object GenTextClass PDFInfoPages = {
+    GI_visMoniker = "Pages:";
+    GI_attrs = @default | GA_READ_ONLY;
+    GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+    HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
 }
 
 
@@ -2227,9 +2327,17 @@ PDFUpdatePageControl (word totalPages, word curPage)
  ***********************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES
 {
+    word numPages = PdfGetPageCount(pself->PDFDoc_engine);
+
+    /*
+     * Can arrive after MSG_GEN_DOCUMENT_CLOSE (engine gone, 0 pages):
+     * the print control rejects the range 1..0 (EC fatal error).
+     */
+    if (numPages == 0) {
+	return;
+    }
 	 @call PDFPrintControl::
-	MSG_PRINT_CONTROL_SET_TOTAL_PAGE_RANGE(1,
-			PdfGetPageCount(pself->PDFDoc_engine));
+	MSG_PRINT_CONTROL_SET_TOTAL_PAGE_RANGE(1, numPages);
 
     /* /P of an encrypted file may forbid printing */
     if (PdfOkToPrint(pself->PDFDoc_engine)) {
@@ -2334,6 +2442,62 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	 PDFUpdateSaveDirText();
 	 @send PDFSaveDB::MSG_GEN_INTERACTION_INITIATE();
     return;
+}
+
+#define PDF_INFO_BUF_SIZE 256
+
+/***********************************************************************
+ *		PDFSetInfoText
+ ***********************************************************************
+ * SYNOPSIS:	Put one /Info entry into a text object of PDFInfoDB.
+ ***********************************************************************/
+static void
+PDFSetInfoText(optr text, PdfDocHandle engine, const char *key, char *buf)
+{
+    PdfGetInfoField(engine, key, buf, PDF_INFO_BUF_SIZE);
+    @call text::MSG_VIS_TEXT_REPLACE_ALL_PTR(buf, 0);
+}
+
+/***********************************************************************
+ *		MSG_PDF_DOCUMENT_SHOW_INFO for PDFDocumentClass
+ ***********************************************************************
+ *
+ * SYNOPSIS:	Fill the Document Info dialog and bring it up.
+ *
+ * STRATEGY:	Text strings are converted to the GEOS character set
+ *		and dates formatted by PdfGetInfoField (engine). The
+ *		buffer is a heap block (small process stack).
+ *
+ * REVISION HISTORY:
+ *	Name	Date		Description
+ *	----	----		-----------
+ *	JK	11/23/26	Initial revision (B4)
+ *
+ ***********************************************************************/
+@method PDFDocumentClass, MSG_PDF_DOCUMENT_SHOW_INFO
+{
+    MemHandle mh;
+    char *buf;
+    PdfDocHandle engine = pself->PDFDoc_engine;
+
+    mh = MemAlloc(PDF_INFO_BUF_SIZE, HF_SWAPABLE, HAF_LOCK);
+    if (!mh) {
+	return;
+    }
+    buf = MemDeref(mh);
+    PDFSetInfoText(@PDFInfoTitle, engine, "Title", buf);
+    PDFSetInfoText(@PDFInfoAuthor, engine, "Author", buf);
+    PDFSetInfoText(@PDFInfoSubject, engine, "Subject", buf);
+    PDFSetInfoText(@PDFInfoKeywords, engine, "Keywords", buf);
+    PDFSetInfoText(@PDFInfoCreator, engine, "Creator", buf);
+    PDFSetInfoText(@PDFInfoProducer, engine, "Producer", buf);
+    PDFSetInfoText(@PDFInfoCreated, engine, "CreationDate", buf);
+    PDFSetInfoText(@PDFInfoModified, engine, "ModDate", buf);
+    UtilHex32ToAscii(buf, PdfGetPageCount(engine), UHTAF_NULL_TERMINATE);
+    @call PDFInfoPages::MSG_VIS_TEXT_REPLACE_ALL_PTR(buf, 0);
+    MemFree(mh);
+
+    @send PDFInfoDB::MSG_GEN_INTERACTION_INITIATE();
 }
 
 /***********************************************************************
@@ -2628,6 +2792,7 @@ EC( ECCheckEventHandle( notifyEvent ); )
 
     /* "Save Copy As..." needs a document to copy */
     @send PDFDocumentSave::MSG_GEN_SET_ENABLED(VUM_NOW);
+    @send PDFDocumentInfo::MSG_GEN_SET_ENABLED(VUM_NOW);
 
     @callsuper();
 	SendSelectNotify(PdfOkToCopy(pself->PDFDoc_engine));
@@ -2657,6 +2822,7 @@ EC( ECCheckEventHandle( notifyEvent ); )
 {
     ClipboardRemoveFromNotificationList(oself);
     @send PDFDocumentSave::MSG_GEN_SET_NOT_ENABLED(VUM_NOW);
+    @send PDFDocumentInfo::MSG_GEN_SET_NOT_ENABLED(VUM_NOW);
     @callsuper();
 }
 

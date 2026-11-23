@@ -82,6 +82,15 @@ void PdfClose(PdfDocHandle doc);
 /* Cheap validity check, e.g. */
 Boolean PdfIsValid(PdfDocHandle doc);
 
+/*
+ * Entry of the document information dictionary (/Info), e.g. "Title",
+ * converted to the GEOS character set; dates ("CreationDate", "ModDate")
+ * are formatted with the system's short date and time format. Returns
+ * FALSE (and an empty buffer) if the entry is missing.
+ */
+Boolean PdfGetInfoField(PdfDocHandle doc, const char *key, char *buf,
+                        word bufSize);
+
 /* Permissions of an encrypted document (/P); TRUE for unencrypted ones. */
 Boolean PdfOkToPrint(PdfDocHandle doc);
 Boolean PdfOkToCopy(PdfDocHandle doc);

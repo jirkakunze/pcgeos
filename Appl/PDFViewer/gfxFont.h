@@ -112,5 +112,13 @@ GBool GfxFontMatches(GfxFont *this, char *tag1);
 extern
 GBool GfxFontIs16Bit(GfxFont *this);
 
+/*
+ * Convert a PDF text string (PDFDocEncoding or UTF-16BE with BOM) to a
+ * null-terminated string in the GEOS character set. Characters without a
+ * GEOS equivalent become '?', control characters a space. Returns the
+ * length. Unicode-PM replaces this function.
+ */
+extern word PdfTextStringToGeos(GooString *str, char *dst, word dstSize);
+
 #endif  /* GFXFONT_H */
 

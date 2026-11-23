@@ -218,6 +218,28 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     "geheim"). Mit "user": Drucken und Kopieren deaktiviert. Mit
     "geheim": keine Einschränkung.
 
+28e_doc_info.pdf
+    Dokumentinformationen (/Info), Datei > Document Info... zeigt:
+      Title:        Größe über 5 € – „Test“ ?   (UTF-16BE; ☺ gibt es
+                    im GEOS-Zeichensatz nicht -> ?)
+      Author:       Jürgen Müller • Straße – € 100   (PDFDocEncoding
+                    0x80/0x85/0xA0 und Latin-1)
+      Subject:      Sprachkennung übersprungen   (UTF-16-Sprach-
+                    Escape wird übersprungen; pdfinfo zeigt hier ein
+                    falsches Zeichen davor)
+      Keywords:     PDF, Info, Umlaute üöä, Zeilen umbruch   (Oktal-
+                    Escapes, Zeilenumbruch als Leerzeichen)
+      Application:  mk28e.py
+      PDF Producer: Handgeschrieben, kein qpdf
+      Created:      23.11.2026 21:45 (Format nach Ländereinstellung)
+      Modified:     01.01.2026 00:00 (nur Jahr angegeben)
+      Pages:        1
+    Generator mk28e.py (nur Scratchpad).
+
+28f_doc_info_rc4.pdf
+    28e RC4-128-verschlüsselt (leeres Benutzerpasswort): gleiche Anzeige,
+    die Info-Strings werden entschlüsselt.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

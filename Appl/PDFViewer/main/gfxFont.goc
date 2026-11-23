@@ -1710,3 +1710,113 @@ GBool GfxFontIs16Bit(GfxFont *this)
     return this->is16;
 }
 
+
+#pragma code_seg("PdfText")
+
+/***********************************************************************
+ *      PdfTextStringToGeos
+ ***********************************************************************
+ * SYNOPSIS:        Convert a PDF text string to the GEOS character set.
+ * PARAMETERS:      GooString *str    PDF string (decrypted)
+ *                  char *dst    output buffer
+ *                  word dstSize    size of dst including the null
+ *
+ * RETURNS:         length of the converted string
+ *
+ * STRATEGY:        UTF-16BE (BOM FE FF) or PDFDocEncoding -> Unicode ->
+ *                  GEOS char via GfxUnicodeToGeosChar. UTF-16 language
+ *                  escapes (U+001B ... U+001B) are skipped, surrogate
+ *                  pairs become '?'. Tab/CR/LF become a space, other
+ *                  control characters are dropped.
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/23/26    Initial version (B4)
+ *
+ ***********************************************************************/
+
+word PdfTextStringToGeos(GooString *str, char *dst, word dstSize)
+{
+    Guchar *s;
+    long len, i;
+    word n = 0;
+    word uni, ch;
+    GBool utf16, inEscape = gFalse;
+    word *high;
+
+    if (dstSize == 0)
+    {
+        return 0;
+    }
+    s = (Guchar *)GStrGetCString(str);
+    len = GStrGetLength(str);
+    utf16 = (len >= 2 && s[0] == 0xFE && s[1] == 0xFF);
+    i = utf16 ? 2 : 0;
+
+    MemLock(OptrToHandle(@pdfDocEncodingHigh));
+    high = LMemDeref(@pdfDocEncodingHigh);
+    while (i < len && n + 1 < dstSize)
+    {
+        if (utf16)
+        {
+            if (i + 1 >= len)
+            {
+                break;
+            }
+            uni = ((word)s[i] << 8) | s[i + 1];
+            i += 2;
+            if (uni == 0x001B)
+            {
+                inEscape = !inEscape;
+                continue;
+            }
+            if (inEscape)
+            {
+                continue;
+            }
+            if (uni >= 0xD800 && uni <= 0xDBFF)
+            {
+                i += 2;         /* skip the low surrogate */
+                uni = '?';
+            }
+        }
+        else
+        {
+            uni = s[i++];
+            if (uni >= 0x18 && uni <= 0x1F)
+            {
+                uni = high[uni - 0x18];
+            }
+            else if (uni >= 0x80 && uni <= 0xA0)
+            {
+                uni = high[8 + uni - 0x80];
+            }
+        }
+
+        if (uni == '\t' || uni == '\r' || uni == '\n')
+        {
+            ch = ' ';
+        }
+        else if (uni < 0x20)
+        {
+            continue;
+        }
+        else if (uni < 0x7F)
+        {
+            ch = uni;
+        }
+        else
+        {
+            ch = GfxUnicodeToGeosChar(uni);
+            if (ch == 0)
+            {
+                ch = '?';
+            }
+        }
+        dst[n++] = (char)ch;
+    }
+    MemUnlock(OptrToHandle(@pdfDocEncodingHigh));
+    dst[n] = 0;
+    return n;
+}
