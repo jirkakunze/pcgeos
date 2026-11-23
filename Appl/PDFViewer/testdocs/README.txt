@@ -179,6 +179,18 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     erscheinen in einer mittleren Farbe des Verlaufs (keine echte
     Verlaufsfüllung für Text/Linien), danach wieder schwarzer Text.
 
+27_transparency.pdf
+    Weiche Masken, Transparenzgruppen und konstante Deckkraft, Referenz
+    pdftoppm. ca/CA wird in GEOS als Rastermaske gezeichnet (GEOS-
+    Zeichenmasken SDM_0..SDM_100): der Hintergrund scheint als
+    Punktraster durch, z. B. A1/A2 Gelb unter dem Blau, G1 Rot unter
+    dem Blau; A1 und A2 gleich, egal ob gs vor oder nach rg steht. A3
+    Grau, Rosa und eine gerasterte rote Linie. ExtGState-/SMask wird
+    ignoriert (M1 rote Fläche ohne Verblassen, M2 schwarzer Schatten
+    als volles Rechteck unter der Karte), M3 /SMask /None grün. I1 Bild
+    mit Alpha-/SMask wird echt maskiert. A4 und der Text am Ende müssen
+    wieder voll deckend sein.
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

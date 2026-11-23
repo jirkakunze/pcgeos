@@ -123,6 +123,9 @@ static void _near opSetFillColorSpace(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSetStrokeColorSpace(Gfx *gfx, Obj args[], int numArgs);
 static void GfxApplyColorArray(Gfx *gfx, GfxColorSpace *cs, short x[4],
     GBool stroke);
+static word GfxAlphaMask(gdouble alpha);
+static void GfxSetFillRGB(Gfx *gfx, sword r, sword g, sword b);
+static void GfxSetStrokeRGB(Gfx *gfx, sword r, sword g, sword b);
 static void GfxApplyColorN(Gfx *gfx, GfxColorSpace *cs, Obj args[],
     int numArgs, GBool stroke);
 static void _near opSetFillColor(Gfx *gfx, Obj args[], int numArgs);
@@ -1648,6 +1651,7 @@ static void _near opSetLineWidth(Gfx *gfx, Obj args[], int numArgs)
 static void _near opSetExtGState(Gfx *gfx, Obj args[], int numArgs)
 {
     Obj gsObj, fieldObj;
+    word mask;
 
     if (numArgs < 1 || !isName(&args[0]))
     {
@@ -1660,10 +1664,14 @@ static void _near opSetExtGState(Gfx *gfx, Obj args[], int numArgs)
         return;
     }
 
+    /* constant alpha: dither masks (GfxAlphaMask), saved with q/Q */
     DictLookup(getDict(&gsObj), "ca", &fieldObj, gfx->xref);
     if (isNum(&fieldObj))
     {
         gfx->state->fillAlpha = getNum(&fieldObj);
+        mask = GfxAlphaMask(gfx->state->fillAlpha);
+        GrSetAreaMaskSys(gfx->state->gstring, mask);
+        GrSetTextMaskSys(gfx->state->gstring, mask);
     }
     GfxObjFree(&fieldObj);
 
@@ -1671,6 +1679,8 @@ static void _near opSetExtGState(Gfx *gfx, Obj args[], int numArgs)
     if (isNum(&fieldObj))
     {
         gfx->state->strokeAlpha = getNum(&fieldObj);
+        GrSetLineMaskSys(gfx->state->gstring,
+            GfxAlphaMask(gfx->state->strokeAlpha));
     }
     GfxObjFree(&fieldObj);
 
@@ -1680,42 +1690,50 @@ static void _near opSetExtGState(Gfx *gfx, Obj args[], int numArgs)
 /* color operators */
 
 /***********************************************************************
- *      GfxBlendAlpha
+ *      GfxAlphaMask
  ***********************************************************************
- * SYNOPSIS:        Process gfx blend alpha.
- * PARAMETERS:      sword *r    r
- *                  sword *g    g
- *                  sword *b    b
- *                  gdouble alpha    alpha
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ * SYNOPSIS:        GEOS draw mask for a constant alpha (/ca, /CA).
+ * STRATEGY:        A GString can't blend with what is already drawn, so
+ *                  the alpha becomes a dither mask: SDM_0 .. SDM_100 are
+ *                  65 coverage steps, the background shows through the
+ *                  unset pixels (screen and printer alike).
  ***********************************************************************/
-static void GfxBlendAlpha(sword *r, sword *g, sword *b, gdouble alpha)
+static word GfxAlphaMask(gdouble alpha)
 {
-    word alphaByte;
-    word t;
+    sdword steps = (GrMulWWFixed(alpha, IntToGdouble(64)) + 0x8000L) >> 16;
 
-    alphaByte = GdoubleToWord(GrMulWWFixed(alpha, IntToGdouble(255)));
-    if (alphaByte >= 255)
+    if (steps < 0)
     {
-        return;
+        steps = 0;
     }
-    t = (word)* r *alphaByte;
-    *r = (sword)(((t + (t >> 8) + 1) >> 8) + 255 - alphaByte);
-    t = (word)* g *alphaByte;
-    *g = (sword)(((t + (t >> 8) + 1) >> 8) + 255 - alphaByte);
-    t = (word)* b *alphaByte;
-    *b = (sword)(((t + (t >> 8) + 1) >> 8) + 255 - alphaByte);
+    else if (steps > 64)
+    {
+        steps = 64;
+    }
+    return (word)(SDM_0 - (word)steps);
+}
+
+/***********************************************************************
+ *      GfxSetFillRGB / GfxSetStrokeRGB
+ ***********************************************************************
+ * SYNOPSIS:        Set the fill (area + text) or stroke color. The
+ *                  constant alpha is a draw mask (GfxAlphaMask), not
+ *                  part of the color.
+ ***********************************************************************/
+static void GfxSetFillRGB(Gfx *gfx, sword r, sword g, sword b)
+{
+    GfxState *state = gfx->state;
+
+    state->fillColor.r = r;
+    state->fillColor.g = g;
+    state->fillColor.b = b;
+    GrSetAreaColor(state->gstring, CF_RGB, r, g, b);
+    GrSetTextColor(state->gstring, CF_RGB, r, g, b);
+}
+
+static void GfxSetStrokeRGB(Gfx *gfx, sword r, sword g, sword b)
+{
+    GrSetLineColor(gfx->state->gstring, CF_RGB, r, g, b);
 }
 
 /***********************************************************************
@@ -1746,13 +1764,7 @@ static void _near opSetFillGray(Gfx *gfx, Obj args[], int numArgs)
     gfx->state->fillPattern[0] = '\0';
 
     r = g = b = GdoubleToWord(getNum(&args[0]) * 255);
-    GfxBlendAlpha(&r, &g, &b, gfx->state->fillAlpha);
-    gfx->state->fillColor.r = r;
-    gfx->state->fillColor.g = g;
-    gfx->state->fillColor.b = b;
-
-    GrSetAreaColor(gfx->state->gstring, CF_RGB, r, g, b);
-    GrSetTextColor(gfx->state->gstring, CF_RGB, r, g, b);
+    GfxSetFillRGB(gfx, r, g, b);
     (void)numArgs;
 }
 
@@ -1782,9 +1794,7 @@ static void _near opSetStrokeGray(Gfx *gfx, Obj args[], int numArgs)
     sword r, g, b;
 
     r = g = b = GdoubleToWord(getNum(&args[0]) * 255);
-    GfxBlendAlpha(&r, &g, &b, gfx->state->strokeAlpha);
-
-    GrSetLineColor(gfx->state->gstring, CF_RGB, r, g, b);
+    GfxSetStrokeRGB(gfx, r, g, b);
     (void)numArgs;
 }
 
@@ -1834,14 +1844,7 @@ static void _near opSetFillCMYKColor(Gfx *gfx, Obj args[], int numArgs)
         b = 0;
     }
 
-    GfxBlendAlpha(&r, &g, &b, gfx->state->fillAlpha);
-    gfx->state->fillColor.r = r;
-    gfx->state->fillColor.g = g;
-    gfx->state->fillColor.b = b;
-
-    GrSetAreaColor(gfx->state->gstring, CF_RGB, r, g, b);
-
-    GrSetTextColor(gfx->state->gstring, CF_RGB, r, g, b);
+    GfxSetFillRGB(gfx, r, g, b);
     (void)numArgs;
 }
 
@@ -1889,9 +1892,7 @@ static void _near opSetStrokeCMYKColor(Gfx *gfx, Obj args[], int numArgs)
         b = 0;
     }
 
-    GfxBlendAlpha(&r, &g, &b, gfx->state->strokeAlpha);
-
-    GrSetLineColor(gfx->state->gstring, CF_RGB, r, g, b);
+    GfxSetStrokeRGB(gfx, r, g, b);
     (void)numArgs;
 }
 
@@ -1925,13 +1926,7 @@ static void _near opSetFillRGBColor(Gfx *gfx, Obj args[], int numArgs)
     r = GdoubleToWord(getNum(&args[0]) * 255);
     g = GdoubleToWord(getNum(&args[1]) * 255);
     b = GdoubleToWord(getNum(&args[2]) * 255);
-    //GfxBlendAlpha(&r, &g, &b, gfx->state->fillAlpha);
-    gfx->state->fillColor.r = r;
-    gfx->state->fillColor.g = g;
-    gfx->state->fillColor.b = b;
-
-    GrSetAreaColor(gfx->state->gstring, CF_RGB, r, g, b);
-    GrSetTextColor(gfx->state->gstring, CF_RGB, r, g, b);
+    GfxSetFillRGB(gfx, r, g, b);
     (void)numArgs;
 }
 
@@ -1963,9 +1958,7 @@ static void _near opSetStrokeRGBColor(Gfx *gfx, Obj args[], int numArgs)
     r = GdoubleToWord(getNum(&args[0]) * 255);
     g = GdoubleToWord(getNum(&args[1]) * 255);
     b = GdoubleToWord(getNum(&args[2]) * 255);
-    GfxBlendAlpha(&r, &g, &b, gfx->state->strokeAlpha);
-
-    GrSetLineColor(gfx->state->gstring, CF_RGB, r, g, b);
+    GfxSetStrokeRGB(gfx, r, g, b);
     (void)numArgs;
 }
 
@@ -1994,24 +1987,15 @@ static void
 GfxApplyColorArray(Gfx *gfx, GfxColorSpace *cs, short x[4], GBool stroke)
 {
     GfxColor color;
-    sword r, g, b;
 
     GfxColorSpaceGetColor(cs, x, &color);
-    r = color.r; g = color.g; b = color.b;
-    GfxBlendAlpha(&r, &g, &b, stroke ? gfx->state->strokeAlpha
-        : gfx->state->fillAlpha);
-
     if (stroke)
     {
-        GrSetLineColor(gfx->state->gstring, CF_RGB, r, g, b);
+        GfxSetStrokeRGB(gfx, color.r, color.g, color.b);
     }
     else
     {
-        gfx->state->fillColor.r = r;
-        gfx->state->fillColor.g = g;
-        gfx->state->fillColor.b = b;
-        GrSetAreaColor(gfx->state->gstring, CF_RGB, r, g, b);
-        GrSetTextColor(gfx->state->gstring, CF_RGB, r, g, b);
+        GfxSetFillRGB(gfx, color.r, color.g, color.b);
     }
 }
 

@@ -323,7 +323,7 @@ typedef struct GfxState
 
     /*
      * Constant opacity from an ExtGState's /ca (fill) and /CA (stroke) -- see
-     * opSetExtGState and GfxBlendAlpha in main/gfx.goc.
+     * opSetExtGState and GfxAlphaMask in main/gfx.goc (dither masks).
      */
     gdouble fillAlpha;
     gdouble strokeAlpha;

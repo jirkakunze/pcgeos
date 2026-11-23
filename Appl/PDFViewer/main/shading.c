@@ -35,7 +35,7 @@
  *
  *      Colors: function (if any) -> components of the shading's color
  *      space -> RGB through GfxColorSpaceGetColor, like fills. Constant
- *      alpha (/ca) is blended against white like other fills.
+ *      alpha (/ca) is the gstate's draw mask, set by the caller.
  ***********************************************************************/
 
 #include <geos.h>
@@ -206,7 +206,6 @@ typedef struct
 
     GfxColor last;
     GBool haveLast;
-    gdouble fillAlpha;
 
     word segs;                  /* radial: segments per circle */
     gdouble cosTab[SH_MAX_SEGS + 1];
@@ -336,8 +335,7 @@ static void ShColor(ShCtx *c, const gdouble *in, GfxColor *col)
 {
     gdouble comps[FUNC_MAX_OUT];
     short x[4];
-    word i, alpha;
-    sword r, g, b;
+    word i;
     long v;
 
     if (c->nFuncs == 1)
@@ -374,18 +372,6 @@ static void ShColor(ShCtx *c, const gdouble *in, GfxColor *col)
         }
     }
     GfxColorSpaceGetColor(&c->cs, x, col);
-
-    /* constant alpha against white, like the other fills */
-    alpha = (word)((GrMulWWFixed(c->fillAlpha, FIX(255)) + FIX_HALF) >> 16);
-    if (alpha < 255)
-    {
-        r = col->r;
-        g = col->g;
-        b = col->b;
-        col->r = (short)(((word)r * alpha) / 255 + 255 - alpha);
-        col->g = (short)(((word)g * alpha) / 255 + 255 - alpha);
-        col->b = (short)(((word)b * alpha) / 255 + 255 - alpha);
-    }
 }
 
 static word ShColorDiff(const GfxColor *a, const GfxColor *b)
@@ -989,7 +975,6 @@ GBool ShadingDraw(Gfx *gfx, Obj *shading, const gdouble *toPage,
     c->gs = gfx->state->gstring;
     c->xref = gfx->xref;
     c->dict = dict;
-    c->fillAlpha = gfx->state->fillAlpha;
     memcpy(c->toPage, toPage, sizeof(c->toPage));
     memcpy(c->pageRegion, region, sizeof(c->pageRegion));
 
@@ -1089,7 +1074,6 @@ GBool ShadingGetMidColor(Gfx *gfx, Obj *shading, GfxColor *color)
     c->gfx = gfx;
     c->xref = gfx->xref;
     c->dict = dict;
-    c->fillAlpha = gfx->state->fillAlpha;
     if (ShInitColors(c) && c->nFuncs > 0)
     {
         if (FuncGetInputs(c->funcs[0]) == 2)
