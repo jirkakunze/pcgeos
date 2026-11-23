@@ -1681,6 +1681,28 @@ GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag)
     return NULL;
 }
 
+/***********************************************************************
+ *      GfxFontDictLookupRef
+ ***********************************************************************
+ * SYNOPSIS:        Font of the dictionary with the given object reference.
+ * RETURNS:         font or NULL
+ ***********************************************************************/
+
+GfxFont *GfxFontDictLookupRef(GfxFontDict *this, Ref ref)
+{
+    word i;
+
+    for (i = 0; i < this->numFonts; ++i)
+    {
+        if (this->fonts[i] && this->fonts[i]->id.num == ref.num &&
+            this->fonts[i]->id.gen == ref.gen)
+        {
+            return this->fonts[i];
+        }
+    }
+    return NULL;
+}
+
 GBool GfxFontMatches(GfxFont *this, char *tag1)
 { 
     return !GStrCmpString(&this->tag, tag1); 

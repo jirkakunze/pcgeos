@@ -486,7 +486,14 @@ typedef struct Gfx
     void *progressUserData;
     GBool *cancelFlag;
     word formDepth; /* current Form XObject nesting level */
+    void *pathBuf; /* stroke path buffer (GfxPathBuf, gfx.goc), lazily allocated */
 } Gfx;
+
+/* GfxPathBuf entry types */
+#define GFX_SEG_MOVE  0
+#define GFX_SEG_LINE  1
+#define GFX_SEG_CURVE 2
+#define GFX_SEG_CLOSE 3
 
 /* Built-in font table. */
 

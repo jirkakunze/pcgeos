@@ -113,6 +113,7 @@ static void _near opSetLineCap(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSetMiterLimit(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSetLineWidth(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSetExtGState(Gfx *gfx, Obj args[], int numArgs);
+static void _near GfxExtGStateLineParams(Gfx *gfx, Dict *gs);
 static void _near opSetFillGray(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSetStrokeGray(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSetFillCMYKColor(Gfx *gfx, Obj args[], int numArgs);
@@ -149,6 +150,11 @@ static void _near opCloseFillStroke(Gfx *gfx, Obj args[], int numArgs);
 static void _near opEOFillStroke(Gfx *gfx, Obj args[], int numArgs);
 static void _near opCloseEOFillStroke(Gfx *gfx, Obj args[], int numArgs);
 static GBool doEndPath(GfxState *state);
+static void GfxPathReset(Gfx *gfx);
+static void GfxPathAdd(Gfx *gfx, byte type, sword x, sword y);
+static void GfxPathAddCurve(Gfx *gfx, const Point *p);
+static void GfxPathClose(Gfx *gfx);
+static void GfxStrokePath(Gfx *gfx);
 static void GfxUpdatePathBounds(GfxState *state, gdouble x, gdouble y);
 static GBool GfxFillWithMinThickness(Gfx *gfx, RegionFillRule rule);
 static void GfxFillPath(Gfx *gfx, RegionFillRule rule);
@@ -519,6 +525,7 @@ void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
     this->progressUserData = NULL;
     this->cancelFlag = NULL;
     this->formDepth = 0;
+    this->pathBuf = NULL;
 
 }
 
@@ -557,6 +564,8 @@ void GfxFree(Gfx *this)
         GfxStateFree(this->state);
         gfree(this->state);
     }
+    gfree(this->pathBuf);
+    this->pathBuf = NULL;
     /* An active parser here is an internal lifetime error. */
     EC_ERROR_IF(this->parser != NULL, -1);
 }
@@ -1684,7 +1693,111 @@ static void _near opSetExtGState(Gfx *gfx, Obj args[], int numArgs)
     }
     GfxObjFree(&fieldObj);
 
+    GfxExtGStateLineParams(gfx, getDict(&gsObj));
+
     GfxObjFree(&gsObj);
+}
+
+/***********************************************************************
+ *      GfxExtGStateLineParams
+ ***********************************************************************
+ * SYNOPSIS:        Line and font parameters of an ExtGState dictionary.
+ * PARAMETERS:      Gfx *gfx    graphics context
+ *                  Dict *gs    ExtGState dictionary
+ *
+ * STRATEGY:        /LW, /LC, /LJ, /ML, /D and /Font go through the same
+ *                  operator functions as w, J, j, M, d and Tf. /LW comes
+ *                  before /D (dash lengths are scaled by the line width).
+ *                  /Font names a font dictionary by reference; only fonts
+ *                  that are also in a /Font resource are found.
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/23/26    Initial version (C1)
+ *
+ ***********************************************************************/
+static void _near GfxExtGStateLineParams(Gfx *gfx, Dict *gs)
+{
+    Obj fieldObj;
+    Obj args[2];
+    GfxResources *resPtr;
+    GfxFont *font;
+
+    DictLookup(gs, "LW", &fieldObj, gfx->xref);
+    if (isNum(&fieldObj))
+    {
+        opSetLineWidth(gfx, &fieldObj, 1);
+    }
+    GfxObjFree(&fieldObj);
+
+    DictLookup(gs, "LC", &fieldObj, gfx->xref);
+    if (isInt(&fieldObj) && getInt(&fieldObj) >= 0 && getInt(&fieldObj) <= 2)
+    {
+        opSetLineCap(gfx, &fieldObj, 1);
+    }
+    GfxObjFree(&fieldObj);
+
+    DictLookup(gs, "LJ", &fieldObj, gfx->xref);
+    if (isInt(&fieldObj) && getInt(&fieldObj) >= 0 && getInt(&fieldObj) <= 2)
+    {
+        opSetLineJoin(gfx, &fieldObj, 1);
+    }
+    GfxObjFree(&fieldObj);
+
+    DictLookup(gs, "ML", &fieldObj, gfx->xref);
+    if (isNum(&fieldObj))
+    {
+        opSetMiterLimit(gfx, &fieldObj, 1);
+    }
+    GfxObjFree(&fieldObj);
+
+    /* /D [dashArray dashPhase] */
+    DictLookup(gs, "D", &fieldObj, gfx->xref);
+    if (isArray(&fieldObj) && ObjArrayGetLength(&fieldObj) == 2)
+    {
+        ObjArrayGet(&fieldObj, 0, &args[0], gfx->xref);
+        ObjArrayGet(&fieldObj, 1, &args[1], gfx->xref);
+        if (isArray(&args[0]) && isNum(&args[1]))
+        {
+            opSetDash(gfx, args, 2);
+        }
+        GfxObjFree(&args[0]);
+        GfxObjFree(&args[1]);
+    }
+    GfxObjFree(&fieldObj);
+
+    /* /Font [fontRef size] */
+    DictLookup(gs, "Font", &fieldObj, gfx->xref);
+    if (isArray(&fieldObj) && ObjArrayGetLength(&fieldObj) == 2)
+    {
+        ObjArrayGetNF(&fieldObj, 0, &args[0]);
+        ObjArrayGet(&fieldObj, 1, &args[1], gfx->xref);
+        if (isRef(&args[0]) && isNum(&args[1]))
+        {
+            font = NULL;
+            for (resPtr = gfx->res; resPtr && !font; resPtr = resPtr->next)
+            {
+                if (resPtr->fonts)
+                {
+                    font = GfxFontDictLookupRef(resPtr->fonts,
+                        getRef(&args[0]));
+                }
+            }
+            if (font)
+            {
+                GfxStateSetFont(gfx->state, font, getNum(&args[1]));
+                gfx->fontChanged = gTrue;
+            }
+            else
+            {
+                EC_WARNING(-1);
+            }
+        }
+        GfxObjFree(&args[0]);
+        GfxObjFree(&args[1]);
+    }
+    GfxObjFree(&fieldObj);
 }
 
 /* color operators */
@@ -2496,11 +2609,13 @@ static void _near opMoveTo(Gfx *gfx, Obj args[], int numArgs)
         GrBeginPath(gstring, PCT_REPLACE); /* new path */
         gfx->state->pathType = PATH_NORMAL;
         gfx->state->pathRawBoundsValid = gFalse;
+        GfxPathReset(gfx);
     }
     GfxUpdatePathBounds(gfx->state, x, y);
     gfx->state->pathSubpathStartX = pathX;
     gfx->state->pathSubpathStartY = pathY;
     gfx->state->pathSubpathStartValid = gTrue;
+    GfxPathAdd(gfx, GFX_SEG_MOVE, pathX, pathY);
     GrMoveTo(gstring, pathX, pathY);
     GrDrawLineTo(gstring, pathX, pathY);
     (void)numArgs;
@@ -2534,6 +2649,8 @@ static void _near opLineTo(Gfx *gfx, Obj args[], int numArgs)
     x = getNum(&args[0]);
     y = getNum(&args[1]);
     GfxUpdatePathBounds(gfx->state, x, y);
+    GfxPathAdd(gfx, GFX_SEG_LINE, GdoubleToWordRounded(x),
+        GdoubleToWordRounded(y));
     GrDrawLineTo(gfx->state->gstring,
         GdoubleToWordRounded(x),
         GdoubleToWordRounded(y));
@@ -2577,6 +2694,7 @@ static void _near opCurveTo(Gfx *gfx, Obj args[], int numArgs)
     GfxUpdatePathBounds(gfx->state, getNum(&args[2]), getNum(&args[3]));
     GfxUpdatePathBounds(gfx->state, getNum(&args[4]), getNum(&args[5]));
 
+    GfxPathAddCurve(gfx, p);
     GrDrawCurveTo(gstring, p);
     (void)numArgs;
 }
@@ -2621,6 +2739,7 @@ static void _near opCurveTo1(Gfx *gfx, Obj args[], int numArgs)
     GfxUpdatePathBounds(gfx->state, getNum(&args[0]), getNum(&args[1]));
     GfxUpdatePathBounds(gfx->state, getNum(&args[2]), getNum(&args[3]));
 
+    GfxPathAddCurve(gfx, p);
     GrDrawCurveTo(gstring, p);
     (void)numArgs;
 }
@@ -2659,6 +2778,7 @@ static void _near opCurveTo2(Gfx *gfx, Obj args[], int numArgs)
     GfxUpdatePathBounds(gfx->state, getNum(&args[0]), getNum(&args[1]));
     GfxUpdatePathBounds(gfx->state, getNum(&args[2]), getNum(&args[3]));
 
+    GfxPathAddCurve(gfx, p);
     GrDrawCurveTo(gstring, p);
     (void)numArgs;
 }
@@ -2700,6 +2820,7 @@ static void _near opRectangle(Gfx *gfx, Obj args[], int numArgs)
         GrBeginPath(gstring, PCT_REPLACE); /* new path */
         gfx->state->pathType = PATH_NORMAL;
         gfx->state->pathRawBoundsValid = gFalse;
+        GfxPathReset(gfx);
     }
 
     GfxUpdatePathBounds(gfx->state, x0, y0);
@@ -2709,6 +2830,13 @@ static void _near opRectangle(Gfx *gfx, Obj args[], int numArgs)
     y = GdoubleToWordRounded(y0);
     x2 = x + GdoubleToWordRounded(w0);
     y2 = y + GdoubleToWordRounded(h0);
+
+    /* stroke outline: exact corners, closed (joins at all corners) */
+    GfxPathAdd(gfx, GFX_SEG_MOVE, x, y);
+    GfxPathAdd(gfx, GFX_SEG_LINE, x2, y);
+    GfxPathAdd(gfx, GFX_SEG_LINE, x2, y2);
+    GfxPathAdd(gfx, GFX_SEG_LINE, x, y2);
+    GfxPathAdd(gfx, GFX_SEG_CLOSE, x, y);
 
     if (w0 > 0)
     {
@@ -2757,13 +2885,7 @@ static void _near opRectangle(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opClosePath(Gfx *gfx, Obj args[], int numArgs)
 {
-    if (gfx->state->pathSubpathStartValid)
-    {
-        GrDrawLineTo(gfx->state->gstring,
-            gfx->state->pathSubpathStartX,
-            gfx->state->pathSubpathStartY);
-        GrCloseSubPath(gfx->state->gstring);
-    }
+    GfxPathClose(gfx);
     (void)args;
     (void)numArgs;
 }
@@ -2823,7 +2945,7 @@ static void _near opStroke(Gfx *gfx, Obj args[], int numArgs)
 {
     if (doEndPath(gfx->state))
     {
-        GrDrawPath(gfx->state->gstring);
+        GfxStrokePath(gfx);
     }
     (void)args;
     (void)numArgs;
@@ -2852,17 +2974,10 @@ static void _near opStroke(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opCloseStroke(Gfx *gfx, Obj args[], int numArgs)
 {
-    Handle gstring = gfx->state->gstring;
-
-    if (gfx->state->pathSubpathStartValid)
-    {
-        GrDrawLineTo(gstring, gfx->state->pathSubpathStartX,
-            gfx->state->pathSubpathStartY);
-        GrCloseSubPath(gstring);
-    }
+    GfxPathClose(gfx);
     if (doEndPath(gfx->state))
     {
-        GrDrawPath(gstring);
+        GfxStrokePath(gfx);
     }
     (void)args;
     (void)numArgs;
@@ -3184,7 +3299,7 @@ static void _near opFillStroke(Gfx *gfx, Obj args[], int numArgs)
     if (doEndPath(gfx->state))
     {
         GfxFillPath(gfx, WINDING);
-        GrDrawPath(gfx->state->gstring);
+        GfxStrokePath(gfx);
     }
     (void)args;
     (void)numArgs;
@@ -3213,18 +3328,11 @@ static void _near opFillStroke(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opCloseFillStroke(Gfx *gfx, Obj args[], int numArgs)
 {
-    Handle gstring = gfx->state->gstring;
-
-    if (gfx->state->pathSubpathStartValid)
-    {
-        GrDrawLineTo(gstring, gfx->state->pathSubpathStartX,
-            gfx->state->pathSubpathStartY);
-        GrCloseSubPath(gstring);
-    }
+    GfxPathClose(gfx);
     if (doEndPath(gfx->state))
     {
         GfxFillPath(gfx, WINDING);
-        GrDrawPath(gstring);
+        GfxStrokePath(gfx);
     }
     (void)numArgs;
     (void)args;
@@ -3253,12 +3361,10 @@ static void _near opCloseFillStroke(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opEOFillStroke(Gfx *gfx, Obj args[], int numArgs)
 {
-    Handle gstring = gfx->state->gstring;
-
     if (doEndPath(gfx->state))
     {
         GfxFillPath(gfx, ODD_EVEN);
-        GrDrawPath(gstring);
+        GfxStrokePath(gfx);
     }
     (void)args;
     (void)numArgs;
@@ -3287,18 +3393,11 @@ static void _near opEOFillStroke(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opCloseEOFillStroke(Gfx *gfx, Obj args[], int numArgs)
 {
-    Handle gstring = gfx->state->gstring;
-
-    if (gfx->state->pathSubpathStartValid)
-    {
-        GrDrawLineTo(gstring, gfx->state->pathSubpathStartX,
-            gfx->state->pathSubpathStartY);
-        GrCloseSubPath(gstring);
-    }
+    GfxPathClose(gfx);
     if (doEndPath(gfx->state))
     {
         GfxFillPath(gfx, ODD_EVEN);
-        GrDrawPath(gstring);
+        GfxStrokePath(gfx);
     }
     (void)args;
     (void)numArgs;
@@ -4414,7 +4513,7 @@ static void doShowText(Gfx *gfx, GooString *s)
         }
         if (render == 1 || render == 2 || render == 5 || render == 6)
         {
-            GrDrawPath(gstring);
+            GrDrawPath(gstring);    /* text outline: kernel path only */
         }
         if (render >= 4)
         {
@@ -6612,3 +6711,197 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     }
 }
 
+
+
+/*
+ * Stroking (C1b). GrDrawPath strokes every path element on its own
+ * (kernel StrokePath), so line joins and the miter limit never apply
+ * between two lineto segments, and a polyline in a kernel path would be
+ * closed automatically by the next moveto. The fill/clip path is still
+ * built in the kernel; for stroking the segments are also recorded here
+ * and drawn directly: runs of lines as one polyline, closed subpaths of
+ * lines as a polygon, curves as GrDrawCurve. If the buffer overflows,
+ * GrDrawPath strokes as before.
+ */
+#pragma code_seg("GFXPath")
+
+#define GFX_PATH_MAX 256
+
+typedef struct
+{
+    word count;
+    GBool overflow;
+    Point pts[GFX_PATH_MAX];
+    byte types[GFX_PATH_MAX];
+} GfxPathBuf;
+
+/***********************************************************************
+ *      GfxPathReset
+ ***********************************************************************
+ * SYNOPSIS:        Start recording a new path (allocated on first use).
+ ***********************************************************************/
+static void GfxPathReset(Gfx *gfx)
+{
+    GfxPathBuf *buf = (GfxPathBuf *)gfx->pathBuf;
+
+    if (!buf)
+    {
+        buf = gmalloc(sizeof(GfxPathBuf));
+        gfx->pathBuf = buf;
+        if (!buf)
+        {
+            return;             /* GfxStrokePath falls back */
+        }
+    }
+    buf->count = 0;
+    buf->overflow = gFalse;
+}
+
+/***********************************************************************
+ *      GfxPathAdd
+ ***********************************************************************
+ * SYNOPSIS:        Record one point of the current path.
+ ***********************************************************************/
+static void GfxPathAdd(Gfx *gfx, byte type, sword x, sword y)
+{
+    GfxPathBuf *buf = (GfxPathBuf *)gfx->pathBuf;
+
+    if (!buf || buf->overflow)
+    {
+        return;
+    }
+    if (buf->count >= GFX_PATH_MAX)
+    {
+        buf->overflow = gTrue;
+        return;
+    }
+    buf->pts[buf->count].P_x = x;
+    buf->pts[buf->count].P_y = y;
+    buf->types[buf->count] = type;
+    ++buf->count;
+}
+
+/***********************************************************************
+ *      GfxPathAddCurve
+ ***********************************************************************
+ * SYNOPSIS:        Record a Bezier segment (two control points + end).
+ ***********************************************************************/
+static void GfxPathAddCurve(Gfx *gfx, const Point *p)
+{
+    GfxPathAdd(gfx, GFX_SEG_CURVE, p[0].P_x, p[0].P_y);
+    GfxPathAdd(gfx, GFX_SEG_CURVE, p[1].P_x, p[1].P_y);
+    GfxPathAdd(gfx, GFX_SEG_CURVE, p[2].P_x, p[2].P_y);
+}
+
+/***********************************************************************
+ *      GfxPathClose
+ ***********************************************************************
+ * SYNOPSIS:        Close the current subpath (h and the closing paint
+ *                  operators): closing line in the kernel path, close
+ *                  mark in the stroke buffer.
+ ***********************************************************************/
+static void GfxPathClose(Gfx *gfx)
+{
+    GfxState *state = gfx->state;
+
+    if (state->pathSubpathStartValid)
+    {
+        GrDrawLineTo(state->gstring, state->pathSubpathStartX,
+            state->pathSubpathStartY);
+        GrCloseSubPath(state->gstring);
+        GfxPathAdd(gfx, GFX_SEG_CLOSE, state->pathSubpathStartX,
+            state->pathSubpathStartY);
+    }
+}
+
+/***********************************************************************
+ *      GfxStrokePath
+ ***********************************************************************
+ * SYNOPSIS:        Stroke the current path (after doEndPath).
+ *
+ * STRATEGY:        A subpath starts at a MOVE or CLOSE entry (after h the
+ *                  current point is the subpath start) and runs to the
+ *                  next MOVE/CLOSE. Lines-only and closed: polygon (joins
+ *                  at every corner). Otherwise runs of lines as polylines,
+ *                  curves as GrDrawCurve (no join between a curve and a
+ *                  line), closing line separately.
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/23/26    Initial version (C1b)
+ *
+ ***********************************************************************/
+static void GfxStrokePath(Gfx *gfx)
+{
+    GfxPathBuf *buf = (GfxPathBuf *)gfx->pathBuf;
+    Handle gstring = gfx->state->gstring;
+    word i, j, k, m, n;
+    GBool closed, allLines;
+    Point *pts;
+
+    if (!buf || buf->overflow || buf->count == 0)
+    {
+        GrDrawPath(gstring);
+        return;
+    }
+    pts = buf->pts;
+
+    i = 0;
+    while (i < buf->count)
+    {
+        /* subpath: anchor i, segments i+1 .. j-1 */
+        allLines = gTrue;
+        for (j = i + 1; j < buf->count && buf->types[j] != GFX_SEG_MOVE &&
+            buf->types[j] != GFX_SEG_CLOSE; ++j)
+        {
+            if (buf->types[j] == GFX_SEG_CURVE)
+            {
+                allLines = gFalse;
+            }
+        }
+        closed = (j < buf->count && buf->types[j] == GFX_SEG_CLOSE);
+        n = j - i;                      /* points including the anchor */
+
+        if (closed && allLines && n >= 3)
+        {
+            if (pts[j - 1].P_x == pts[i].P_x && pts[j - 1].P_y == pts[i].P_y)
+            {
+                --n;                    /* explicit line back to start */
+            }
+            GrDrawPolygon(gstring, &pts[i], n);
+        }
+        else if (n >= 2)
+        {
+            k = i;
+            while (k + 1 < j)
+            {
+                if (buf->types[k + 1] == GFX_SEG_LINE)
+                {
+                    for (m = k + 1; m + 1 < j &&
+                        buf->types[m + 1] == GFX_SEG_LINE; ++m)
+                    {
+                    }
+                    GrDrawPolyline(gstring, &pts[k], m - k + 1);
+                    k = m;
+                }
+                else if (k + 3 < j)
+                {
+                    GrDrawCurve(gstring, &pts[k]);
+                    k += 3;
+                }
+                else
+                {
+                    break;              /* incomplete curve */
+                }
+            }
+            if (closed && (pts[j - 1].P_x != pts[i].P_x ||
+                pts[j - 1].P_y != pts[i].P_y))
+            {
+                GrDrawLine(gstring, pts[j - 1].P_x, pts[j - 1].P_y,
+                    pts[i].P_x, pts[i].P_y);
+            }
+        }
+        i = j;                  /* CLOSE entry anchors the next subpath */
+    }
+}

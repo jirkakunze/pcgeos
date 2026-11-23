@@ -104,6 +104,10 @@ void GfxFontDictFree(GfxFontDict *this);
 extern
 GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag);
 
+/* Look up by object reference (ExtGState /Font). */
+extern
+GfxFont *GfxFontDictLookupRef(GfxFontDict *this, Ref ref);
+
 /* Process gfx font matches. */
 extern
 GBool GfxFontMatches(GfxFont *this, char *tag1);

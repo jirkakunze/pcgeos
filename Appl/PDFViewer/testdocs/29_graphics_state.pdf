@@ -1,0 +1,100 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [8 0 R 10 0 R] /Count 2 >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>
+endobj
+7 0 obj
+<< /Length 1765 >>
+stream
+BT /F1 16 Tf 72 750 Td (29 Seite 1: ExtGState-Linienparameter (C1)) Tj ET
+BT /F1 10 Tf 72 730 Td (Links Operatoren, rechts dasselbe ueber gs - beide Spalten muessen gleich aussehen.) Tj ET
+BT /F1 10 Tf 110 705 Td (Operator) Tj ET
+BT /F1 10 Tf 370 705 Td (ExtGState) Tj ET
+BT /F1 9 Tf 72 682 Td (LW 8) Tj ET
+q 8 w 0 0 0.6 RG 100 670 m 250 670 l S Q
+q 3 w /GLW gs 0 0 0.6 RG 360 670 m 510 670 l S Q
+BT /F1 9 Tf 72 637 Td (LC 1 rund) Tj ET
+q 12 w 1 J 0 0 0.6 RG 100 625 m 250 625 l S Q
+q 3 w /GLC gs 0 0 0.6 RG 360 625 m 510 625 l S Q
+BT /F1 9 Tf 72 592 Td (LC 2 eckig) Tj ET
+q 12 w 2 J 0 0 0.6 RG 100 580 m 250 580 l S Q
+q 3 w /GLC2 gs 0 0 0.6 RG 360 580 m 510 580 l S Q
+BT /F1 9 Tf 72 547 Td (D [12 6] 0) Tj ET
+q 3 w [12 6] 0 d 0 0 0.6 RG 100 535 m 250 535 l S Q
+q 3 w /GD gs 0 0 0.6 RG 360 535 m 510 535 l S Q
+BT /F1 9 Tf 72 502 Td (D [2 4] 3) Tj ET
+q 3 w [2 4] 3 d 0 0 0.6 RG 100 490 m 250 490 l S Q
+q 3 w /GD2 gs 0 0 0.6 RG 360 490 m 510 490 l S Q
+BT /F1 9 Tf 72 467 Td (LJ 0 Gehrung) Tj ET
+q 10 w 0 j 0.6 0 0 RG 110 435 m 150 460 l 190 435 l S Q
+q /GLJ0 gs 0.6 0 0 RG 370 435 m 410 460 l 450 435 l S Q
+BT /F1 9 Tf 72 412 Td (LJ 1 rund) Tj ET
+q 10 w 1 j 0.6 0 0 RG 110 380 m 150 405 l 190 380 l S Q
+q /GLJ1 gs 0.6 0 0 RG 370 380 m 410 405 l 450 380 l S Q
+BT /F1 9 Tf 72 357 Td (LJ 2 abgeschraegt) Tj ET
+q 10 w 2 j 0.6 0 0 RG 110 325 m 150 350 l 190 325 l S Q
+q /GLJ2 gs 0.6 0 0 RG 370 325 m 410 350 l 450 325 l S Q
+BT /F1 9 Tf 72 302 Td (ML 1 (Gehrung->Fase)) Tj ET
+q 10 w 0 j 1 M 0.6 0 0 RG 110 270 m 150 295 l 190 270 l S Q
+q /GML gs 0.6 0 0 RG 370 270 m 410 295 l 450 270 l S Q
+BT /F1 9 Tf 72 225 Td (Font: links Tf, rechts /Font [ref 18] aus gs (Times fett, 18 pt)) Tj ET
+BT /F2 18 Tf 100 197 Td (Schrift Tf) Tj ET
+q /GF gs BT 360 197 Td (Schrift gs) Tj ET Q
+
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> >> >>
+endobj
+9 0 obj
+<< /Length 1150 >>
+stream
+BT /F1 16 Tf 72 750 Td (29 Seite 2: Pfade zeichnen (C1b)) Tj ET
+BT /F1 10 Tf 72 730 Td (Ecken muessen der Eckform folgen; kein Stummel am Pfadanfang; keine Linie zurueck zum Start.) Tj ET
+BT /F1 9 Tf 72 690 Td (Dreieck geschlossen (h), 12 w, 0 j / 1 j / 2 j) Tj ET
+q 12 w 0 j 0 0 0.6 RG 100 620 m 200 620 l 150 675 l h S Q
+q 12 w 1 j 0 0 0.6 RG 250 620 m 350 620 l 300 675 l h S Q
+q 12 w 2 j 0 0 0.6 RG 400 620 m 500 620 l 450 675 l h S Q
+BT /F1 9 Tf 72 580 Td (Rechteck re, 10 w, 0 j / 1 j / 2 j) Tj ET
+q 10 w 0 j 0.6 0 0 RG 100 510 90 50 re S Q
+q 10 w 1 j 0.6 0 0 RG 250 510 90 50 re S Q
+q 10 w 2 j 0.6 0 0 RG 400 510 90 50 re S Q
+BT /F1 9 Tf 72 470 Td (Zwei offene Teilpfade in einem Pfad (keine Verbindungslinie), 8 w 1 j) Tj ET
+q 8 w 1 j 0 0.5 0 RG 100 410 m 140 455 l 180 410 l 300 410 m 340 455 l 380 410 l S Q
+BT /F1 9 Tf 72 370 Td (Kurve + Gerade (Ecke zwischen Kurve und Gerade bleibt ohne Eckform), 8 w) Tj ET
+q 8 w 0 j 0 0 0 RG 100 310 m 140 360 200 360 240 310 c 300 350 l S Q
+BT /F1 9 Tf 72 270 Td (Fuellen + Linie (B), gestrichelt [10 5], 6 w 0 j) Tj ET
+q 6 w 0 j [10 5] 0 d 0.8 0.8 1 rg 0 0 0.6 RG 100 190 m 200 190 l 150 255 l h B Q
+
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 9 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ExtGState << /GLW << /LW 8 >> /GLC << /LW 12 /LC 1 >> /GLC2 << /LW 12 /LC 2 >> /GD << /LW 3 /D [[12 6] 0] >> /GD2 << /LW 3 /D [[2 4] 3] >> /GLJ0 << /LW 10 /LJ 0 >> /GLJ1 << /LW 10 /LJ 1 >> /GLJ2 << /LW 10 /LJ 2 >> /GML << /LW 10 /LJ 0 /ML 1 >> /GF << /Font [6 0 R 18] >> >> >> >>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000128 00000 n 
+0000000198 00000 n 
+0000000269 00000 n 
+0000002086 00000 n 
+0000002497 00000 n 
+0000003699 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+4111
+%%EOF

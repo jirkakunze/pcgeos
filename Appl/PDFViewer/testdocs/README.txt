@@ -240,6 +240,20 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     28e RC4-128-verschlüsselt (leeres Benutzerpasswort): gleiche Anzeige,
     die Info-Strings werden entschlüsselt.
 
+29_graphics_state.pdf
+    Grafikzustand, Bilder und Farben (Phase C), Referenz pdftoppm.
+    Seite 1 (C1): ExtGState-Linienparameter. Links mit Operatoren
+    (w, J, j, M, d, Tf), rechts dasselbe über gs mit /LW, /LC, /LJ,
+    /ML, /D, /Font - beide Spalten müssen gleich aussehen (Strich-
+    muster [2 4] 3 bei kleiner Auflösung leicht abweichend); Ecken
+    folgen der Eckform, "ML 1" ist abgeschrägt, kein Stummel am
+    Pfadanfang.
+    Seite 2 (C1b): Pfade zeichnen - geschlossenes Dreieck und Rechteck
+    (re) mit Gehrung/rund/abgeschrägt an allen Ecken, zwei offene
+    Teilpfade in einem Pfad ohne Verbindungslinie, Kurve + Gerade (dort
+    keine Eckform), gefülltes Dreieck mit gestrichelter Kontur (B).
+    Generator mk29.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.
