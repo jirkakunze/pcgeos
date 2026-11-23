@@ -136,6 +136,8 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
     xref->size = 0;
     xref->entries = NULL;
     xref->fHan = fileHan;
+    /* GEOS reuses file handles: drop data cached for an earlier file. */
+    FStreamInvalidateReadCache(fileHan);
 
     /*
      * Own scratch VM file for `entries`, separate from PdfDocInternal's
@@ -281,6 +283,7 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
 
 void XRefFree(XRef *xref)
 {
+    FStreamInvalidateReadCache(xref->fHan);
 
     if (xref->entries)
     {

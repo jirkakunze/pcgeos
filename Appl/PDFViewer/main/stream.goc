@@ -2079,8 +2079,10 @@ void ObjStmCacheStreamSetPos(Stream *str, long pos)
 /* Shared file read cache (OPT-17) */
 
 /*
- * No cache data is locked and the working set is constant. The cache is
- * nevertheless keyed by FileHandle and is explicitly invalidated by XRefFree().
+ * Keyed by FileHandle. GEOS reuses file handles, so XRefInit() and XRefFree()
+ * invalidate the cache for their file. The buffer is a movable block that is
+ * allocated on the first miss, locked only while copying and freed on
+ * invalidation (no 2 KB in dgroup).
  */
 #define fStreamSharedCacheSize 2048
 
@@ -2088,16 +2090,16 @@ typedef struct FStreamSharedCache {
     FileHandle file;
     long pos;
     word count;
-    Guchar buf[fStreamSharedCacheSize];
+    MemHandle buf;
 } FStreamSharedCache;
 
-static FStreamSharedCache fStreamSharedCache = { 0, 0, 0 };
+static FStreamSharedCache fStreamSharedCache = { 0, 0, 0, NullHandle };
 
 /***********************************************************************
  *      FStreamInvalidateReadCache
  ***********************************************************************
- * SYNOPSIS:        Read cache.
- * PARAMETERS:      FileHandle file    file
+ * SYNOPSIS:        Forget cached data of a file and free the buffer.
+ * PARAMETERS:      FileHandle file    file (0 = any file)
  *
  * RETURNS:         void
  *
@@ -2119,6 +2121,11 @@ void FStreamInvalidateReadCache(FileHandle file)
         fStreamSharedCache.file = 0;
         fStreamSharedCache.pos = 0;
         fStreamSharedCache.count = 0;
+        if (fStreamSharedCache.buf)
+        {
+            MemFree(fStreamSharedCache.buf);
+            fStreamSharedCache.buf = NullHandle;
+        }
     }
 }
 
@@ -2150,6 +2157,7 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
     word offset;
     word avail;
     word readCount;
+    Guchar *buf;
 
     if (!n)
     {
@@ -2157,22 +2165,36 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
     }
 
     cacheEnd = fStreamSharedCache.pos + (long)fStreamSharedCache.count;
-    if (fStreamSharedCache.file == file &&
+    if (fStreamSharedCache.buf && fStreamSharedCache.file == file &&
         pos >= fStreamSharedCache.pos && pos < cacheEnd)
     {
         offset = (word)(pos - fStreamSharedCache.pos);
         avail = fStreamSharedCache.count - offset;
         if (avail >= n)
         {
-            memcpy(dst, fStreamSharedCache.buf + offset, n);
+            buf = MemLock(fStreamSharedCache.buf);
+            memcpy(dst, buf + offset, n);
+            MemUnlock(fStreamSharedCache.buf);
             return n;
         }
     }
 
     /* Cache miss. */
     FilePos(file, pos, FILE_POS_START);
-    readCount = FileRead(file, fStreamSharedCache.buf,
-        sizeof(fStreamSharedCache.buf), FALSE);
+    if (!fStreamSharedCache.buf)
+    {
+        fStreamSharedCache.buf = MemAlloc(fStreamSharedCacheSize,
+            HF_SWAPABLE, 0);
+    }
+    if (!fStreamSharedCache.buf)
+    {
+        /* no memory for the cache: read directly */
+        fStreamSharedCache.file = 0;
+        fStreamSharedCache.count = 0;
+        return FileRead(file, dst, n, FALSE);
+    }
+    buf = MemLock(fStreamSharedCache.buf);
+    readCount = FileRead(file, buf, fStreamSharedCacheSize, FALSE);
     fStreamSharedCache.file = file;
     fStreamSharedCache.pos = pos;
     fStreamSharedCache.count = readCount;
@@ -2183,8 +2205,9 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
     }
     if (readCount)
     {
-        memcpy(dst, fStreamSharedCache.buf, readCount);
+        memcpy(dst, buf, readCount);
     }
+    MemUnlock(fStreamSharedCache.buf);
     return readCount;
 }
 
