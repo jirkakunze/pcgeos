@@ -1981,6 +1981,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     ++pself->PDFDoc_pageNum;
     pself->PDFDoc_cancelledPage = 0;
     view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
+    pself = ObjDerefGen(oself);	/* the call may move our block */
     if (pself->GDI_display & 0xff00) {
 	view = (view & 0xffff) | ((long)pself->GDI_display << 16);
     }
@@ -2030,6 +2031,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     --pself->PDFDoc_pageNum;
     pself->PDFDoc_cancelledPage = 0;
     view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
+    pself = ObjDerefGen(oself);	/* the call may move our block */
     if (pself->GDI_display & 0xff00) {
 	view = (view & 0xffff) | ((long)pself->GDI_display << 16);
     }
@@ -2167,6 +2169,9 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 
 /* verify page is in range */
 
+    if (numPages == 0) {
+	return;		/* no document: nothing to show */
+    }
     if (page < 1) page = 1;
     if (page > numPages) page = numPages;
 
@@ -2178,6 +2183,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 /* redraw view */
 
     view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
+    pself = ObjDerefGen(oself);	/* the call may move our block */
     if (pself->GDI_display & 0xff00) {
 	view = (view & 0xffff) | ((long)pself->GDI_display << 16);
     }
@@ -2219,6 +2225,11 @@ PDFUpdatePageControl (word totalPages, word curPage)
     MemHandle mh;
     NotifyPageStateChange *pageState;
     EventHandle pageNotify;
+
+    /* no pages (document closed or failed): a range 1..0 is invalid */
+    if (totalPages == 0) {
+	return;
+    }
 
 
     mh = MemAlloc(sizeof(NotifyPageStateChange),
