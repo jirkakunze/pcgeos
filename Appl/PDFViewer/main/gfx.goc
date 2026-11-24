@@ -6313,6 +6313,13 @@ static void GfxImageMaskStream(Gfx *gfx, Obj *maskObj, GfxImageMask *m)
     ObjFree(&obj1);
 
     m->str = getStream(maskObj);
+    if (m->str->kind == strDCT)
+    {
+        /* JPEG soft mask: decoded at reduced size like any JPEG (H2) */
+        val = DCTStreamScaleFor(m->width, m->height);
+        m->width = (word)(((dword)m->width + val - 1) / val);
+        m->height = (word)(((dword)m->height + val - 1) / val);
+    }
     if (!StreamResetImage(m->str, m->width, 1, m->bits))
     {
         m->str = NULL;
@@ -6666,6 +6673,21 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
 
     nComps = GfxImageColorMapGetNumPixelComps(colorMap);
     nBits = GfxImageColorMapGetBits(colorMap);
+
+    /*
+     * Large JPEGs are decoded at reduced size (H2): read the image with
+     * the same reduced width and height the decoder delivers.
+     */
+    if (str->kind == strDCT)
+    {
+        k = (short)DCTStreamScaleFor(width, height);
+        width = (word)(((dword)width + k - 1) / k);
+        height = (word)(((dword)height + k - 1) / k);
+        xSamp = width / 1500 + 1;
+        ySamp = height / 1500 + 1;
+        sampledWidth = (word)(((dword)width + xSamp - 1) / xSamp);
+        sampledHeight = (word)(((dword)height + ySamp - 1) / ySamp);
+    }
 
     /* constant fill alpha 0..255 */
     {

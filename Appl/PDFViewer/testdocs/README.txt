@@ -339,6 +339,17 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     und "Ende OK". pdftoppm meldet "Restoring state when no valid
     states to pop" (erwartet). Generator mk34.py (nur Scratchpad).
 
+35_large_jpeg.pdf
+    Große JPEGs (H2), Referenz pdftoppm. Jedes Bild: vier Farbflächen
+    (blau, gelb / magenta, türkis), weißes Raster 4x4, roter Rahmen,
+    schwarze Diagonale von links oben nach rechts unten, grüner Kreis
+    links oben (Lage und Seitenverhältnis prüfbar). 1 800x600 RGB und
+    6 800x500 progressiv: unverkleinert (Gegenprobe). 2 4200x1600 RGB,
+    3 8400x240 Grau, 4 3200x500 CMYK: vorher abgelehnt (leer), jetzt
+    verkleinert dekodiert (1/4, 1/8, 1/4). 5 2000x1500 progressiv:
+    bleibt im Viewer leer (Koeffizienten über 4 MB, Grenze unverändert).
+    Qualität 10, daher Blockartefakte. Generator mk35.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

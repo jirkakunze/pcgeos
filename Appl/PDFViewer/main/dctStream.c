@@ -58,15 +58,23 @@
 /*
  * Size limits, checked right after the header (before libjpeg allocates
  * its buffers). libjpeg keeps its working buffers in fixed malloc memory:
- * for baseline JPEGs a few rows (about width * components * 16 * 3 bytes),
- * for progressive JPEGs additionally all DCT coefficients of the image
- * (2 bytes per sample; above max_memory_to_use = 64K they go to a backing
- * store temp file, which is slow). Images above the limits are skipped
- * instead of failing with "out of memory" in the middle of the page.
- * ImpGraph (web browser) is stricter: 2048 x 2048 and 1 megapixel.
+ * for baseline JPEGs a few rows of the OUTPUT size (about output width *
+ * components * 16 * 3 bytes), for progressive JPEGs additionally all DCT
+ * coefficients of the full image (2 bytes per sample; above
+ * max_memory_to_use = 64K they go to a backing store temp file, which is
+ * slow). Images above the limits are skipped instead of failing with
+ * "out of memory" in the middle of the page.
+ *
+ * Large images are decoded at 1/2, 1/4 or 1/8 size (libjpeg scaled IDCT,
+ * H2, see DCTStreamScaleFor): the stream then delivers the smaller image,
+ * GfxDrawImage reads it with the same reduced width and height.
+ * DCT_MAX_ROW_BYTES applies to the scaled row.
+ * ATTENTION: The coefficient limit of progressive JPEGs does not change
+ * with scaling (libjpeg keeps all coefficients at full size). Upgrade
+ * path: more memory in PM.
  */
-#define DCT_MAX_DIMENSION 8192L             /* width and height */
-#define DCT_MAX_ROW_BYTES 12288L            /* width * components */
+#define DCT_TARGET_DIMENSION 1500L          /* see GfxDrawImage sampling */
+#define DCT_MAX_ROW_BYTES 12288L            /* output width * components */
 #define DCT_MAX_PROGRESSIVE_COEF (4L * 1024L * 1024L)  /* coefficient bytes */
 
 /* in JpegErr/jpegerrManager.asm (fixed resource) */
@@ -370,22 +378,56 @@ static GBool DCTStreamSizeOk(struct jpeg_decompress_struct *cinfo)
     long w = (long)cinfo->image_width;
     long h = (long)cinfo->image_height;
     long nc = (long)cinfo->num_components;
+    long d;
 
-    if (w < 1 || h < 1 || nc < 1 || nc > 4 ||
-        w > DCT_MAX_DIMENSION || h > DCT_MAX_DIMENSION)
+    if (w < 1 || h < 1 || nc < 1 || nc > 4)
     {
         return gFalse;
     }
-    if (w * nc > DCT_MAX_ROW_BYTES)
+    d = DCTStreamScaleFor(w, h);
+    cinfo->scale_num = 1;
+    cinfo->scale_denom = (unsigned int)d;
+
+    if (((w + d - 1) / d) * nc > DCT_MAX_ROW_BYTES)
     {
         return gFalse;
     }
-    /* w, h <= 8192 and nc <= 4: w * h * nc * 2 fits into a long */
-    if (cinfo->progressive_mode && w * h * nc * 2 > DCT_MAX_PROGRESSIVE_COEF)
+    /*
+     * full size coefficients; w, h <= 65535 and nc <= 4: compare by
+     * division so that nothing overflows a long
+     */
+    if (cinfo->progressive_mode &&
+        w * nc * 2 > DCT_MAX_PROGRESSIVE_COEF / h)
     {
         return gFalse;
     }
     return gTrue;
+}
+
+/***********************************************************************
+ *      DCTStreamScaleFor
+ ***********************************************************************
+ * SYNOPSIS:        Decode scale of a JPEG: 1, 2, 4 or 8.
+ * PARAMETERS:      w, h    image size in pixels
+ * RETURNS:         smallest scale that brings both axes to at most
+ *                  DCT_TARGET_DIMENSION (8 at most)
+ * STRATEGY:        Used by the decoder (scale_denom) and by GfxDrawImage
+ *                  (reduced width and height of the image it reads), so
+ *                  both sides agree. Output size = ceil(size / scale).
+ ***********************************************************************/
+word DCTStreamScaleFor(long w, long h)
+{
+    word d;
+
+    for (d = 1; d < 8; d <<= 1)
+    {
+        if ((w + d - 1) / d <= DCT_TARGET_DIMENSION &&
+            (h + d - 1) / d <= DCT_TARGET_DIMENSION)
+        {
+            break;
+        }
+    }
+    return d;
 }
 
 /***********************************************************************

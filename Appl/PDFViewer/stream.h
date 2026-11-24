@@ -177,6 +177,8 @@ long LZWStreamLookChar(Stream *str);
 
 extern
 void DCTStreamInit(Stream *str, Stream *str1);
+/* decode scale (1, 2, 4, 8) of a JPEG of this size, see GfxDrawImage */
+word DCTStreamScaleFor(long w, long h);
 extern
 void DCTStreamFree(Stream *str);
 extern
