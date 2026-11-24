@@ -540,6 +540,7 @@ void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
     this->cancelFlag = NULL;
     this->formDepth = 0;
     this->pathBuf = NULL;
+    this->textClip = gFalse;
 
 }
 
@@ -580,6 +581,7 @@ void GfxFree(Gfx *this)
     }
     gfree(this->pathBuf);
     this->pathBuf = NULL;
+    this->textClip = gFalse;
     /* An active parser here is an internal lifetime error. */
     EC_ERROR_IF(this->parser != NULL, -1);
 }
@@ -3635,6 +3637,7 @@ static void _near opBeginText(Gfx *gfx, Obj args[], int numArgs)
 {
 
     GrSaveTransform(gfx->state->gstring);
+    gfx->textClip = gFalse;
 
     GfxStateSetTextMat(gfx->state, IntToGdouble(1), IntToGdouble(0),
         IntToGdouble(0), IntToGdouble(1),
@@ -3670,7 +3673,15 @@ static void _near opBeginText(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opEndText(Gfx *gfx, Obj args[], int numArgs)
 {
-
+    /*
+     * Tr 4-7: the glyphs of all clip-mode strings of this text object are
+     * united in the kernel path (doShowText); now they become the clip.
+     */
+    if (gfx->textClip)
+    {
+        GrSetClipPath(gfx->state->gstring, PCT_INTERSECTION, ODD_EVEN);
+        gfx->textClip = gFalse;
+    }
     GrRestoreTransform(gfx->state->gstring);
     (void)args;
     (void)numArgs;
@@ -4400,7 +4411,9 @@ static void doShowText(Gfx *gfx, GooString *s)
     Handle gstring = state->gstring;
 
     word len;
-    word render;
+    word render, paint, passes, pass;
+    WWFixedAsDWord startX;
+    GBool draw, usePath;
     short i;
     char *cp;
 
@@ -4414,11 +4427,22 @@ static void doShowText(Gfx *gfx, GooString *s)
         return;
     }
 
-    render = GfxStateGetRender(state);
-    if (render != 0)
+    /*
+     * Text rendering mode Tr: paint = 0 fill, 1 stroke, 2 fill + stroke,
+     * 3 nothing (invisible text, e.g. OCR layer); 4..7 = the same plus
+     * adding the glyphs to the clip. Up to two passes over the string:
+     * pass 1 paints (fill directly as text, stroke through a kernel path),
+     * pass 2 adds the glyphs to the clip path, which opEndText sets.
+     * Pass 4 only advances the text position.
+     */
+    render = GfxStateGetRender(state) & 7;
+    paint = render & 3;
+    passes = (paint != 3 ? 1 : 0) | (render >= 4 ? 2 : 0);
+    if (passes == 0)
     {
-        GrBeginPath(gstring, PCT_REPLACE);
+        passes = 4;
     }
+    startX = state->curTextX;
 
     /*
      * fontSize, horizScaling, charSpace, wordSpace, and state itself are all
@@ -4430,6 +4454,25 @@ static void doShowText(Gfx *gfx, GooString *s)
     widthScale = widthScale / 1000;
     charSpace = GdoubleToWWFixed(GfxStateGetCharSpace(state));
     wordSpace = GdoubleToWWFixed(GfxStateGetWordSpace(state));
+
+    for (pass = 1; pass <= 4; pass <<= 1)
+    {
+    if (!(passes & pass))
+    {
+        continue;
+    }
+    state->curTextX = startX;
+    draw = (pass != 4);
+    usePath = (pass == 2 || (pass == 1 && paint != 0));
+    if (usePath)
+    {
+        /*
+         * A stroke pass replaces the kernel path; clip passes after the
+         * first one of the text object unite with it.
+         */
+        GrBeginPath(gstring, (pass == 2 && gfx->textClip) ?
+            PCT_UNION : PCT_REPLACE);
+    }
 
     /* ----- 16-bit font */
     if (GfxFontIs16Bit(font))
@@ -4452,9 +4495,9 @@ static void doShowText(Gfx *gfx, GooString *s)
         {
             cid = ((word)bp[i] << 8) | bp[i + 1];
             GfxCidFontLookup(&cidLock, cid, &cidWidth, &ch);
-            if (ch != 0 && ch != C_SPACE)
+            if (draw && ch != 0 && ch != C_SPACE)
             {
-                if (i > 0 || render != 0)
+                if (i > 0 || usePath || pass != 1)
                 {
                     GrMoveToWWFixed(gstring,
                         ((sdword)((dword)state->curTextX << 5)),
@@ -4485,13 +4528,13 @@ static void doShowText(Gfx *gfx, GooString *s)
                 char c = GfxFontMapChar(font, *cp, ' ');
 
                 /* If the character's not a space, */
-                if (c != C_SPACE)
+                if (draw && c != C_SPACE)
                 {
                     /*
                      * Move to the correct position if drawing past the first
-                     * character or drawing to a path.
+                     * character, drawing to a path or drawing again.
                      */
-                    if (i > 0 || render != 0)
+                    if (i > 0 || usePath || pass != 1)
                     {
                         GrMoveToWWFixed(gstring,
                             ((sdword)((dword)state->curTextX << 5)),
@@ -4517,22 +4560,22 @@ static void doShowText(Gfx *gfx, GooString *s)
         }
     }
 
-    if (render != 0)
+    if (usePath)
     {
         GrEndPath(gstring);
-
-        if (render == 0 || render == 2 || render == 4 || render == 6)
+        if (pass == 1)
         {
-            GrFillPath(gstring, ODD_EVEN);
-        }
-        if (render == 1 || render == 2 || render == 5 || render == 6)
-        {
+            if (paint == 2)
+            {
+                GrFillPath(gstring, ODD_EVEN);
+            }
             GrDrawPath(gstring);    /* text outline: kernel path only */
         }
-        if (render >= 4)
+        else
         {
-            GrSetClipPath(gstring, PCT_INTERSECTION, ODD_EVEN);
+            gfx->textClip = gTrue;
         }
+    }
     }
 
     /*

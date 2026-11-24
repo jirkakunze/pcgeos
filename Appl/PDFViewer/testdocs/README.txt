@@ -272,6 +272,17 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Quadrat).
     Generator mk29.py (nur Scratchpad).
 
+30_text_render.pdf
+    Textdarstellungsmodi Tr 0-7 (D1), Referenz pdftoppm. "GEOS" in
+    Helvetica-Bold 40 pt, Füllfarbe rot, Linienfarbe blau: Tr 0 rot
+    gefüllt, Tr 1 blaue Kontur, Tr 2 beides, Tr 3 unsichtbar (nichts
+    zu sehen, der Text bleibt für die Suche). Tr 4-7 zusätzlich als
+    Clip: die anschließend gezeichneten grün/orangen Streifen
+    erscheinen nur innerhalb der Buchstaben (Tr 7 ohne eigene Farbe).
+    Zwei Tj in einem BT mit Tr 7: Streifen in "AB" und "CD" (Vereinigung
+    bis ET). Danach (nach Q) Text und blauer Balken ohne Clip.
+    Generator mk30.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.
