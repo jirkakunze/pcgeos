@@ -1,0 +1,142 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R] /Count 7 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+11 0 obj
+<< /Length 223 >>
+stream
+q 0 0 1 RG 6 w 3 3 589 836 re S Q
+q 0.8 0 0 RG 1 w 0 0 m 595 842 l 0 842 m 595 0 l S Q
+q 0 0.5 0 rg 277 782 m 317 782 l 297 822 l f Q
+BT /F1 19 Tf 259 759 Td (OBEN) Tj ET
+BT /F1 19 Tf 20 421 Td (1: A4 hoch (595x842)) Tj ET
+
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Contents 13 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+13 0 obj
+<< /Length 256 >>
+stream
+q 0 0 1 RG 6 w 3 3 836 589 re S Q
+q 0.8 0 0 RG 1 w 0 0 m 842 595 l 0 595 m 842 0 l S Q
+q 0 0.5 0 rg 401 535 m 441 535 l 421 575 l f Q
+BT /F1 24 Tf 373 507 Td (OBEN) Tj ET
+BT /F1 24 Tf 20 297 Td (2: A4 quer (842x595) -> auf Hochformat-Papier gedreht) Tj ET
+
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Rotate 90 /Contents 15 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+15 0 obj
+<< /Length 241 >>
+stream
+q 0 0 1 RG 6 w 3 3 589 836 re S Q
+q 0.8 0 0 RG 1 w 0 0 m 595 842 l 0 842 m 595 0 l S Q
+q 0 0.5 0 rg 277 782 m 317 782 l 297 822 l f Q
+BT /F1 19 Tf 259 759 Td (OBEN) Tj ET
+BT /F1 19 Tf 20 421 Td (3: A4 hoch mit /Rotate 90 (wirkt quer)) Tj ET
+
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 298 420] /Contents 17 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+17 0 obj
+<< /Length 232 >>
+stream
+q 0 0 1 RG 6 w 3 3 292 414 re S Q
+q 0.8 0 0 RG 1 w 0 0 m 298 420 l 0 420 m 298 0 l S Q
+q 0 0.5 0 rg 129 360 m 169 360 l 149 400 l f Q
+BT /F1 9 Tf 131 347 Td (OBEN) Tj ET
+BT /F1 9 Tf 20 210 Td (4: A6 (298x420) -> vergroessert) Tj ET
+
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1191 1684] /Contents 19 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+19 0 obj
+<< /Length 245 >>
+stream
+q 0 0 1 RG 6 w 3 3 1185 1678 re S Q
+q 0.8 0 0 RG 1 w 0 0 m 1191 1684 l 0 1684 m 1191 0 l S Q
+q 0 0.5 0 rg 575 1624 m 615 1624 l 595 1664 l f Q
+BT /F1 24 Tf 547 1596 Td (OBEN) Tj ET
+BT /F1 24 Tf 20 842 Td (5: A2 (1191x1684) -> verkleinert) Tj ET
+
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 200] /Contents 21 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+21 0 obj
+<< /Length 241 >>
+stream
+q 0 0 1 RG 6 w 3 3 836 194 re S Q
+q 0.8 0 0 RG 1 w 0 0 m 842 200 l 0 200 m 842 0 l S Q
+q 0 0.5 0 rg 401 140 m 441 140 l 421 180 l f Q
+BT /F1 24 Tf 373 112 Td (OBEN) Tj ET
+BT /F1 24 Tf 20 100 Td (6: Streifen 842x200 -> gedreht, schmal) Tj ET
+
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /CropBox [100 150 495 692] /Contents 23 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+23 0 obj
+<< /Length 319 >>
+stream
+q 0.7 g 0 0 595 842 re f Q
+q 1 g 100 150 395 542 re f Q
+q 0 0 1 RG 6 w 103 153 389 536 re S Q
+q 0.8 0 0 RG 1 w 100 150 m 495 692 l 100 692 m 495 150 l S Q
+q 0 0.5 0 rg 277 632 m 317 632 l 297 672 l f Q
+BT /F1 13 Tf 271 615 Td (OBEN) Tj ET
+BT /F1 13 Tf 120 421 Td (7: CropBox: nur der innere Rahmen wird gedruckt) Tj ET
+
+endstream
+endobj
+xref
+0 24
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000164 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000234 00000 n 
+0000000362 00000 n 
+0000000637 00000 n 
+0000000765 00000 n 
+0000001073 00000 n 
+0000001212 00000 n 
+0000001505 00000 n 
+0000001633 00000 n 
+0000001917 00000 n 
+0000002047 00000 n 
+0000002344 00000 n 
+0000002472 00000 n 
+0000002765 00000 n 
+0000002920 00000 n 
+trailer
+<< /Size 24 /Root 1 0 R >>
+startxref
+3291
+%%EOF

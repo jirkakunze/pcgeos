@@ -1718,7 +1718,8 @@ errorClose:
  * sent MSG_GEN_VIEW_SET_DOC_BOUNDS itself); that's UI-object messaging
  * and now happens here instead, using what PdfDrawPage reports. */
 
-	err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, FALSE, &pageSize);
+	err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, FALSE, NULL,
+			  &pageSize);
 	/* only tell the view about a new size -- setting the bounds on
 	 * every draw makes the view redraw/rescroll for nothing */
 	if (err == PDF_OK && (pageSize.P_x != pself->PDFDoc_bounds.P_x ||
@@ -2231,6 +2232,10 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	return;
     }
 
+    /* the print dialog offers the page on display (G2) */
+    @send PDFPrintControl::MSG_PRINT_CONTROL_SET_SELECTED_PAGE_RANGE(
+	curPage, curPage);
+
 
     mh = MemAlloc(sizeof(NotifyPageStateChange),
 		  HF_SHARABLE | HF_SWAPABLE,
@@ -2283,7 +2288,8 @@ PDFUpdatePageControl (word totalPages, word curPage)
     word pagenum;
     PCPageRange		pageRange;
     PageSizeReport	sPageSize;
-    Boolean		bContinue;
+    Boolean		bContinue = TRUE;
+    Point		printArea;
 
     /* Print UI is disabled when /P forbids printing; guard anyway */
     if (!PdfOkToPrint(pself->PDFDoc_engine)) {
@@ -2309,6 +2315,15 @@ PDFUpdatePageControl (word totalPages, word curPage)
      * yield the largest possible print area.
      */
     @call printCtrlOD::MSG_PRINT_CONTROL_CALC_DOC_DIMENSIONS(&sPageSize);
+
+    /*
+     * Every page is fitted into this area (PdfDrawPage): the
+     * dimensions come back with the margins already subtracted.
+     */
+    printArea.P_x = (sPageSize.PSR_width > 0x7fffL) ? 0x7fff :
+	(sword)sPageSize.PSR_width;
+    printArea.P_y = (sPageSize.PSR_height > 0x7fffL) ? 0x7fff :
+	(sword)sPageSize.PSR_height;
 
     /*
      * Get the page range to print
@@ -2345,7 +2360,8 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	}
 
 	if (err == PDF_OK) {
-	    err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, TRUE, NULL);
+	    err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, TRUE,
+			      &printArea, NULL);
 	}
 
 	/* stop at the first failing page -- otherwise the next page's
@@ -2972,7 +2988,8 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	 *clipboard - jfh */
 	gstate = GrCreateGString(transferVMFile, GST_VMEM, &dataVMBlock);
 
-	err = PdfDrawPage(pself->PDFDoc_engine, pself->PDFDoc_pageNum, gstate, TRUE, &pageSize);
+	err = PdfDrawPage(pself->PDFDoc_engine, pself->PDFDoc_pageNum, gstate,
+			  TRUE, NULL, &pageSize);
 
 
 	if (err != PDF_OK) {

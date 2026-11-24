@@ -230,6 +230,57 @@ static void PdfApplyScreenRotation(GStateHandle target, PdfPageGeometry *geom)
         MakeWWFixed(transY - geom->clipY));
 }
 
+/***********************************************************************
+ *      PdfFitPrintPage
+ ***********************************************************************
+ * SYNOPSIS:        Fit a page into the printable area (G2).
+ * PARAMETERS:      target    print GState, origin at the top left of
+ *                            the printable area
+ *                  geom      page geometry (changed: rotation and the
+ *                            on-paper width/height)
+ *                  area      printable width and height, points
+ * STRATEGY:        Scale = min(area / page) keeps the aspect ratio. If
+ *                  the page turned by another 90 degrees gets a larger
+ *                  scale (landscape page on portrait paper), turn it.
+ *                  Then center, scale, and apply the same Y flip and
+ *                  rotation as the screen (PdfApplyScreenRotation).
+ *                  Small pages are enlarged to fill the area.
+ ***********************************************************************/
+static void PdfFitPrintPage(GStateHandle target, PdfPageGeometry *geom,
+    const Point *area)
+{
+    WWFixedAsDWord sx, sy, s, sTurn, w, h;
+    word t;
+
+    /* scale as is and turned by 90 degrees */
+    sx = GrUDivWWFixed(MakeWWFixed(area->P_x), MakeWWFixed(geom->width));
+    sy = GrUDivWWFixed(MakeWWFixed(area->P_y), MakeWWFixed(geom->height));
+    s = (sx < sy) ? sx : sy;
+    sx = GrUDivWWFixed(MakeWWFixed(area->P_x), MakeWWFixed(geom->height));
+    sy = GrUDivWWFixed(MakeWWFixed(area->P_y), MakeWWFixed(geom->width));
+    sTurn = (sx < sy) ? sx : sy;
+    if (sTurn > s)
+    {
+        s = sTurn;
+        geom->rotate = (geom->rotate + 90L) % 360L;
+        t = geom->width;
+        geom->width = geom->height;
+        geom->height = t;
+    }
+
+    /* center on the area */
+    w = GrMulWWFixed(MakeWWFixed(geom->width), s);
+    h = GrMulWWFixed(MakeWWFixed(geom->height), s);
+    GrApplyTranslation(target,
+        (sdword)(MakeWWFixed(area->P_x) - w) / 2,
+        (sdword)(MakeWWFixed(area->P_y) - h) / 2);
+    GrApplyScale(target, s, s);
+
+    /* same page placement as on screen */
+    GrApplyScale(target, (1L) << 16, (-1L) << 16);
+    PdfApplyScreenRotation(target, geom);
+}
+
 /*
  * Small internal helpers
  * **********************************************************************
@@ -1357,6 +1408,7 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
  *                  word pageNum    page number
  *                  GStateHandle target    target
  *                  Boolean printing    printing
+ *                  const Point *fitArea    printable area (print only)
  *                  Point *pageSizeOut    page size out
  *
  * RETURNS:         result value
@@ -1365,7 +1417,8 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
  *
  * STRATEGY:
  *      Re-read the cache entry, compute page geometry, then flip Y and
- *      either rotate+clip+GrDrawGString (screen) or...
+ *      either rotate+clip+GrDrawGString (screen), fit+rotate+clip+
+ *      GrCopyGString (print, G2) or copy at 1:1 (clipboard).
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -1374,7 +1427,7 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
  *
  ***********************************************************************/
 PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
-    Boolean printing, Point *pageSizeOut)
+    Boolean printing, const Point *fitArea, Point *pageSizeOut)
 {
     PdfDocInternal *pdoc;
     PdfPageGeometry geom;
@@ -1433,6 +1486,13 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
             geom.clipX + geom.clipWidth, geom.clipY + geom.clipHeight);
 
         GrDrawGString(target, gstring, 0, 0, 0, &elem);
+    }
+    else if (fitArea != NULL && geom.width > 0 && geom.height > 0)
+    {
+        PdfFitPrintPage(target, &geom, fitArea);
+        GrSetClipRect(target, PCT_INTERSECTION, geom.clipX, geom.clipY,
+            geom.clipX + geom.clipWidth, geom.clipY + geom.clipHeight);
+        GrCopyGString(gstring, target, 0);
     }
     else
     {

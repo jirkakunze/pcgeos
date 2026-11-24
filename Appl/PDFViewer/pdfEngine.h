@@ -117,9 +117,15 @@ PdfError PdfGetPageSize(PdfDocHandle doc, word pageNum, Point *sizeOut);
  */
 PdfError PdfDecodePage(PdfDocHandle doc, word pageNum);
 
-/* Draw page. */
+/*
+ * Draw page. printing = FALSE: screen (rotation, crop box clip).
+ * printing = TRUE and fitArea = NULL: copy at 1:1 (clipboard).
+ * printing = TRUE and fitArea set: fit into the printable area
+ * (width, height in points), centered, turned by 90 degrees when the page
+ * fits larger that way, clipped to the crop box.
+ */
 PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
-    Boolean printing, Point *pageSizeOut);
+    Boolean printing, const Point *fitArea, Point *pageSizeOut);
 
 /* Explicitly evict one decoded page from the document cache. */
 void PdfDiscardPage(PdfDocHandle doc, word pageNum);

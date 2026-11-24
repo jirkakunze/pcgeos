@@ -317,6 +317,17 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     ignoriert. Referenz: pdfinfo -dests (mutool löst Name-Tree-Ziele
     hier nicht auf). Generator mk32.py (nur Scratchpad).
 
+33_print.pdf
+    Drucken (G2). Sieben Seiten mit blauem Rahmen am Rand der (Crop-)
+    Box, roten Diagonalen und grünem Pfeil "OBEN". Gedruckt muss jeweils
+    der ganze Rahmen sichtbar sein, im richtigen Seitenverhältnis und
+    zentriert im Druckbereich: 1 A4 hoch, 2 A4 quer (auf Hochformat-
+    Papier um 90 Grad gedreht, größer als ungedreht), 3 A4 mit /Rotate
+    90 (wirkt quer, wird wieder hochkant gedruckt), 4 A6 (vergrößert),
+    5 A2 (verkleinert), 6 Streifen 842x200 (gedreht), 7 CropBox: nur
+    der weiße Bereich mit Rahmen, kein Grau. Der Druckdialog schlägt die
+    angezeigte Seite als Bereich vor. Generator mk33.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.
