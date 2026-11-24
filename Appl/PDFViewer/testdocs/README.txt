@@ -304,6 +304,19 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     Generatoren mk31a.tex (pdftex) und mk31b.py, zusammengefügt mit
     qpdf --empty --pages (nur Scratchpad).
 
+32_links.pdf
+    Interne Links (F4). Seite 1: acht Zeilen, 1-7 mit blauem Rahmen
+    (Link-Rechteck). Klick in einen Rahmen springt zum Ziel; das Ziel
+    steht dann am oberen Fensterrand (rote Linie mit der Nummer):
+    1 explizit [Seite 3 /XYZ 0 400], 2 [Seite 2 /Fit] (Seitenanfang),
+    3 benannt /Kap2 über /Dests, 4 String (kap3) über den Name-Tree
+    (/Names /Dests, Wert als << /D ... >>), 5 Aktion /GoTo mit /FitH,
+    6 /GoTo (zz) im zweiten Kind des Name-Trees -> Seite 4 (/Rotate 90),
+    7 /URI (extern) und 8 (kein Rahmen): nichts passiert. Seite 4 hat
+    einen Link zurück zu Seite 1. Zoom-Angaben der Ziele werden
+    ignoriert. Referenz: pdfinfo -dests (mutool löst Name-Tree-Ziele
+    hier nicht auf). Generator mk32.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

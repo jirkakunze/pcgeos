@@ -28,6 +28,7 @@
 #include "catalog.h"
 #include "xref.h"
 #include "dict.h"
+#include "array.h"
 #include "obj.h"
 #include "page.h"
 #include "gfx.h"
@@ -183,6 +184,50 @@ PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
     geom->rawHeight = PageGetHeight(&page);
     PageFree(&page);
     return PDF_OK;
+}
+
+/***********************************************************************
+ *      PdfApplyScreenRotation
+ ***********************************************************************
+ * SYNOPSIS:        Rotate and move PDF user space onto the screen page
+ *                  (after the Y flip): /Rotate and the crop box origin.
+ * PARAMETERS:      target    GState with the Y flip already applied
+ *                  geom      page geometry
+ * STRATEGY:        Shared by PdfDrawPage and the link code, so a click
+ *                  maps back exactly the way the page was drawn.
+ ***********************************************************************/
+static void PdfApplyScreenRotation(GStateHandle target, PdfPageGeometry *geom)
+{
+    sword transX, transY;
+
+    GrApplyRotation(target, MakeWWFixed(geom->rotate));
+
+    switch ((int)geom->rotate)
+    {
+        case 0:
+            transX = 0;
+            transY = -(sword)geom->height;
+            break;
+        case 90:
+            transX = 0;
+            transY = 0;
+            break;
+        case 180:
+            transX = -(sword)geom->width;
+            transY = 0;
+            break;
+        case 270:
+            transX = -(sword)geom->height;
+            transY = -(sword)geom->width;
+            break;
+        default:
+            transX = 0;
+            transY = 0;
+            break;
+    }
+    GrApplyTranslation(target,
+        MakeWWFixed(transX - geom->clipX),
+        MakeWWFixed(transY - geom->clipY));
 }
 
 /*
@@ -1337,7 +1382,6 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
     PdfPageCacheEntry *cacheEntry;
     VMBlockHandle gstringBlock;
     Handle gstring;
-    sword transX, transY;
     word elem;
 
     pdoc = PdfLockDoc(doc);
@@ -1383,34 +1427,7 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
 
     if (!printing)
     {
-        GrApplyRotation(target, MakeWWFixed(geom.rotate));
-
-        switch ((int)geom.rotate)
-        {
-            case 0:
-                transX = 0;
-                transY = -(sword)geom.height;
-                break;
-            case 90:
-                transX = 0;
-                transY = 0;
-                break;
-            case 180:
-                transX = -(sword)geom.width;
-                transY = 0;
-                break;
-            case 270:
-                transX = -(sword)geom.height;
-                transY = -(sword)geom.width;
-                break;
-            default:
-                transX = 0;
-                transY = 0;
-                break;
-        }
-        GrApplyTranslation(target,
-            MakeWWFixed(transX - geom.clipX),
-            MakeWWFixed(transY - geom.clipY));
+        PdfApplyScreenRotation(target, &geom);
 
         GrSetClipRect(target, PCT_REPLACE, geom.clipX, geom.clipY,
             geom.clipX + geom.clipWidth, geom.clipY + geom.clipHeight);
@@ -1579,3 +1596,396 @@ void PdfCancelDecode(PdfDocHandle doc)
     PdfUnlockDoc(doc);
 }
 
+
+#pragma code_seg("PdfLink")
+
+/*
+ * Links (F4). Nothing is kept in memory: a click walks the /Annots of the
+ * current page once, finds the link rectangle and resolves its target.
+ */
+
+#define PDF_NAME_TREE_MAX_DEPTH 16
+
+/***********************************************************************
+ *      PdfScreenState
+ ***********************************************************************
+ * SYNOPSIS:        GState without a window that holds the screen
+ *                  transformation of a page (PdfDrawPage, not printing).
+ * RETURNS:         GState (caller frees with GrDestroyState), 0 on error
+ ***********************************************************************/
+static GStateHandle PdfScreenState(PdfDocInternal *pdoc, word pageNum)
+{
+    PdfPageGeometry geom;
+    GStateHandle gs;
+
+    if (PdfComputePageGeometry(&pdoc->catalog, &pdoc->xref, pageNum, &geom)
+        != PDF_OK)
+    {
+        return 0;
+    }
+    gs = GrCreateState(0);
+    if (gs)
+    {
+        GrApplyScale(gs, (1L) << 16, (-1L) << 16);
+        PdfApplyScreenRotation(gs, &geom);
+    }
+    return gs;
+}
+
+/***********************************************************************
+ *      PdfStrCmp
+ ***********************************************************************
+ * SYNOPSIS:        Compare two PDF strings byte by byte (name trees).
+ * RETURNS:         < 0, 0, > 0
+ ***********************************************************************/
+static sword PdfStrCmp(GooString *a, GooString *b)
+{
+    long la = GStrGetLength(a), lb = GStrGetLength(b);
+    long n = (la < lb) ? la : lb;
+    sword r = (n > 0) ? (sword)memcmp(GStrGetCString(a), GStrGetCString(b),
+        (word)n) : 0;
+
+    if (r != 0)
+    {
+        return r;
+    }
+    return (la < lb) ? -1 : (la > lb) ? 1 : 0;
+}
+
+/***********************************************************************
+ *      PdfNameTreeLookup
+ ***********************************************************************
+ * SYNOPSIS:        Find a key in a name tree (/Names /Dests).
+ * PARAMETERS:      tree    root node (dict)
+ *                  key     string key
+ *                  out     value, null if not found (caller frees)
+ * STRATEGY:        Walk down one node per level: /Names pairs, else the
+ *                  /Kids entry whose /Limits contain the key. No
+ *                  recursion, depth limited.
+ ***********************************************************************/
+static void PdfNameTreeLookup(Obj *tree, GooString *key, XRef *xref, Obj *out)
+{
+    Obj node, arr, kid, lim, lo, hi, k;
+    word i, n, depth;
+    GBool next;
+
+    initNull(out);
+    ObjCopy(&node, tree);
+    for (depth = 0; depth < PDF_NAME_TREE_MAX_DEPTH && isDict(&node); ++depth)
+    {
+        ObjDictLookup(&node, "Names", &arr, xref);
+        if (isArray(&arr))
+        {
+            n = ObjArrayGetLength(&arr);
+            for (i = 0; i + 1 < n; i += 2)
+            {
+                ObjArrayGet(&arr, i, &k, xref);
+                if (isString(&k) && PdfStrCmp(getString(&k), key) == 0)
+                {
+                    ObjFree(&k);
+                    ObjArrayGet(&arr, i + 1, out, xref);
+                    break;
+                }
+                ObjFree(&k);
+            }
+            ObjFree(&arr);
+            break;
+        }
+        ObjFree(&arr);
+
+        ObjDictLookup(&node, "Kids", &arr, xref);
+        next = gFalse;
+        if (isArray(&arr))
+        {
+            n = ObjArrayGetLength(&arr);
+            for (i = 0; i < n && !next; ++i)
+            {
+                ObjArrayGet(&arr, i, &kid, xref);
+                ObjDictLookup(&kid, "Limits", &lim, xref);
+                if (isArray(&lim) && ObjArrayGetLength(&lim) == 2)
+                {
+                    ObjArrayGet(&lim, 0, &lo, xref);
+                    ObjArrayGet(&lim, 1, &hi, xref);
+                    if (isString(&lo) && isString(&hi) &&
+                        PdfStrCmp(getString(&lo), key) <= 0 &&
+                        PdfStrCmp(key, getString(&hi)) <= 0)
+                    {
+                        ObjFree(&node);
+                        ObjMove(&node, &kid);
+                        initNull(&kid);
+                        next = gTrue;
+                    }
+                    ObjFree(&lo);
+                    ObjFree(&hi);
+                }
+                ObjFree(&lim);
+                ObjFree(&kid);
+            }
+        }
+        ObjFree(&arr);
+        if (!next)
+        {
+            break;
+        }
+    }
+    ObjFree(&node);
+}
+
+/***********************************************************************
+ *      PdfResolveDest
+ ***********************************************************************
+ * SYNOPSIS:        Resolve a destination to a page and a vertical
+ *                  position.
+ * PARAMETERS:      dest      explicit array, name (/Dests) or string
+ *                            (name tree); a dict value uses its /D
+ *                  topOut    PDF user space y of the top edge, or
+ *                            PDF_DEST_NO_TOP
+ * RETURNS:         page number (1-based), 0 = no valid target
+ * STRATEGY:        [page /XYZ left top zoom], [page /FitH top],
+ *                  [page /FitBH top] give a top; /Fit, /FitV, /FitR,
+ *                  /FitB show the top of the page. The page is a page
+ *                  reference (or a number, used by some producers).
+ *                  ATTENTION: Zoom of /XYZ and /Fit* is ignored, the
+ *                  view keeps its scale. Upgrade: set the view scale.
+ ***********************************************************************/
+#define PDF_DEST_NO_TOP ((sdword)0x7fffffffL)
+
+static word PdfResolveDest(PdfDocInternal *pdoc, Obj *dest, sdword *topOut)
+{
+    Obj d, v, pg, kind, top;
+    word page = 0;
+    word idx = 0;
+
+    *topOut = PDF_DEST_NO_TOP;
+    initNull(&d);
+
+    /* named destination -> its value */
+    if (isName(dest))
+    {
+        if (isDict(&pdoc->catalog.dests))
+        {
+            ObjDictLookup(&pdoc->catalog.dests, getName(dest), &d,
+                &pdoc->xref);
+        }
+    }
+    else if (isString(dest))
+    {
+        if (isDict(&pdoc->catalog.nameTree))
+        {
+            PdfNameTreeLookup(&pdoc->catalog.nameTree, getString(dest),
+                &pdoc->xref, &d);
+        }
+    }
+    else
+    {
+        ObjCopy(&d, dest);
+    }
+    if (isDict(&d))
+    {
+        ObjDictLookup(&d, "D", &v, &pdoc->xref);
+        ObjFree(&d);
+        ObjMove(&d, &v);
+    }
+
+    if (isArray(&d) && ObjArrayGetLength(&d) >= 2)
+    {
+        ObjArrayGetNF(&d, 0, &pg);
+        if (isRef(&pg))
+        {
+            page = (word)CatalogFindPage(&pdoc->catalog, getRefNum(&pg),
+                getRefGen(&pg), &pdoc->xref);
+        }
+        else if (isInt(&pg) && getInt(&pg) >= 0 &&
+            getInt(&pg) < (long)pdoc->pageCount)
+        {
+            page = (word)getInt(&pg) + 1;
+        }
+        ObjFree(&pg);
+
+        /* index of the top value: [page /XYZ left top], [page /FitH top] */
+        ObjArrayGet(&d, 1, &kind, &pdoc->xref);
+        if (isNameSame(&kind, "XYZ"))
+        {
+            idx = 3;
+        }
+        else if (isNameSame(&kind, "FitH") || isNameSame(&kind, "FitBH"))
+        {
+            idx = 2;
+        }
+        ObjFree(&kind);
+        if (idx)
+        {
+            ObjArrayGet(&d, idx, &top, &pdoc->xref);
+            if (isNum(&top))
+            {
+                *topOut = (sword)GdoubleToWord(getNum(&top));
+            }
+            ObjFree(&top);
+        }
+    }
+    ObjFree(&d);
+    if (page > pdoc->pageCount)
+    {
+        page = 0;
+    }
+    return page;
+}
+
+/***********************************************************************
+ *      PdfFindLink
+ ***********************************************************************
+ * SYNOPSIS:        Find the internal link at a point of a page.
+ * PARAMETERS:      doc, pageNum    page on display
+ *                  docX, docY      click point, document coordinates
+ *                                  (as drawn by PdfDrawPage on screen)
+ *                  destPage        target page (1-based)
+ *                  destDocY        target y in document coordinates of
+ *                                  the target page, -1 = page top
+ * RETURNS:         TRUE if a link with a valid internal target is hit
+ * STRATEGY:        Map the point back to PDF user space through the
+ *                  same transformation as the page (GState without a
+ *                  window), test the /Rect of every /Link annotation,
+ *                  resolve /Dest or /A << /S /GoTo /D ... >>. Other
+ *                  actions (URI, GoToR, Launch) are ignored.
+ *                  PM-TODO: URI and GoToR links (Ausbauplan PM).
+ ***********************************************************************/
+Boolean PdfFindLink(PdfDocHandle doc, word pageNum, sword docX, sword docY,
+    word *destPage, sdword *destDocY)
+{
+    PdfDocInternal *pdoc;
+    GStateHandle gs;
+    XYValueAsDWord pt;
+    sword px, py;
+    Page page;
+    Obj annots, annot, obj1, obj2, act;
+    word i, j, n;
+    gdouble r[4], t;
+    sdword top;
+    Boolean found = FALSE;
+
+    *destPage = 0;
+    *destDocY = -1;
+    pdoc = PdfLockDoc(doc);
+    if (pdoc == NULL)
+    {
+        return FALSE;
+    }
+    if (!pdoc->ok || pageNum < 1 || pageNum > pdoc->pageCount)
+    {
+        PdfUnlockDoc(doc);
+        return FALSE;
+    }
+
+    /* click point in PDF user space */
+    gs = PdfScreenState(pdoc, pageNum);
+    if (!gs)
+    {
+        PdfUnlockDoc(doc);
+        return FALSE;
+    }
+    pt = GrUntransform(gs, docX, docY);
+    GrDestroyState(gs);
+    px = DWORD_X(pt);
+    py = DWORD_Y(pt);
+
+    if (!CatalogGetPage(&pdoc->catalog, pageNum, &pdoc->xref, &page))
+    {
+        PdfUnlockDoc(doc);
+        return FALSE;
+    }
+    PageGetAnnots(&page, &annots, &pdoc->xref);
+    PageFree(&page);
+
+    n = isArray(&annots) ? ObjArrayGetLength(&annots) : 0;
+    /* last annotation is on top: search backwards */
+    for (i = n; i > 0 && !found; --i)
+    {
+        ObjArrayGet(&annots, i - 1, &annot, &pdoc->xref);
+        if (!isDict(&annot))
+        {
+            ObjFree(&annot);
+            continue;
+        }
+        ObjDictLookup(&annot, "Subtype", &obj1, &pdoc->xref);
+        if (!isNameSame(&obj1, "Link"))
+        {
+            ObjFree(&obj1);
+            ObjFree(&annot);
+            continue;
+        }
+        ObjFree(&obj1);
+
+        /* /Rect, normalized */
+        ObjDictLookup(&annot, "Rect", &obj1, &pdoc->xref);
+        if (isArray(&obj1) && ObjArrayGetLength(&obj1) == 4)
+        {
+            for (j = 0; j < 4; ++j)
+            {
+                ObjArrayGet(&obj1, j, &obj2, &pdoc->xref);
+                r[j] = isNum(&obj2) ? getNum(&obj2) : 0;
+                ObjFree(&obj2);
+            }
+            if (r[0] > r[2])
+            {
+                t = r[0]; r[0] = r[2]; r[2] = t;
+            }
+            if (r[1] > r[3])
+            {
+                t = r[1]; r[1] = r[3]; r[3] = t;
+            }
+            if (IntToGdouble(px) >= r[0] && IntToGdouble(px) <= r[2] &&
+                IntToGdouble(py) >= r[1] && IntToGdouble(py) <= r[3])
+            {
+                /* target: /Dest, else /A GoTo */
+                ObjDictLookup(&annot, "Dest", &obj2, &pdoc->xref);
+                if (isNull(&obj2))
+                {
+                    ObjDictLookup(&annot, "A", &act, &pdoc->xref);
+                    if (isDict(&act))
+                    {
+                        ObjDictLookup(&act, "S", &obj2, &pdoc->xref);
+                        if (isNameSame(&obj2, "GoTo"))
+                        {
+                            ObjFree(&obj2);
+                            ObjDictLookup(&act, "D", &obj2, &pdoc->xref);
+                        }
+                        else
+                        {
+                            ObjFree(&obj2);
+                            initNull(&obj2);
+                        }
+                    }
+                    ObjFree(&act);
+                }
+                if (!isNull(&obj2))
+                {
+                    *destPage = PdfResolveDest(pdoc, &obj2, &top);
+                    if (*destPage)
+                    {
+                        found = TRUE;
+                        if (top != PDF_DEST_NO_TOP)
+                        {
+                            gs = PdfScreenState(pdoc, *destPage);
+                            if (gs)
+                            {
+                                pt = GrTransform(gs, 0, (sword)top);
+                                GrDestroyState(gs);
+                                *destDocY = DWORD_Y(pt);
+                                if (*destDocY < 0)
+                                {
+                                    *destDocY = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                ObjFree(&obj2);
+            }
+        }
+        ObjFree(&obj1);
+        ObjFree(&annot);
+    }
+    ObjFree(&annots);
+    PdfUnlockDoc(doc);
+    return found;
+}

@@ -56,12 +56,8 @@ extern long CatalogGetNumPages(Catalog *cat);
  */
 extern GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page);
 
-#ifdef KEEP_PAGE_REFS
-
-/* Find a page by its object ID. */
+/* Find a page by its object ID (link targets). */
 extern long CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref);
-
-#endif
 
 #endif  /* CATALOG_H */
 

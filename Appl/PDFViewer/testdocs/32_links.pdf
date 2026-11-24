@@ -1,0 +1,168 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /Dests 3 0 R /Names << /Dests 4 0 R >> >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [20 0 R 22 0 R 24 0 R 26 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Kap2 [22 0 R /FitH 500] >>
+endobj
+4 0 obj
+<< /Kids [5 0 R 6 0 R] >>
+endobj
+5 0 obj
+<< /Limits [(a) (m)] /Names [(abc) [20 0 R /Fit] (kap3) << /D [24 0 R /XYZ 0 600 0] >>] >>
+endobj
+6 0 obj
+<< /Limits [(n) (zz)] /Names [(zz) [26 0 R /Fit]] >>
+endobj
+10 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 21 0 R /Resources << /Font << /F1 10 0 R >> >> /Annots [40 0 R 41 0 R 42 0 R 43 0 R 44 0 R 45 0 R 46 0 R] >>
+endobj
+21 0 obj
+<< /Length 1135 >>
+stream
+BT /F1 15 Tf 72 740 Td (32 Seite 1: Links (F4) - in die blauen Rahmen klicken) Tj ET
+BT /F1 9 Tf 72 718 Td (Ziel erscheint am oberen Fensterrand (rote Linie mit Nummer). Zurueck mit Bild-auf bzw. Seite 1.) Tj ET
+BT /F1 11 Tf 80 676 Td (1: /Dest [S.3 /XYZ 0 400 0] -> Seite 3, Marke 1 oben) Tj ET
+q 0 0 1 RG 1 w 72 670 460 24 re S Q
+BT /F1 11 Tf 80 626 Td (2: /Dest [S.2 /Fit] -> Seite 2, Seitenanfang) Tj ET
+q 0 0 1 RG 1 w 72 620 460 24 re S Q
+BT /F1 11 Tf 80 576 Td (3: /Dest /Kap2 (Name, /Dests) -> Seite 2, Marke 3 oben) Tj ET
+q 0 0 1 RG 1 w 72 570 460 24 re S Q
+BT /F1 11 Tf 80 526 Td (4: /Dest (kap3) (String, Name-Tree) -> Seite 3, Marke 4 oben) Tj ET
+q 0 0 1 RG 1 w 72 520 460 24 re S Q
+BT /F1 11 Tf 80 476 Td (5: /A /GoTo /D [S.2 /FitH 200] -> Seite 2, Marke 5 oben) Tj ET
+q 0 0 1 RG 1 w 72 470 460 24 re S Q
+BT /F1 11 Tf 80 426 Td (6: /A /GoTo /D (zz) (Name-Tree, 2. Kind) -> Seite 4 (gedreht)) Tj ET
+q 0 0 1 RG 1 w 72 420 460 24 re S Q
+BT /F1 11 Tf 80 376 Td (7: /A /URI (extern) -> nichts passiert) Tj ET
+q 0 0 1 RG 1 w 72 370 460 24 re S Q
+BT /F1 11 Tf 80 326 Td (8: Klick ausserhalb aller Rahmen -> nichts passiert) Tj ET
+
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 23 0 R /Resources << /Font << /F1 10 0 R >> >> >>
+endobj
+23 0 obj
+<< /Length 225 >>
+stream
+BT /F1 15 Tf 72 740 Td (32 Seite 2) Tj ET
+q 1 0 0 RG 2 w 40 500 m 572 500 l S Q
+BT /F1 12 Tf 50 484 Td (Marke 3 (/Kap2, FitH 500)) Tj ET
+q 1 0 0 RG 2 w 40 200 m 572 200 l S Q
+BT /F1 12 Tf 50 184 Td (Marke 5 (FitH 200)) Tj ET
+
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 25 0 R /Resources << /Font << /F1 10 0 R >> >> >>
+endobj
+25 0 obj
+<< /Length 222 >>
+stream
+BT /F1 15 Tf 72 740 Td (32 Seite 3) Tj ET
+q 1 0 0 RG 2 w 40 600 m 572 600 l S Q
+BT /F1 12 Tf 50 584 Td (Marke 4 (kap3, XYZ 600)) Tj ET
+q 1 0 0 RG 2 w 40 400 m 572 400 l S Q
+BT /F1 12 Tf 50 384 Td (Marke 1 (XYZ 400)) Tj ET
+
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 27 0 R /Resources << /Font << /F1 10 0 R >> >> /Rotate 90 /Annots [47 0 R] >>
+endobj
+27 0 obj
+<< /Length 146 >>
+stream
+BT /F1 15 Tf 72 740 Td (32 Seite 4 (/Rotate 90)) Tj ET
+BT /F1 11 Tf 80 676 Td (Link zurueck zu Seite 1) Tj ET
+q 0 0 1 RG 1 w 72 670 300 24 re S Q
+
+endstream
+endobj
+40 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 670 532 694] /Border [0 0 0] /Dest [24 0 R /XYZ 0 400 0] >>
+endobj
+41 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 620 532 644] /Border [0 0 0] /Dest [22 0 R /Fit] >>
+endobj
+42 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 570 532 594] /Border [0 0 0] /Dest /Kap2 >>
+endobj
+43 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 520 532 544] /Border [0 0 0] /Dest (kap3) >>
+endobj
+44 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 470 532 494] /Border [0 0 0] /A << /S /GoTo /D [22 0 R /FitH 200] >> >>
+endobj
+45 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 420 532 444] /Border [0 0 0] /A << /S /GoTo /D (zz) >> >>
+endobj
+46 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 370 532 394] /Border [0 0 0] /A << /S /URI /URI (http://example.com) >> >>
+endobj
+47 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 670 372 694] /Border [0 0 0] /Dest [20 0 R /XYZ 0 792 0] >>
+endobj
+xref
+0 48
+0000000000 65535 f 
+0000000015 00000 n 
+0000000103 00000 n 
+0000000182 00000 n 
+0000000228 00000 n 
+0000000269 00000 n 
+0000000375 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000443 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000514 00000 n 
+0000000702 00000 n 
+0000001890 00000 n 
+0000002019 00000 n 
+0000002296 00000 n 
+0000002425 00000 n 
+0000002699 00000 n 
+0000002856 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000003054 00000 n 
+0000003171 00000 n 
+0000003280 00000 n 
+0000003381 00000 n 
+0000003483 00000 n 
+0000003612 00000 n 
+0000003727 00000 n 
+0000003859 00000 n 
+trailer
+<< /Size 48 /Root 1 0 R >>
+startxref
+3976
+%%EOF

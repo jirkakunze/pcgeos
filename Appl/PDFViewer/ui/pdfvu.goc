@@ -155,6 +155,12 @@ Boolean onTV, g_showTools;
  */
 
 
+@message void MSG_PDF_DOCUMENT_GOTO_DEST(word page, sdword docY);
+/*
+ * Go to a link target: page (1-based) and y in document coordinates of
+ * that page, -1 = top of the page (F4).
+ */
+
 /* data from the 'pdf doc' object in xpdf */
 
 
@@ -2083,6 +2089,77 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
  *	mevissen	4/20/99   	Initial Revision
  *
  ***********************************************************************/
+@method PDFDocumentClass, MSG_META_START_SELECT
+{
+    word destPage;
+    sdword destY;
+
+    @callsuper();
+    retVal->flags |= MRF_PROCESSED;
+
+    /*
+     * Internal link under the click? The engine walks the page's
+     * /Annots once; nothing is kept in memory.
+     */
+    if (pself->PDFDoc_engine != PDF_NULL_DOC &&
+	PdfFindLink(pself->PDFDoc_engine, pself->PDFDoc_pageNum,
+		    xPosition, yPosition, &destPage, &destY))
+    {
+	@send oself::MSG_PDF_DOCUMENT_GOTO_DEST(destPage, destY);
+    }
+}
+
+
+/***********************************************************************
+ *		MSG_PDF_DOCUMENT_GOTO_DEST for PDFDocumentClass
+ ***********************************************************************
+ * SYNOPSIS:	Show a link target: switch the page (if needed) and
+ *		scroll its target y to the top of the view.
+ * STRATEGY:	The view only gets the new page size in MSG_VIS_DRAW;
+ *		set it here first, else the new origin is clipped to the
+ *		old page. The x origin stays.
+ ***********************************************************************/
+@method PDFDocumentClass, MSG_PDF_DOCUMENT_GOTO_DEST
+{
+    optr view;
+    PointDWord origin;
+    Point size;
+    word numPages = PdfGetPageCount(pself->PDFDoc_engine);
+
+    if (page < 1 || page > numPages) {
+	return;
+    }
+    if (docY < 0) {
+	@call oself::MSG_META_PAGED_OBJECT_GOTO_PAGE(page);
+	return;
+    }
+
+    view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
+    pself = ObjDerefGen(oself);
+    if (pself->GDI_display & 0xff00) {
+	view = (view & 0xffff) | ((long)pself->GDI_display << 16);
+    }
+
+    @call view::MSG_GEN_VIEW_SUSPEND_UPDATE();
+    pself = ObjDerefGen(oself);
+    if (page != pself->PDFDoc_pageNum) {
+	pself->PDFDoc_pageNum = page;
+	pself->PDFDoc_cancelledPage = 0;
+	if (PdfGetPageSize(pself->PDFDoc_engine, page, &size) == PDF_OK &&
+	    (size.P_x != pself->PDFDoc_bounds.P_x ||
+	     size.P_y != pself->PDFDoc_bounds.P_y)) {
+	    pself->PDFDoc_bounds = size;
+	    @call view::MSG_GEN_VIEW_SET_DOC_BOUNDS(size.P_y, size.P_x, 0, 0);
+	}
+	@call view::MSG_GEN_VIEW_REDRAW_CONTENT();
+	PDFUpdatePageControl(numPages, page);
+    }
+    @call view::MSG_GEN_VIEW_GET_ORIGIN(&origin);
+    @call view::MSG_GEN_VIEW_SET_ORIGIN(docY, origin.PD_x);
+    @call view::MSG_GEN_VIEW_UNSUSPEND_UPDATE();
+}
+
+
 @method PDFDocumentClass, MSG_META_PAGED_OBJECT_GOTO_PAGE
 {
     optr view;

@@ -522,7 +522,7 @@ GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page)
     return result == catalogPageSearchFound;
 }
 
-#ifdef KEEP_PAGE_REFS
+/* Page reference -> page number, used by link targets (F4). */
 
 /***********************************************************************
  *      CatalogFindPageRefInTree
@@ -649,7 +649,6 @@ long CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref)
     ObjFree(&pagesDict);
     return result;
 }
-#endif
 
 /***********************************************************************
  *      CatalogIsOk

@@ -95,6 +95,14 @@ Boolean PdfGetInfoField(PdfDocHandle doc, const char *key, char *buf,
 Boolean PdfOkToPrint(PdfDocHandle doc);
 Boolean PdfOkToCopy(PdfDocHandle doc);
 
+/*
+ * Internal link at a click point (document coordinates of the page as
+ * drawn on screen): target page (1-based) and target y in document
+ * coordinates (-1 = top of page). FALSE if no link is hit.
+ */
+Boolean PdfFindLink(PdfDocHandle doc, word pageNum, sword docX, sword docY,
+    word *destPage, sdword *destDocY);
+
 /* B. */
 
 /* Wraps: CatalogGetNumPages. */
