@@ -4412,7 +4412,7 @@ static void doShowText(Gfx *gfx, GooString *s)
 
     word len;
     word render, paint, passes, pass;
-    WWFixedAsDWord startX;
+    WWFixedAsDWord startX, drawY;
     GBool draw, usePath;
     short i;
     char *cp;
@@ -4519,6 +4519,15 @@ static void doShowText(Gfx *gfx, GooString *s)
         /* The text matrix is now set overall when in text mode. */
 
         len = GStrGetLength(s);
+        /* baseline, moved by the font's glyph offset (CMEX) */
+        drawY = -state->lineY;
+        if (font->charRise != 0)
+        {
+            /* signed: GrMulWWFixed returns an unsigned WWFixedAsDWord */
+            drawY -= (sdword)GrMulWWFixed(
+                GdoubleToWWFixed(GfxStateGetFontSize(state)),
+                MakeWWFixed(font->charRise)) / 1000;
+        }
         if (len != 0)
         {
 
@@ -4534,14 +4543,28 @@ static void doShowText(Gfx *gfx, GooString *s)
                      * Move to the correct position if drawing past the first
                      * character, drawing to a path or drawing again.
                      */
-                    if (i > 0 || usePath || pass != 1)
+                    if (i > 0 || usePath || pass != 1 ||
+                        font->charRise != 0)
                     {
                         GrMoveToWWFixed(gstring,
                             ((sdword)((dword)state->curTextX << 5)),
-                            ((sdword)((dword)(-state->lineY) << 5)));
+                            ((sdword)((dword)drawY << 5)));
                     }
 
-                    GfxDrawMappedChar(gstring, (byte)c);
+                    if (GfxFontIsSymbolChar(font, (byte)*cp))
+                    {
+                        /* Greek letter: GEOS Symbol font for one char */
+                        WWFixedAsDWord ptSize;
+                        FontID oldID = GrGetFont(gstring, &ptSize);
+
+                        GrSetFont(gstring, FID_DTC_URW_SYMBOLPS, ptSize);
+                        GrDrawCharAtCP(gstring, (byte)c);
+                        GrSetFont(gstring, oldID, ptSize);
+                    }
+                    else
+                    {
+                        GfxDrawMappedChar(gstring, (byte)c);
+                    }
                 }
 
                 /*

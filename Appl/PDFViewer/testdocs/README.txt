@@ -283,6 +283,27 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     bis ET). Danach (nach Q) Text und blauer Balken ohne Clip.
     Generator mk30.py (nur Scratchpad).
 
+31_fonts.pdf
+    Schriften (D4), Referenz pdftoppm. Ersatzschriften: Form und
+    Laufweite weichen ab, alle Zeichen müssen lesbar und richtig sein.
+    Seite 1: echtes pdfTeX-PDF (plain TeX, Computer Modern Type1-
+    Subsets mit /Flags 4, /CharSet, ohne /Encoding und /ToUnicode -
+    das Encoding steht nur in der Schriftdatei). Normal, Ligaturen
+    fi/fl/ff/ffi/ffl, Satzzeichen, Umlaute (OT1: Akzent als eigenes
+    Zeichen neben dem Buchstaben, nicht darüber), fett, kursiv,
+    Schreibmaschine, serifenlos, Mathe (Hoch-/Tiefstellung, griechische
+    Buchstaben, kleiner-gleich, Summe; Zeichen ohne GEOS-Entsprechung
+    fehlen). Vor D4 war diese Seite weitgehend leer.
+    Seite 2: Base-14 ohne /Widths (Helvetica, Times, Times-BoldItalic,
+    Courier, Symbol), WinAnsi- und MacRoman-Sonderzeichen,
+    /Differences mit Standardnamen (Äöß), /Differences mit
+    Fantasienamen /g1../g5 plus /ToUnicode ("Hallo" - pdftoppm zeichnet
+    nach Glyphnamen und zeigt hier nichts), /FirstChar 30 /LastChar 400
+    (Bereich wird begrenzt; Text gesperrt, kein Absturz). /ProcSet in
+    den Ressourcen wird ignoriert.
+    Generatoren mk31a.tex (pdftex) und mk31b.py, zusammengefügt mit
+    qpdf --empty --pages (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

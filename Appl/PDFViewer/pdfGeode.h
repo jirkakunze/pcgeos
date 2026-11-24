@@ -434,6 +434,16 @@ typedef struct GfxFont
 
     unsigned short widths[256]; /* char widths(x1000) */
     unsigned char charMap[256]; /* char encoding map */
+    /*
+     * Bit set: charMap holds a code of the GEOS Symbol font (Greek letters
+     * missing in the GEOS character set), see GfxFontSymbolChar.
+     */
+    byte symChars[32];
+    /*
+     * Vertical offset of every glyph, 1/1000 em (0 = none). TeX CMEX glyphs
+     * hang below the baseline, the substitute glyphs stand on it.
+     */
+    short charRise;
     /* Widths are computed inline; charNames[256] is no longer needed. */
 
 } GfxFont;

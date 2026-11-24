@@ -2295,11 +2295,41 @@
  * '|': class letter + name prefix (without subset tag, spaces and '_'),
  * the first matching prefix wins -- so "DejaVuSansMono" stays before
  * "DejaVuSans". M = mono (URW Mono), S = serif (URW Roman), N = sans
- * (URW Sans), Y = symbol. Names not listed go through generic rules
+ * (URW Sans), Y = symbol. "CM" = TeX Computer Modern (CMR, CMBX, CMTI,
+ * CMMI, CMSY, ...; CMSS sans, CMTT mono). Names not listed go through generic rules
  * ("Mono", "Code", "Serif", "Sans", ...), then the /Flags.
  */
+/*
+ * Glyph names of GEOS characters that charNames does not have (Mac math
+ * characters). mathNames and mathUnicode are in the same order. Used by
+ * GfxGlyphNameToGeosChar.
+ */
+@chunk char mathNames[] =
+    "notequal|infinity|lessequal|greaterequal|partialdiff|summation|"
+    "product|pi|integral|Omega|radical|approxequal|Delta|increment|"
+    "lozenge|";
+@chunk word mathUnicode[] = {
+    0x2260, 0x221E, 0x2264, 0x2265, 0x2202, 0x2211,
+    0x220F, 0x03C0, 0x222B, 0x03A9, 0x221A, 0x2248, 0x2206, 0x2206,
+    0x25CA
+};
+
+/*
+ * Greek letters for the GEOS Symbol font (Adobe Symbol encoding), which
+ * the GEOS character set does not have (except pi and mu). greekNames
+ * and greekSymbolLetters are in the same order; greekUnicodeLower is
+ * U+03B1..U+03C9, greekUnicodeUpper is U+0391..U+03A9 ('?' = no letter).
+ * Used by GfxFontSymbolChar.
+ */
+@chunk char greekNames[] =
+    "alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|"
+    "nu|xi|omicron|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|";
+@chunk char greekSymbolLetters[] = "abgdezhqiklmnxoprstufcyw";
+@chunk char greekUnicodeLower[] = "abgdezhqiklmnxoprVstufcyw";
+@chunk char greekUnicodeUpper[] = "ABGDEZHQIKLMNXOPR?STUFCYW";
+
 @chunk char fontNameMap[] =
-    "MCourier|MConsolas|MLucidaConsole|MLucidaSansTypewriter|"
+    "NCMUSans|MCMUTypewriter|MCMTT|NCMSS|SCM|MCourier|MConsolas|MLucidaConsole|MLucidaSansTypewriter|"
     "MAndaleMono|MMenlo|MMonaco|MInconsolata|MLiberationMono|"
     "MDejaVuSansMono|MNotoMono|MNotoSansMono|MNimbusMono|MUbuntuMono|"
     "MRobotoMono|MSourceCodePro|MFiraMono|MFiraCode|MCascadia|MCousine|"

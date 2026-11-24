@@ -78,6 +78,7 @@ word GfxGeosCharToUnicode(byte ch);
 
 /* GEOS char (or C_xx_LIGATURE) for a glyph name, 0 if unknown. */
 byte GfxGlyphNameToGeosChar(char *name);
+GBool GfxFontIsSymbolChar(GfxFont *this, byte code);
 
 /* Pick the GEOS substitute font class (flags) from the font name. */
 void GfxFontMapName(GfxFont *this, const char *name);
