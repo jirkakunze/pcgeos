@@ -97,10 +97,24 @@ static GBool GfxLookupXObject(Gfx *this, char *name, Obj *obj);
 
 void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GBool invert, GBool inlineImage);
+/*
+ * Image transparency (C3): a soft mask (/SMask), an explicit stencil
+ * (/Mask stream) or a color key (/Mask array). Drawn as a 1-bit GEOS
+ * bitmap mask (BMT_MASK); partial alpha is dithered like /ca (A1).
+ */
+typedef struct {
+    Stream *str;        /* /SMask or /Mask stream, NULL = none */
+    word width, height; /* mask image size */
+    short bits;         /* mask bits per sample */
+    GBool invert;       /* sample 1 = transparent (/Mask stencil) */
+    short nKey;         /* color key components, 0 = none */
+    Guchar keyMin[4];
+    Guchar keyMax[4];
+} GfxImageMask;
+
 void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
-    GfxImageColorMap *colorMap, GBool inlineImage,
-    Stream *smaskStr, word smaskWidth, word smaskHeight,
-    short smaskBits);
+    GfxImageColorMap *colorMap, GBool inlineImage, GfxImageMask *imgMask);
+static void GfxImageMaskStream(Gfx *gfx, Obj *maskObj, GfxImageMask *m);
 
 static void _near opMoveSetShowText(Gfx *gfx, Obj args[], int numArgs);
 static void _near opSave(Gfx *gfx, Obj args[], int numArgs);
@@ -4919,11 +4933,9 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
     GfxColorSpace colorSpace;
     GfxImageColorMap colorMap;
     GBool invert;
-    Stream *smaskStr;
-    Obj smaskRef, smaskObj;
-    Dict *smaskDict;
-    word smaskWidth, smaskHeight;
-    short smaskBits;
+    Obj maskObj;
+    GfxImageMask imgMask;
+    short k, nComps;
 
     /*
      * OPT-24: resource admission is deferred until the sampled bitmap
@@ -4997,11 +5009,18 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
         ObjFree(&obj1);
         DictLookup(dict, "BPC", &obj1, gfx->xref);
     }
-    if (!isInt(&obj1))
+    if (mask && isNull(&obj1))
+    {
+        rawVal = 1;  /* optional for stencil masks, always 1 */
+    }
+    else if (!isInt(&obj1))
     {
         goto err2;
     }
-    rawVal = getInt(&obj1);
+    else
+    {
+        rawVal = getInt(&obj1);
+    }
     /*
      * BitsPerComponent must be one of these five spec-defined values (PDF
      * 32000-1:2008, Table 89).
@@ -5090,74 +5109,65 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
         }
 
         /*
-         * /SMask: a separate, always-DeviceGray image XObject carrying per-
-         * pixel opacity .
+         * Transparency: /SMask (DeviceGray image with per-pixel opacity)
+         * wins over /Mask, which is either a stencil mask stream or a
+         * color key array [min1 max1 ...] of raw sample values.
          */
-        smaskStr = NULL;
-        smaskWidth = smaskHeight = 0;
-        smaskBits = 8;
-        initNull(&smaskObj);
-        DictLookupNF(dict, "SMask", &smaskRef);
-        if (isRef(&smaskRef))
+        imgMask.str = NULL;
+        imgMask.nKey = 0;
+        DictLookup(dict, "SMask", &maskObj, gfx->xref);
+        if (isStream(&maskObj))
         {
-            ObjFetch(&smaskObj, &smaskRef, gfx->xref);
-            if (isStream(&smaskObj))
+            GfxImageMaskStream(gfx, &maskObj, &imgMask);
+        }
+        else
+        {
+            ObjFree(&maskObj);
+            DictLookup(dict, "Mask", &maskObj, gfx->xref);
+            if (isStream(&maskObj))
             {
-                smaskDict = ObjStreamGetDict(&smaskObj);
-                DictLookup(smaskDict, "Width", &obj1, gfx->xref);
-                /*
-                 * Same raw-value-before-narrowing validation as /Width above
-                 * (project optimization analysis R5).
-                 */
-                if (isInt(&obj1))
+                GfxImageMaskStream(gfx, &maskObj, &imgMask);
+                imgMask.invert = !imgMask.invert;  /* 1 = masked out */
+            }
+            else if (isArray(&maskObj))
+            {
+                nComps = GfxImageColorMapGetNumPixelComps(&colorMap);
+                if (nComps <= 4 && ObjArrayGetLength(&maskObj) == 2 * nComps)
                 {
-                    rawVal = getInt(&obj1);
-                    if (rawVal > 0 && rawVal <= 65535)
+                    for (k = 0; k < 2 * nComps; ++k)
                     {
-                        smaskWidth = (word)rawVal;
+                        ObjArrayGet(&maskObj, k, &obj1, gfx->xref);
+                        rawVal = isInt(&obj1) ? getInt(&obj1) : 0;
+                        ObjFree(&obj1);
+                        if (bits == 16)
+                        {
+                            rawVal >>= 8;  /* samples keep the high byte */
+                        }
+                        if (rawVal < 0)
+                        {
+                            rawVal = 0;
+                        }
+                        else if (rawVal > 255)
+                        {
+                            rawVal = 255;
+                        }
+                        if (k & 1)
+                        {
+                            imgMask.keyMax[k >> 1] = (Guchar)rawVal;
+                        }
+                        else
+                        {
+                            imgMask.keyMin[k >> 1] = (Guchar)rawVal;
+                        }
                     }
-                }
-                ObjFree(&obj1);
-                DictLookup(smaskDict, "Height", &obj1, gfx->xref);
-                if (isInt(&obj1))
-                {
-                    rawVal = getInt(&obj1);
-                    if (rawVal > 0 && rawVal <= 65535)
-                    {
-                        smaskHeight = (word)rawVal;
-                    }
-                }
-                ObjFree(&obj1);
-                DictLookup(smaskDict, "BitsPerComponent", &obj1, gfx->xref);
-                if (isInt(&obj1))
-                {
-                    rawVal = getInt(&obj1);
-                    if (rawVal == 1 || rawVal == 2 || rawVal == 4
-                        || rawVal == 8 || rawVal == 16)
-                    {
-                        smaskBits = (short)rawVal;
-                    }
-                }
-                ObjFree(&obj1);
-                if (smaskWidth > 0 && smaskHeight > 0)
-                {
-                    smaskStr = getStream(&smaskObj);
-                    if (!StreamResetImage(smaskStr, smaskWidth, 1, smaskBits))
-                    {
-                        smaskStr = NULL;
-                    }
-                }
-                else
-                {
-                    smaskStr = NULL;
+                    imgMask.nKey = nComps;
                 }
             }
         }
-        ObjFree(&smaskRef);
 
         GfxDrawImage(gfx, str, width, height, &colorMap, inlineImg,
-            smaskStr, smaskWidth, smaskHeight, smaskBits);
-        ObjFree(&smaskObj);
+            &imgMask);
+        ObjFree(&maskObj);
         GfxImageColorMapFree(&colorMap);
     }
 
@@ -6118,6 +6128,79 @@ static void GfxDrawImageRows(GStateHandle gstring, VMFileHandle vmFile,
 }
 
 /***********************************************************************
+ *      GfxImageMaskStream
+ ***********************************************************************
+ * SYNOPSIS:        Set up a mask image (/SMask or /Mask stream) for
+ *                  GfxDrawImage.
+ * PARAMETERS:      maskObj    fetched stream object (owned by caller)
+ *                  m          filled in; m->str stays NULL on error
+ * STRATEGY:        A stencil mask (/ImageMask true) has 1 bit per
+ *                  sample even without /BitsPerComponent. /Decode [1 0]
+ *                  inverts the samples.
+ ***********************************************************************/
+static void GfxImageMaskStream(Gfx *gfx, Obj *maskObj, GfxImageMask *m)
+{
+    Dict *mdict = ObjStreamGetDict(maskObj);
+    Obj obj1, obj2;
+    long val;
+
+    m->str = NULL;
+    m->width = m->height = 0;
+    m->bits = 8;
+    m->invert = gFalse;
+
+    DictLookup(mdict, "Width", &obj1, gfx->xref);
+    val = isInt(&obj1) ? getInt(&obj1) : 0;
+    ObjFree(&obj1);
+    if (val <= 0 || val > 65535)
+    {
+        return;
+    }
+    m->width = (word)val;
+    DictLookup(mdict, "Height", &obj1, gfx->xref);
+    val = isInt(&obj1) ? getInt(&obj1) : 0;
+    ObjFree(&obj1);
+    if (val <= 0 || val > 65535)
+    {
+        return;
+    }
+    m->height = (word)val;
+    DictLookup(mdict, "BitsPerComponent", &obj1, gfx->xref);
+    if (isInt(&obj1))
+    {
+        val = getInt(&obj1);
+        if (val == 1 || val == 2 || val == 4 || val == 8 || val == 16)
+        {
+            m->bits = (short)val;
+        }
+    }
+    ObjFree(&obj1);
+    DictLookup(mdict, "ImageMask", &obj1, gfx->xref);
+    if (isBool(&obj1) && getBool(&obj1))
+    {
+        m->bits = 1;
+    }
+    ObjFree(&obj1);
+    DictLookup(mdict, "Decode", &obj1, gfx->xref);
+    if (isArray(&obj1))
+    {
+        ObjArrayGet(&obj1, 0, &obj2, gfx->xref);
+        if (isNum(&obj2) && getNum(&obj2) > 0)
+        {
+            m->invert = gTrue;
+        }
+        ObjFree(&obj2);
+    }
+    ObjFree(&obj1);
+
+    m->str = getStream(maskObj);
+    if (!StreamResetImage(m->str, m->width, 1, m->bits))
+    {
+        m->str = NULL;
+    }
+}
+
+/***********************************************************************
  *      GfxDrawImageMask
  ***********************************************************************
  * SYNOPSIS:        Draw image mask.
@@ -6156,8 +6239,9 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     dword bitmapBytes;
     word size;
     Handle gstring = gfx->state->gstring;
-    Guchar fillR, fillG, fillB;
-    GBool paint;
+    word maskBytes, sx, k, alpha, dither;
+    sdword fa;
+    byte *rgb;
     word xSamp, ySamp, xMod, yCount;
     word sampledWidth, sampledHeight, arrayInd;
     GBool useLine;
@@ -6165,10 +6249,6 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     word validRows = 0;      /* complete bitmap rows */
     /* reverse the sense of the 'invert' test */
     invert = !invert;
-
-    fillR = (Guchar)gfx->state->fillColor.r;
-    fillG = (Guchar)gfx->state->fillColor.g;
-    fillB = (Guchar)gfx->state->fillColor.b;
 
     if (!StreamResetImage(str, width, 1, 1))
     {
@@ -6200,9 +6280,18 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GrApplyScale(gstring,
         (1L << 16) / sampledWidth,
         (1L << 16) / sampledHeight);
-    /* ImageMask pixels must carry the current PDF fill color. */
-
-    bitmapBytes = (dword)sampledWidth * (dword)sampledHeight * 3UL;
+    /*
+     * ImageMask pixels carry the current fill color: a 24-bit bitmap in
+     * the fill color with a bitmap mask (BMT_MASK), unpainted pixels stay
+     * transparent. /ca is dithered into the mask like in GfxDrawImage.
+     * (GrFillHugeBitmap with a mono bitmap drew nothing in the GString.)
+     */
+    fa = (GrMulWWFixed(gfx->state->fillAlpha, IntToGdouble(255)) +
+        0x8000L) >> 16;
+    alpha = (fa < 0) ? 0 : (fa > 255) ? 255 : (word)fa;
+    maskBytes = (sampledWidth + 7) >> 3;
+    bitmapBytes = ((dword)sampledWidth * 3UL + maskBytes) *
+        (dword)sampledHeight;
     if (!GfxCheckPageResourceBudget(gfx, bitmapBytes))
     {
         GrRestoreTransform(gstring);
@@ -6213,7 +6302,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
         return;
     }
 
-    bitmap = GrCreateBitmap(BMF_24BIT | BMT_COMPLEX,
+    bitmap = GrCreateBitmap(BMF_24BIT | BMT_MASK | BMT_COMPLEX,
         sampledWidth,
         sampledHeight,
         gfx->vmFile,
@@ -6234,8 +6323,8 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GrDestroyBitmap(bmState, BMD_LEAVE_DATA);
 
     /*
-     * OPT-10/19: bind this HugeBitmap to the page cache and account its 24-bit
-     * RGB pixel payload.
+     * OPT-10/19: bind this HugeBitmap to the page cache and account its
+     * pixel payload.
      */
     if (bitmap)
     {
@@ -6276,8 +6365,20 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
             {
                 nElements = 0;
             }
+            if (nElements & 0xffff0000)
+            {
+                memset(line, 0, maskBytes);
+                rgb = line + maskBytes;
+                for (k = 0; k < sampledWidth; ++k)
+                {
+                    *rgb++ = (byte)gfx->state->fillColor.r;
+                    *rgb++ = (byte)gfx->state->fillColor.g;
+                    *rgb++ = (byte)gfx->state->fillColor.b;
+                }
+            }
 
             xMod = 0;
+            sx = 0;
             for (j = 0; j < width; ++j)
             {
 
@@ -6304,20 +6405,16 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
                      * byte code had (bit XOR invert), just resolved one pixel
                      * at a time instead of eight at a go
                      */
-                    paint = invert ? !(pixBuf[0] & 1) : (pixBuf[0] & 1);
-
-                    if (paint)
+                    /* 4x4 ordered dither threshold for /ca, 8 .. 248 */
+                    dither = sx ^ arrayInd;
+                    dither = ((dither & 1) << 3) | ((arrayInd & 1) << 2) |
+                        (dither & 2) | ((arrayInd & 2) >> 1);
+                    if (((pixBuf[0] & 1) ^ (invert ? 1 : 0)) &&
+                        alpha > (dither << 4) + 8)
                     {
-                        *line++ = fillR;
-                        *line++ = fillG;
-                        *line++ = fillB;
+                        line[sx >> 3] |= (byte)(0x80 >> (sx & 7));
                     }
-                    else
-                    {
-                        *line++ = 255;
-                        *line++ = 255;
-                        *line++ = 255;
-                    }
+                    ++sx;
                 }
                 if (++xMod == xSamp)
                 {
@@ -6358,8 +6455,17 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     /* Draw the bitmap into our gstring at coords (0,0). */
     if (bitmap && !(gfx->cancelFlag && *gfx->cancelFlag))
     {
+        if (alpha < 255)
+        {
+            /* /ca is in the bitmap mask, not the area mask */
+            GrSetAreaMaskSys(gstring, SDM_100);
+        }
         GfxDrawImageRows(gstring, gfx->vmFile, bitmap, sampledWidth,
             sampledHeight, validRows);
+        if (alpha < 255)
+        {
+            GrSetAreaMaskSys(gstring, GfxAlphaMask(gfx->state->fillAlpha));
+        }
     }
     /* Restore the transformation matrix */
     GrRestoreTransform(gstring);
@@ -6380,60 +6486,61 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
  *                  word height    height
  *                  GfxImageColorMap *colorMap    color map
  *                  GBool inlineImage    inline image
- *                  Stream *smaskStr    smask str
- *                  word smaskWidth    smask width
- *                  word smaskHeight    smask height
- *                  short smaskBits    smask bits
+ *                  GfxImageMask *m    transparency (see GfxDoImage)
  *
  * RETURNS:         void
  *
- * CONTEXT:
- *
  * STRATEGY:
- *      DrawImage is another output-device method handled by me in Gfx.
- *      To do: For efficiency, indexed images should be...
+ *      The image becomes a 24-bit HugeBitmap. With a soft mask, a
+ *      stencil mask, a color key or a constant /ca below 1 it gets a
+ *      GEOS bitmap mask (BMT_MASK: per row (width+7)/8 mask bytes, MSB
+ *      first, set = drawn, then the RGB data). A GString can't blend
+ *      with what is already drawn, so partial alpha is dithered into the
+ *      mask with a 4x4 ordered pattern, like /ca for fills (A1).
  *
  * REVISION HISTORY:
  *  Name    Date        Description
  *  ----    ----        -----------
  *  mevissen    5/17/99     Initial Revision
+ *  JK      11/24/26    Bitmap mask for /SMask, /Mask, /ca (C3)
  *
  ***********************************************************************/
 void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
-    GfxImageColorMap *colorMap, GBool inlineImage, Stream *smaskStr, 
-    word smaskWidth, word smaskHeight, short smaskBits)
+    GfxImageColorMap *colorMap, GBool inlineImage, GfxImageMask *m)
 {
 
     Guchar pixBuf[4];
-    Guchar smaskPixBuf[4];
-    Guchar *smaskRowBuf;
-    long smaskRowLoaded;
-    long smaskTargetRow, smaskCol;
-    long smaskAccum;
-    word alpha;
-    short nComps, nBits;
+    Guchar maskPixBuf[4];
+    Guchar *maskRowBuf;
+    long maskRowLoaded;
+    long maskTargetRow, maskCol;
+    long maskAccum;
+    word alpha, fillAlpha, dither;
+    short nComps, nBits, k;
     GfxColor color;
     word i, j;
     word sampledWidth, sampledHeight, arrayInd;
     VMBlockHandle bitmap;
     GStateHandle bmState;
     byte *line;
+    byte *maskLine;
     dword nElements;
     dword bitmapBytes;
     word size;
     Handle gstring = gfx->state->gstring;
     word xSamp, ySamp, xMod, yCount;
-    GBool useLine;
+    word maskBytes, sx;
+    GBool useLine, useMask;
     GBool dataEnd = gFalse;  /* image data ended early */
     word validRows = 0;      /* complete bitmap rows */
-    
+
     /* Some pdf files have pages that are one big image. */
     xSamp = width / 1500 + 1;
     ySamp = height / 1500 + 1;
 
     /*
      * Ceiling division -- see the matching fix (and full explanation) in
-     * GfxDrawImage above; same overflow risk applies here identically.
+     * GfxDrawImageMask; same overflow risk applies here identically.
      */
     sampledWidth = (word)(((dword)width + xSamp - 1) / xSamp);
     sampledHeight = (word)(((dword)height + ySamp - 1) / ySamp);
@@ -6441,18 +6548,31 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     nComps = GfxImageColorMapGetNumPixelComps(colorMap);
     nBits = GfxImageColorMapGetBits(colorMap);
 
+    /* constant fill alpha 0..255 */
+    {
+        sdword fa = (GrMulWWFixed(gfx->state->fillAlpha,
+            IntToGdouble(255)) + 0x8000L) >> 16;
+        fillAlpha = (fa < 0) ? 0 : (fa > 255) ? 255 : (word)fa;
+    }
+    if (m->nKey > nComps)
+    {
+        m->nKey = 0;
+    }
+    useMask = (m->str != NULL || m->nKey > 0 || fillAlpha < 255);
+    maskBytes = useMask ? ((sampledWidth + 7) >> 3) : 0;
+
     /*
-     * SMask row buffer: exactly one decoded row at a time, never the whole
+     * Mask row buffer: exactly one decoded row at a time, never the whole
      * mask image -- deliberately.
      */
-    smaskRowBuf = NULL;
-    smaskRowLoaded = -1;
-    smaskAccum = 0;
-    smaskTargetRow = 0;
-    if (smaskStr)
+    maskRowBuf = NULL;
+    maskRowLoaded = -1;
+    maskAccum = 0;
+    maskTargetRow = 0;
+    if (m->str)
     {
-        smaskRowBuf = gmalloc(smaskWidth);
-        if (!smaskRowBuf)
+        maskRowBuf = gmalloc(m->width);
+        if (!maskRowBuf)
         {
             return;
         }
@@ -6460,7 +6580,7 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
 
     if (!StreamResetImage(str, width, nComps, nBits))
     {
-        gfree(smaskRowBuf);
+        gfree(maskRowBuf);
         return;
     }
     /* Put up the image-progress dialog */
@@ -6475,57 +6595,37 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
         (1L << 16) / sampledWidth,
         (1L << 16) / sampledHeight);
 
-    bitmapBytes = (dword)sampledWidth * (dword)sampledHeight * 3UL;
+    bitmapBytes = ((dword)sampledWidth * 3UL + maskBytes) *
+        (dword)sampledHeight;
 
-    if (!GfxCheckPageResourceBudget(gfx, bitmapBytes))
+    bitmap = NullHandle;
+    if (GfxCheckPageResourceBudget(gfx, bitmapBytes))
     {
-        GrRestoreTransform(gstring);
-        if (!inlineImage && gfx->progressCallback)
+        bitmap = GrCreateBitmap(BMF_24BIT | BMT_COMPLEX |
+            (useMask ? BMT_MASK : 0),
+            sampledWidth,
+            sampledHeight,
+            gfx->vmFile,
+            0,
+            &bmState);
+        if (bitmap)
         {
-            GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
+            GrDestroyBitmap(bmState, BMD_LEAVE_DATA);
+            if (gfx->pageResourceList != NullHandle)
+            {
+                HugeArrayAppend(gfx->vmFile, gfx->pageResourceList, 1,
+                    &bitmap);
+                ++gfx->pageResourceCount;
+            }
+            gfx->pageResourceBytes += bitmapBytes;
         }
-        if (smaskRowBuf)
+        else
         {
-            gfree(smaskRowBuf);
+            gfx->resourceLimitExceeded = gTrue;
         }
-        return;
     }
 
-    bitmap = GrCreateBitmap(BMF_24BIT | BMT_COMPLEX,
-        sampledWidth,
-        sampledHeight,
-        gfx->vmFile,
-        0,
-        &bmState);
-
-    if (!bitmap)
-    {
-        gfx->resourceLimitExceeded = gTrue;
-        GrRestoreTransform(gstring);
-        if (!inlineImage && gfx->progressCallback)
-        {
-            GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
-        }
-        if (smaskRowBuf)
-        {
-            gfree(smaskRowBuf);
-        }
-        return;
-    }
-
-    GrDestroyBitmap(bmState, BMD_LEAVE_DATA);
-
-    if (bitmap)
-    {
-        if (gfx->pageResourceList != NullHandle)
-        {
-            HugeArrayAppend(gfx->vmFile, gfx->pageResourceList, 1, &bitmap);
-            ++gfx->pageResourceCount;
-        }
-        gfx->pageResourceBytes += bitmapBytes;
-    }
     /* Fill the bitmap w/pixel data. */
-
     if (bitmap)
     {
         arrayInd = sampledHeight;
@@ -6546,47 +6646,46 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
                 arrayInd--;
             }
 
-            if (smaskStr)
+            if (m->str)
             {
-                if (smaskHeight == height)
+                if (m->height == height)
                 {
-                    smaskTargetRow = i;
+                    maskTargetRow = i;
                 }
 
-                while (smaskRowLoaded < smaskTargetRow)
+                while (maskRowLoaded < maskTargetRow)
                 {
-                    for (smaskCol = 0; smaskCol < smaskWidth; ++smaskCol)
+                    for (maskCol = 0; maskCol < m->width; ++maskCol)
                     {
-                        StreamGetImagePixel(smaskStr, smaskPixBuf);
-                        switch (smaskBits)
+                        StreamGetImagePixel(m->str, maskPixBuf);
+                        switch (m->bits)
                         {
                             case 1:
-                                smaskRowBuf[smaskCol] = smaskPixBuf[0] ?
-                                    255 : 0;
+                                alpha = maskPixBuf[0] ? 255 : 0;
                                 break;
                             case 2:
-                                smaskRowBuf[smaskCol] =
-                                    (Guchar)(smaskPixBuf[0] * 85);
+                                alpha = maskPixBuf[0] * 85;
                                 break;
                             case 4:
-                                smaskRowBuf[smaskCol] =
-                                    (Guchar)(smaskPixBuf[0] * 17);
+                                alpha = maskPixBuf[0] * 17;
                                 break;
                             default:
-                                smaskRowBuf[smaskCol] = smaskPixBuf[0];
+                                alpha = maskPixBuf[0];
                                 break;
                         }
+                        maskRowBuf[maskCol] = (Guchar)(m->invert ?
+                            255 - alpha : alpha);
                     }
-                    ++smaskRowLoaded;
+                    ++maskRowLoaded;
                 }
 
-                if (smaskHeight != height)
+                if (m->height != height)
                 {
-                    smaskAccum += smaskHeight;
-                    while (smaskAccum >= (long)height)
+                    maskAccum += m->height;
+                    while (maskAccum >= (long)height)
                     {
-                        smaskAccum -= height;
-                        ++smaskTargetRow;
+                        maskAccum -= height;
+                        ++maskTargetRow;
                     }
                 }
             }
@@ -6599,8 +6698,18 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
             {
                 nElements = 0;
             }
+            maskLine = line;
+            if (nElements & 0xffff0000)
+            {
+                if (maskBytes)
+                {
+                    memset(maskLine, 0, maskBytes);
+                    line += maskBytes;
+                }
+            }
 
             xMod = 0;
+            sx = 0;
 
             for (j = 0; j < width; ++j)
             {
@@ -6628,35 +6737,45 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
                 {
 
                     GfxImageColorMapGetColor(colorMap, pixBuf, &color);
-                    if (smaskStr)
-                    {
-                        if (smaskWidth == width)
-                        {
-                            alpha = smaskRowBuf[j];
-                        }
-                        else
-                        {
-                            smaskCol = (long)j * smaskWidth / width;
-                            alpha = smaskRowBuf[smaskCol];
-                        }
-                        /*
-                         * blend against white -- see the STRATEGY note on
-                         * GfxDoImage's /SMask handling: we can't read back
-                         * whatever's already drawn on the page.
-                         */
-                        color.r =
-                            (short)(((word)color.r *alpha +
-                            255 * (255 - alpha)) / 255);
-                        color.g =
-                            (short)(((word)color.g *alpha +
-                            255 * (255 - alpha)) / 255);
-                        color.b =
-                            (short)(((word)color.b *alpha +
-                            255 * (255 - alpha)) / 255);
-                    }
                     *line++ = (byte)color.r;
                     *line++ = (byte)color.g;
                     *line++ = (byte)color.b;
+
+                    if (useMask)
+                    {
+                        alpha = fillAlpha;
+                        if (m->str)
+                        {
+                            maskCol = (m->width == width) ? (long)j :
+                                (long)j * m->width / width;
+                            alpha = (word)(((word)maskRowBuf[maskCol] *
+                                alpha + 127) / 255);
+                        }
+                        if (m->nKey)
+                        {
+                            for (k = 0; k < m->nKey; ++k)
+                            {
+                                if (pixBuf[k] < m->keyMin[k] ||
+                                    pixBuf[k] > m->keyMax[k])
+                                {
+                                    break;
+                                }
+                            }
+                            if (k == m->nKey)
+                            {
+                                alpha = 0;
+                            }
+                        }
+                        /* 4x4 ordered dither threshold, 8 .. 248 */
+                        dither = sx ^ arrayInd;
+                        dither = ((dither & 1) << 3) | ((arrayInd & 1) << 2) |
+                            (dither & 2) | ((arrayInd & 2) >> 1);
+                        if (alpha > (dither << 4) + 8)
+                        {
+                            maskLine[sx >> 3] |= (byte)(0x80 >> (sx & 7));
+                        }
+                    }
+                    ++sx;
                 }
                 if (++xMod == xSamp)
                 {
@@ -6666,8 +6785,8 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
             /* dirty/unlock the bitmap line data. */
             if (nElements & 0xffff0000)
             {
-                HugeArrayDirty(line);
-                HugeArrayUnlock(line);
+                HugeArrayDirty(maskLine);
+                HugeArrayUnlock(maskLine);
             }
             if (dataEnd)
             {
@@ -6695,8 +6814,17 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     }
     if (bitmap && !(gfx->cancelFlag && *gfx->cancelFlag))
     {
+        if (fillAlpha < 255)
+        {
+            /* /ca is in the bitmap mask, not the area mask */
+            GrSetAreaMaskSys(gstring, SDM_100);
+        }
         GfxDrawImageRows(gstring, gfx->vmFile, bitmap, sampledWidth,
             sampledHeight, validRows);
+        if (fillAlpha < 255)
+        {
+            GrSetAreaMaskSys(gstring, GfxAlphaMask(gfx->state->fillAlpha));
+        }
     }
     /* Restore the transformation matrix */
     GrRestoreTransform(gstring);
@@ -6705,9 +6833,9 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     {
         GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
     }
-    if (smaskRowBuf)
+    if (maskRowBuf)
     {
-        gfree(smaskRowBuf);
+        gfree(maskRowBuf);
     }
 }
 

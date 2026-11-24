@@ -261,6 +261,15 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     (CalRGB/ICCBased werden wie DeviceRGB gezeichnet); pdftoppm wendet
     es an und zeigt Zeilen 1, 3 und das Bild leicht rosa getönt, die
     ICC-Platzhalterprofile meldet es als fehlerhaft (nutzt /Alternate).
+    Seite 4 (C3): Bildtransparenz. Alle Bilder liegen auf gelb/türkisen
+    Streifen, durchsichtige Stellen zeigen die Streifen (nicht weiß):
+    Color-Key RGB (roter Kreis), Color-Key Indexed 2 Bit (Ringe),
+    /Mask-Stream (blauer Kreis), /SMask-Rampe (links durchsichtig,
+    rechts deckend; im Viewer gerastert), Color-Key 16 Bit (blauer
+    Kreis), Color-Key-Bild mit ca 0.5 (Kreis gerastert), ImageMask als
+    Schachbrett-Kreis in Magenta, dasselbe mit ca 0.5. Referenz hier
+    mutool: pdftoppm wertet den 16-Bit-Color-Key nicht aus (grünes
+    Quadrat).
     Generator mk29.py (nur Scratchpad).
 
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
