@@ -1248,13 +1248,18 @@ void GfxStateInit(GfxState *state, Handle gstring)
  ***********************************************************************/
 void GfxStateFree(GfxState *state)
 {
-    if (state->saved)
+    GfxState *saved, *next;
+
+    /*
+     * Unclosed q levels: iterate, not recurse (stack 5000 bytes).
+     */
+    for (saved = state->saved; saved != NULL; saved = next)
     {
         GrRestoreState(state->gstring);
-
-        GfxStateFree(state->saved);
-        gfree(state->saved);
+        next = saved->saved;
+        gfree(saved);
     }
+    state->saved = NULL;
 }
 
 /***********************************************************************

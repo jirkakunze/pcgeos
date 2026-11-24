@@ -479,6 +479,8 @@ typedef struct Gfx
     GfxState *state; /* current graphics state */
     GBool fontChanged; /* set if font or text matrix has changed */
     GBool textClip;    /* clip text (Tr 4-7) in the kernel path until ET */
+    word saveDepth;    /* open q levels (GFX_MAX_SAVE_DEPTH) */
+    word skippedSaves; /* q beyond the limit, matched by Q */
 
     int ignoreUndef; /* current BX/EX nesting level */
 

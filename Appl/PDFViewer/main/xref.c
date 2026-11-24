@@ -93,6 +93,10 @@ void XRefInitNull(XRef *xref)
     xref->encrypted = gFalse;
     xref->needPassword = gFalse;
     xref->ownerAccess = gFalse;
+    xref->objStmCacheNum = -1;
+    xref->objStmCacheN = 0;
+    xref->objStmCacheFirst = 0;
+    xref->objStmPairOffsets = NULL;
 }
 
 /***********************************************************************
@@ -297,7 +301,17 @@ void XRefFree(XRef *xref)
     }
 
     ObjFree(&xref->trailerDict);
+
+    gfree(xref->objStmPairOffsets);
+    xref->objStmPairOffsets = NULL;
+    xref->objStmCacheNum = -1;
 }
+
+/*
+ * Largest Object Stream (objects) whose offset table is cached: 4 bytes
+ * per object, at most 4 KB of heap while the document is open.
+ */
+#define XREF_OBJSTM_CACHE_MAX 1024
 
 /* Find garbage bytes at start of file */
 #define headerSearchSize 512
@@ -1531,13 +1545,10 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     GBool cacheHit;
 
     /*
-     * Cache the last ObjStm header because its objects share one offset table.
+     * The last ObjStm header is cached in the XRef (its objects share one
+     * offset table): freed with the document, never valid for another one.
+     * Large tables are not cached (heap budget, H1).
      */
-    static XRef *cachedXref = NULL;
-    static long cachedObjStmNum = -1;
-    static long cachedN = 0;
-    static long cachedFirst = 0;
-    static long *cachedPairOffsets = NULL;
 
     XRefFetch(xref, objStmNum, 0, &objStmObj);
     if (!isStream(&objStmObj))
@@ -1567,9 +1578,10 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     consumed = 0;
     targetOffset = -1;
 
-    cacheHit = (xref == cachedXref && objStmNum == cachedObjStmNum
-        && n == cachedN
-        && first == cachedFirst && cachedPairOffsets != NULL);
+    cacheHit = (objStmNum == xref->objStmCacheNum
+        && n == xref->objStmCacheN
+        && first == xref->objStmCacheFirst
+        && xref->objStmPairOffsets != NULL);
 
     if (cacheHit)
     {
@@ -1577,7 +1589,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
          * Same ObjStm as last time, with a matching element count -- already
          * know every pair's offset from the cache.
          */
-        targetOffset = cachedPairOffsets[idxInStm];
+        targetOffset = xref->objStmPairOffsets[idxInStm];
     }
     else
     {
@@ -1585,15 +1597,12 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
          * Cache miss : scan the header for real, same as always -- but also
          * record every pair's offset into a freshly (re)allocated cache array.
          */
-        if (cachedPairOffsets)
-        {
-            gfree(cachedPairOffsets);
-        }
-        cachedPairOffsets = (n > 0) ? (long *)gmalloc(n * sizeof(long)) : NULL;
-        cachedXref = xref;
-        cachedObjStmNum = objStmNum;
-        cachedN = n;
-        cachedFirst = first;
+        gfree(xref->objStmPairOffsets);
+        xref->objStmPairOffsets = (n > 0 && n <= XREF_OBJSTM_CACHE_MAX) ?
+            (long *)gmalloc(n * sizeof(long)) : NULL;
+        xref->objStmCacheNum = objStmNum;
+        xref->objStmCacheN = n;
+        xref->objStmCacheFirst = first;
 
         for (i = 0; i < n; ++i)
         {
@@ -1624,9 +1633,9 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
                 c = ObjStreamGetCharCounted(&objStmObj, &consumed);
             }
 
-            if (cachedPairOffsets)
+            if (xref->objStmPairOffsets)
             {
-                cachedPairOffsets[i] = pairOffset;
+                xref->objStmPairOffsets[i] = pairOffset;
             }
             if (i == idxInStm)
             {

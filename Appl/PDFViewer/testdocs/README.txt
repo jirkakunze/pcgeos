@@ -328,6 +328,17 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     der weiße Bereich mit Rahmen, kein Grau. Der Druckdialog schlägt die
     angezeigte Seite als Bereich vor. Generator mk33.py (nur Scratchpad).
 
+34_limits.pdf
+    Grenzen (H1). Seite 1: drei Q ohne q am Anfang, dann 200
+    verschachtelte q ... Q (Grenze im Viewer 32; tiefere q und ihre Q
+    werden ignoriert) - eine Treppe kleiner Quadrate nach rechts oben,
+    danach grüner Balken und "Ende OK" schwarz, links, normal groß.
+    Seite 2: Form A lässt drei q offen (verschoben, rot), Form B hat Q
+    ohne q; trotzdem stehen die folgenden Zeilen schwarz und normal
+    platziert, der blaue Balken links auf Höhe 300, unten grüner Balken
+    und "Ende OK". pdftoppm meldet "Restoring state when no valid
+    states to pop" (erwartet). Generator mk34.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.
