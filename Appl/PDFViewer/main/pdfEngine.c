@@ -1241,25 +1241,11 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
                 resourceLimitExceeded = gfx.resourceLimitExceeded;
 
                 /*
-                 * Annotations are never part of the page's own content stream
-                 * -- PDF spec 12.5.5.
+                 * Annotation appearances (PDF 12.5.5) are not drawn in the
+                 * RM viewer (I1); links are handled by PdfFindLink.
+                 * PM-TODO: Draw annotation appearance streams again
+                 * (git history before I1: GfxDrawAnnotations).
                  */
-                if (status)
-                {
-                    Obj annotsObj;
-                    PageGetAnnots(&page, &annotsObj, &pdoc->xref);
-                    GfxDrawAnnotations(&gfx, &annotsObj);
-                    ObjFree(&annotsObj);
-                    if (GMemHadError())
-                    {
-                        status = gFalse;
-                    }
-                    if (gfx.resourceLimitExceeded)
-                    {
-                        resourceLimitExceeded = gTrue;
-                        status = gFalse;
-                    }
-                }
 
                 cacheEntry->resourceCount = gfx.pageResourceCount;
                 resourceBytes = gfx.pageResourceBytes;

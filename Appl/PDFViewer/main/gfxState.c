@@ -47,7 +47,7 @@
 
 static void GfxColorSpaceSetMode(GfxColorSpace *this, Obj *colorSpace,
     XRef *xref);
-static GBool GfxParseType2Function(Obj *funcObj, XRef *xref,
+GBool GfxParseType2Function(Obj *funcObj, XRef *xref,
     gdouble c0[4], gdouble c1[4], gdouble *n);
 
 /*
@@ -225,7 +225,7 @@ GfxParseCoordArray(Dict *dict, const char *key, XRef *xref, gdouble coords[4])
  *
  ***********************************************************************/
 
-static GBool
+GBool
 GfxParseType2Function(Obj *funcObj, XRef *xref, gdouble c0[4], gdouble c1[4],
     gdouble *n)
 {
@@ -1220,10 +1220,8 @@ void GfxStateInit(GfxState *state, Handle gstring)
     /* identity; the page box is set by GfxSetPageBox */
     state->ctm[0] = state->ctm[3] = 1L << 16;
     state->ctm[1] = state->ctm[2] = state->ctm[4] = state->ctm[5] = 0;
-    memcpy(state->baseCtm, state->ctm, sizeof(state->ctm));
     state->clipBox[0] = state->clipBox[1] = -(2000L << 16);
     state->clipBox[2] = state->clipBox[3] = 2000L << 16;
-    state->fillPattern[0] = '\0';
 }
 
 /***********************************************************************
@@ -1865,3 +1863,107 @@ void GfxStateTextShift(GfxState *state, gdouble tx)
     GrRelMoveTo(state->gstring, ((sdword)((dword)GdoubleToWWFixed(tx) << 5)), 0);
 }
 
+/***********************************************************************
+ *      Matrices
+ ***********************************************************************
+ * 2x3 matrices in PDF order [a b c d e f] (p' = p x M), 16.16 fixed.
+ * Used to follow the CTM (clip box, replacement fill of 'sh').
+ * (Moved here from main/shading.c, which was removed in I1.)
+ ***********************************************************************/
+
+/* out = a x b (first a, then b); out may alias neither */
+void GfxMatMul(const gdouble *a, const gdouble *b, gdouble *out)
+{
+    out[0] = GrMulWWFixed(a[0], b[0]) + GrMulWWFixed(a[1], b[2]);
+    out[1] = GrMulWWFixed(a[0], b[1]) + GrMulWWFixed(a[1], b[3]);
+    out[2] = GrMulWWFixed(a[2], b[0]) + GrMulWWFixed(a[3], b[2]);
+    out[3] = GrMulWWFixed(a[2], b[1]) + GrMulWWFixed(a[3], b[3]);
+    out[4] = GrMulWWFixed(a[4], b[0]) + GrMulWWFixed(a[5], b[2]) + b[4];
+    out[5] = GrMulWWFixed(a[4], b[1]) + GrMulWWFixed(a[5], b[3]) + b[5];
+}
+
+static gdouble GfxMatAbs(gdouble x)
+{
+    return (x < 0) ? -x : x;
+}
+
+/*
+ * The determinant of a matrix with entries around 200 (a unit square
+ * scaled to a page) overflows 16.16, so the linear part is normalized
+ * by its largest entry first.
+ */
+GBool GfxMatInvert(const gdouble *m, gdouble *out)
+{
+    gdouble s, a, b, c, d, det, ds;
+    word i;
+
+    s = 0;
+    for (i = 0; i < 4; ++i)
+    {
+        if (GfxMatAbs(m[i]) > s)
+        {
+            s = GfxMatAbs(m[i]);
+        }
+    }
+    if (s == 0)
+    {
+        return gFalse;
+    }
+    a = GrSDivWWFixed(m[0], s);
+    b = GrSDivWWFixed(m[1], s);
+    c = GrSDivWWFixed(m[2], s);
+    d = GrSDivWWFixed(m[3], s);
+    det = GrMulWWFixed(a, d) - GrMulWWFixed(b, c);
+    if (GfxMatAbs(det) < 16)
+    {
+        return gFalse;          /* degenerate */
+    }
+    ds = GrMulWWFixed(det, s);
+    if (ds == 0)
+    {
+        return gFalse;
+    }
+    out[0] = GrSDivWWFixed(d, ds);
+    out[1] = -GrSDivWWFixed(b, ds);
+    out[2] = -GrSDivWWFixed(c, ds);
+    out[3] = GrSDivWWFixed(a, ds);
+    out[4] = -(GrMulWWFixed(m[4], out[0]) + GrMulWWFixed(m[5], out[2]));
+    out[5] = -(GrMulWWFixed(m[4], out[1]) + GrMulWWFixed(m[5], out[3]));
+    return gTrue;
+}
+
+void GfxMatApply(const gdouble *m, gdouble x, gdouble y, gdouble *ox,
+    gdouble *oy)
+{
+    *ox = GrMulWWFixed(x, m[0]) + GrMulWWFixed(y, m[2]) + m[4];
+    *oy = GrMulWWFixed(x, m[1]) + GrMulWWFixed(y, m[3]) + m[5];
+}
+
+/* bounding box [x0 y0 x1 y1] of box transformed by m (out may be box) */
+void GfxMatApplyBox(const gdouble *m, const gdouble *box, gdouble *out)
+{
+    gdouble x, y, b[4];
+    word i;
+
+    memcpy(b, box, sizeof(b));
+    for (i = 0; i < 4; ++i)
+    {
+        GfxMatApply(m, b[(i & 1) ? 2 : 0], b[(i & 2) ? 3 : 1], &x, &y);
+        if (i == 0 || x < out[0])
+        {
+            out[0] = x;
+        }
+        if (i == 0 || x > out[2])
+        {
+            out[2] = x;
+        }
+        if (i == 0 || y < out[1])
+        {
+            out[1] = y;
+        }
+        if (i == 0 || y > out[3])
+        {
+            out[3] = y;
+        }
+    }
+}

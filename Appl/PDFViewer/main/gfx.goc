@@ -49,7 +49,6 @@
 #include "dict.h"
 #include "gfxFont.h"
 #include "cidFont.h"
-#include "shading.h"
 #include "gfxState.h"
 #include "array.h"
 #include "stream.h"
@@ -183,6 +182,8 @@ static void GfxLookupResource(Gfx *this, word which, char *name, Obj *obj);
 static GBool GfxIsPatternSpace(Gfx *gfx, Obj *obj,
     GfxColorSpace *base);
 static GBool GfxPatternMidColor(Gfx *gfx, char *name, GfxColor *col);
+static GBool GfxShadingMidColor(Gfx *gfx, Obj *shading, GfxColor *col);
+static void GfxShFillMidColor(Gfx *gfx, Obj *shading);
 static void _near opClip(Gfx *gfx, Obj args[], int numArgs);
 static void _near opEOClip(Gfx *gfx, Obj args[], int numArgs);
 static void _near opBeginText(Gfx *gfx, Obj args[], int numArgs);
@@ -1943,7 +1944,6 @@ static void _near opSetFillGray(Gfx *gfx, Obj args[], int numArgs)
 {
     sword r, g, b;
 
-    gfx->state->fillPattern[0] = '\0';
 
     r = g = b = GdoubleToWord(getNum(&args[0]) * 255);
     GfxSetFillRGB(gfx, r, g, b);
@@ -2006,7 +2006,6 @@ static void _near opSetFillCMYKColor(Gfx *gfx, Obj args[], int numArgs)
     word c, m, y, k;
     sword r, g, b;
 
-    gfx->state->fillPattern[0] = '\0';
 
     c = GdoubleToWord(255 * getNum(&args[0]));
     m = GdoubleToWord(255 * getNum(&args[1]));
@@ -2103,7 +2102,6 @@ static void _near opSetFillRGBColor(Gfx *gfx, Obj args[], int numArgs)
 {
     sword r, g, b;
 
-    gfx->state->fillPattern[0] = '\0';
 
     r = GdoubleToWord(getNum(&args[0]) * 255);
     g = GdoubleToWord(getNum(&args[1]) * 255);
@@ -2278,7 +2276,6 @@ static void _near opSetFillColorSpace(Gfx *gfx, Obj args[], int numArgs)
         (void)numArgs;
         return;
     }
-    gfx->state->fillPattern[0] = '\0';
 
     GfxColorSpaceInit(&cs, &obj, gfx->xref);
     GfxObjFree(&obj);
@@ -2390,7 +2387,6 @@ static void _near opSetStrokeColorSpace(Gfx *gfx, Obj args[], int numArgs)
 
 static void _near opSetFillColor(Gfx *gfx, Obj args[], int numArgs)
 {
-    gfx->state->fillPattern[0] = '\0';
 
     if (numArgs == gfx->state->fillColorSpace.numComps)
     {
@@ -2522,7 +2518,7 @@ static GBool GfxPatternMidColor(Gfx *gfx, char *name, GfxColor *col)
     if (dict)
     {
         DictLookup(dict, "Shading", &shObj, gfx->xref);
-        ok = ShadingGetMidColor(gfx, &shObj, col);
+        ok = GfxShadingMidColor(gfx, &shObj, col);
         ObjFree(&shObj);
     }
     GfxObjFree(&patObj);
@@ -2563,12 +2559,6 @@ static void _near opSetFillColorN(Gfx *gfx, Obj args[], int numArgs)
          * tiling pattern or a representative color of a shading pattern.
          */
         name = getName(&args[numArgs - 1]);
-        if (strlen(name) >= GFX_PATTERN_NAME_LEN)
-        {
-            EC_WARNING(-1);
-            return;
-        }
-        strcpy(gfx->state->fillPattern, name);
         if (numArgs > 1)
         {
             /* uncolored tiling pattern: c1..cn in the base color space */
@@ -2583,7 +2573,6 @@ static void _near opSetFillColorN(Gfx *gfx, Obj args[], int numArgs)
         }
         return;
     }
-    gfx->state->fillPattern[0] = '\0';
     GfxApplyColorN(gfx, &gfx->state->fillColorSpace, args, numArgs, gFalse);
 }
 
@@ -3135,93 +3124,6 @@ GfxFillWithMinThickness(Gfx *gfx, RegionFillRule rule)
 }
 
 /***********************************************************************
- *      GfxFillPattern
- ***********************************************************************
- * SYNOPSIS:        Fill the current (ended) path with the shading
- *                  pattern named in state->fillPattern.
- * RETURNS:         gFalse if the pattern can't be painted (unknown,
- *                  tiling pattern) -- the caller fills with the color.
- * STRATEGY:        Clip to the path, switch the gstring from user space
- *                  to pattern space (T = Matrix x baseCtm x CTM^-1) and
- *                  draw the shading over the path's page space bounds.
- ***********************************************************************/
-static GBool GfxFillPattern(Gfx *gfx, RegionFillRule rule)
-{
-    GfxState *state = gfx->state;
-    Obj patObj, obj;
-    Dict *dict = NULL;
-    gdouble matrix[6], toPage[6], inv[6], t[6], raw[4], region[4];
-    GBool ok = gFalse;
-
-    /* shading patterns only; tiling patterns (streams) keep the color */
-    GfxLookupResource(gfx, 0, state->fillPattern, &patObj);
-    if (isDict(&patObj))
-    {
-        dict = getDict(&patObj);
-        DictLookup(dict, "PatternType", &obj, gfx->xref);
-        if (!isInt(&obj) || getInt(&obj) != 2)
-        {
-            dict = NULL;
-        }
-        ObjFree(&obj);
-    }
-    if (!dict)
-    {
-        GfxObjFree(&patObj);
-        return gFalse;
-    }
-
-    DictLookup(dict, "Matrix", &obj, gfx->xref);
-    if (isArray(&obj) && ObjArrayGetLength(&obj) >= 6)
-    {
-        GfxReadNumArray(&obj, matrix, 6, gfx->xref);
-    }
-    else
-    {
-        GfxMatIdentity(matrix);
-    }
-    ObjFree(&obj);
-
-    GfxMatMul(matrix, state->baseCtm, toPage);
-    ok = GfxMatInvert(state->ctm, inv);
-    if (ok)
-    {
-        GfxMatMul(toPage, inv, t);
-
-        memcpy(region, state->clipBox, sizeof(region));
-        if (state->pathRawBoundsValid)
-        {
-            raw[0] = state->pathRawMinX;
-            raw[1] = state->pathRawMinY;
-            raw[2] = state->pathRawMaxX;
-            raw[3] = state->pathRawMaxY;
-            GfxMatApplyBox(state->ctm, raw, raw);
-            if (raw[0] > region[0]) region[0] = raw[0];
-            if (raw[1] > region[1]) region[1] = raw[1];
-            if (raw[2] < region[2]) region[2] = raw[2];
-            if (raw[3] < region[3]) region[3] = raw[3];
-        }
-
-        DictLookup(dict, "Shading", &obj, gfx->xref);
-        if (!ShadingIsSupported(&obj, gfx->xref))
-        {
-            /* meshes/patches: the caller fills with the mid color */
-            ObjFree(&obj);
-            GfxObjFree(&patObj);
-            return gFalse;
-        }
-        GrSaveState(state->gstring);
-        GrSetClipPath(state->gstring, PCT_INTERSECTION, rule);
-        GfxApplyMatrix6(state->gstring, t[0], t[1], t[2], t[3], t[4], t[5]);
-        ShadingDraw(gfx, &obj, toPage, region, gTrue);
-        GrRestoreState(state->gstring);
-        ObjFree(&obj);
-    }
-    GfxObjFree(&patObj);
-    return gTrue;
-}
-
-/***********************************************************************
  *      GfxFillPath
  ***********************************************************************
  * SYNOPSIS:        Fill the current (ended) path with the fill color
@@ -3229,11 +3131,165 @@ static GBool GfxFillPattern(Gfx *gfx, RegionFillRule rule)
  ***********************************************************************/
 static void GfxFillPath(Gfx *gfx, RegionFillRule rule)
 {
-    if (gfx->state->fillPattern[0] && GfxFillPattern(gfx, rule))
+    /*
+     * A shading pattern fills with its replacement color, set by scn
+     * (GfxPatternMidColor); tiling patterns keep the current color.
+     */
+    GrFillPath(gfx->state->gstring, rule);
+}
+
+/***********************************************************************
+ *      GfxShadingMidColor
+ ***********************************************************************
+ * SYNOPSIS:        Replacement color of a shading (I1: shadings are not
+ *                  drawn in the RM viewer).
+ * PARAMETERS:      shading    shading dictionary or stream
+ * RETURNS:         gFalse if no color can be found
+ * STRATEGY:        Middle of a type 2 /Function (C0 + C1) / 2 -- also a
+ *                  type 3 function's middle part or one type 2 function
+ *                  per component --, else /Background, converted through
+ *                  the shading's /ColorSpace.
+ *                  PM-TODO: Draw shadings again (git history before I1:
+ *                  main/shading.c, main/function.c).
+ ***********************************************************************/
+static GBool GfxShadingMidColor(Gfx *gfx, Obj *shading, GfxColor *col)
+{
+    Dict *dict;
+    Obj csObj, fnObj, sub, arr;
+    GfxColorSpace cs;
+    gdouble c0[4], c1[4], n;
+    short x[4];
+    short i, nComps;
+    GBool ok = gFalse;
+
+    dict = isDict(shading) ? getDict(shading) :
+        isStream(shading) ? ObjStreamGetDict(shading) : NULL;
+    if (!dict)
+    {
+        return gFalse;
+    }
+    DictLookup(dict, "ColorSpace", &csObj, gfx->xref);
+    if (isName(&csObj))
+    {
+        /* named color space of the resources */
+        GfxLookupColorSpace(gfx, getName(&csObj), &sub);
+        if (!isNull(&sub))
+        {
+            ObjFree(&csObj);
+            ObjMove(&csObj, &sub);
+        }
+        else
+        {
+            ObjFree(&sub);
+        }
+    }
+    GfxColorSpaceInit(&cs, &csObj, gfx->xref);
+    ObjFree(&csObj);
+    if (!cs.ok)
+    {
+        GfxColorSpaceFree(&cs);
+        return gFalse;
+    }
+    nComps = GfxColorSpaceGetNumPixelComps(&cs);
+    if (nComps > 4)
+    {
+        nComps = 4;
+    }
+    x[0] = x[1] = x[2] = x[3] = 0;
+
+    DictLookup(dict, "Function", &fnObj, gfx->xref);
+    if (isArray(&fnObj))
+    {
+        /* one 1-out function per component */
+        ok = gTrue;
+        for (i = 0; i < nComps && ok; ++i)
+        {
+            ObjArrayGet(&fnObj, i, &sub, gfx->xref);
+            ok = GfxParseType2Function(&sub, gfx->xref, c0, c1, &n);
+            ObjFree(&sub);
+            x[i] = GdoubleToWord(255 * ((c0[0] + c1[0]) / 2));
+        }
+    }
+    else if (isDict(&fnObj) || isStream(&fnObj))
+    {
+        ok = GfxParseType2Function(&fnObj, gfx->xref, c0, c1, &n);
+        if (!ok)
+        {
+            /* type 3 (stitching): its middle type 2 function */
+            ObjDictLookup(&fnObj, "Functions", &arr, gfx->xref);
+            if (isArray(&arr) && ObjArrayGetLength(&arr) > 0)
+            {
+                ObjArrayGet(&arr, ObjArrayGetLength(&arr) / 2, &sub,
+                    gfx->xref);
+                ok = GfxParseType2Function(&sub, gfx->xref, c0, c1, &n);
+                ObjFree(&sub);
+            }
+            ObjFree(&arr);
+        }
+        for (i = 0; ok && i < nComps; ++i)
+        {
+            x[i] = GdoubleToWord(255 * ((c0[i] + c1[i]) / 2));
+        }
+    }
+    ObjFree(&fnObj);
+
+    if (!ok)
+    {
+        DictLookup(dict, "Background", &arr, gfx->xref);
+        if (isArray(&arr) && ObjArrayGetLength(&arr) >= nComps)
+        {
+            ok = gTrue;
+            for (i = 0; i < nComps; ++i)
+            {
+                ObjArrayGet(&arr, i, &sub, gfx->xref);
+                x[i] = isNum(&sub) ? GdoubleToWord(255 * getNum(&sub)) : 0;
+                ObjFree(&sub);
+            }
+        }
+        ObjFree(&arr);
+    }
+    if (ok)
+    {
+        GfxColorSpaceGetColor(&cs, x, col);
+    }
+    GfxColorSpaceFree(&cs);
+    return ok;
+}
+
+/***********************************************************************
+ *      GfxShFillMidColor
+ ***********************************************************************
+ * SYNOPSIS:        'sh' replacement: fill the current clip with the
+ *                  shading's replacement color.
+ * STRATEGY:        The page space clip box is mapped back to user space
+ *                  (inverse CTM) and filled as a polygon; the GEOS clip
+ *                  path cuts it to the real clip.
+ ***********************************************************************/
+static void GfxShFillMidColor(Gfx *gfx, Obj *shading)
+{
+    GfxState *state = gfx->state;
+    GfxColor col;
+    gdouble inv[6], ux, uy;
+    Point pts[4];
+    word i;
+
+    if (!GfxShadingMidColor(gfx, shading, &col) ||
+        !GfxMatInvert(state->ctm, inv))
     {
         return;
     }
-    GrFillPath(gfx->state->gstring, rule);
+    for (i = 0; i < 4; ++i)
+    {
+        GfxMatApply(inv, state->clipBox[(i == 1 || i == 2) ? 2 : 0],
+            state->clipBox[(i >= 2) ? 3 : 1], &ux, &uy);
+        /* 16.16 -> integer part: always within the sword range */
+        pts[i].P_x = (sword)GdoubleToWord(ux);
+        pts[i].P_y = (sword)GdoubleToWord(uy);
+    }
+    GrSaveState(state->gstring);
+    GrSetAreaColor(state->gstring, CF_RGB, col.r, col.g, col.b);
+    GrFillPolygon(state->gstring, ODD_EVEN, pts, 4);
+    GrRestoreState(state->gstring);
 }
 
 /***********************************************************************
@@ -3248,8 +3304,7 @@ static void _near opShFill(Gfx *gfx, Obj args[], int numArgs)
     GfxLookupResource(gfx, 1, getName(&args[0]), &obj);
     if (isDict(&obj) || isStream(&obj))
     {
-        ShadingDraw(gfx, &obj, gfx->state->ctm, gfx->state->clipBox,
-            gFalse);
+        GfxShFillMidColor(gfx, &obj);
     }
     else
     {
@@ -5441,9 +5496,7 @@ static void GfxDoForm(Gfx *gfx, Obj *str)
 
     GfxApplyMatrix6(gstring, f->matrix[0], f->matrix[1], f->matrix[2],
         f->matrix[3], f->matrix[4], f->matrix[5]);
-    /* pattern space of a form = form space */
     GfxConcatCtm(gfx->state, f->matrix);
-    memcpy(gfx->state->baseCtm, gfx->state->ctm, sizeof(gfx->state->ctm));
     GrSetClipRect(gstring, PCT_INTERSECTION,
         GdoubleToWord(f->bbox[0]), GdoubleToWord(f->bbox[1]),
         GdoubleToWord(f->bbox[2]), GdoubleToWord(f->bbox[3]));
@@ -5460,7 +5513,7 @@ static void GfxDoForm(Gfx *gfx, Obj *str)
     gfree(f);
 }
 
-/* Annotation appearance streams */
+/* Matrix helpers for forms */
 
 /***********************************************************************
  *      GfxApplyMatrix6
@@ -5546,309 +5599,6 @@ static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref)
         ObjArrayGet(arrObj, i, &elem, xref);
         out[i] = isNum(&elem) ? getNum(&elem) : IntToGdouble(0);
         ObjFree(&elem);
-    }
-}
-
-/***********************************************************************
- *      GfxDrawOneAnnotation
- ***********************************************************************
- * SYNOPSIS:        Draw one annotation.
- * PARAMETERS:      Gfx *gfx    graphics context
- *                  Obj *annotObj    annot obj
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-static void GfxDrawOneAnnotation(Gfx *gfx, Obj *annotObj)
-{
-    Dict *annotDict, *apDict, *formDict;
-    Obj rectObj, apObj, nObj, asObj, flagsObj;
-    Obj bboxObj, matrixObj;
-    long flags;
-    gdouble rect[4], bbox[4], matrix[6];
-    gdouble tx0, ty0, tx1, ty1, nx, ny;
-    gdouble sx, sy, a[6], combined[6];
-    gdouble tmp;
-    GfxResources newRes;
-    Handle gstring = gfx->state->gstring;
-
-    if (!isDict(annotObj))
-    {
-        return;
-    }
-    annotDict = getDict(annotObj);
-
-    /*
-     * Hidden (bit 2, value 2) / NoView (bit 6, value 32) -- an annotation with
-     * either set is never meant to be painted on screen at all.
-     */
-    DictLookup(annotDict, "F", &flagsObj, gfx->xref);
-    flags = isInt(&flagsObj) ? getInt(&flagsObj) : 0;
-    ObjFree(&flagsObj);
-    if ((flags & 0x02) || (flags & 0x20))
-    {
-        return;
-    }
-
-    DictLookup(annotDict, "Rect", &rectObj, gfx->xref);
-    if (!isArray(&rectObj) || ObjArrayGetLength(&rectObj) < 4)
-    {
-        ObjFree(&rectObj);
-        return;
-    }
-    GfxReadNumArray(&rectObj, rect, 4, gfx->xref);
-    ObjFree(&rectObj);
-    /*
-     * /Rect's corners aren't guaranteed to already be in (llx,lly,urx,ury)
-     * order -- normalize
-     */
-    if (rect[0] > rect[2])
-    {
-        tmp = rect[0];
-        rect[0] = rect[2];
-        rect[2] = tmp;
-    }
-    if (rect[1] > rect[3])
-    {
-        tmp = rect[1];
-        rect[1] = rect[3];
-        rect[3] = tmp;
-    }
-
-    DictLookup(annotDict, "AP", &apObj, gfx->xref);
-    if (!isDict(&apObj))
-    {
-        ObjFree(&apObj);
-        return;
-    }
-    apDict = getDict(&apObj);
-    DictLookup(apDict, "N", &nObj, gfx->xref);
-    ObjFree(&apObj);
-
-    if (isDict(&nObj) && !isStream(&nObj))
-    {
-        /*
-         * No usable fallback if /AS is absent or doesn't match any state; skip
-         * cleanly rather than guess.
-         */
-        Dict *statesDict = getDict(&nObj);
-        Obj pickedObj;
-
-        DictLookupNF(annotDict, "AS", &asObj);
-        if (isName(&asObj))
-        {
-            DictLookup(statesDict, getName(&asObj), &pickedObj, gfx->xref);
-            ObjFree(&nObj);
-            nObj = pickedObj;
-        }
-        else
-        {
-            ObjFree(&nObj);
-            initNull(&nObj);
-        }
-        ObjFree(&asObj);
-    }
-
-    if (!isStream(&nObj))
-    {
-        ObjFree(&nObj);
-        return;
-    }
-
-    formDict = ObjStreamGetDict(&nObj);
-
-    DictLookup(formDict, "BBox", &bboxObj, gfx->xref);
-    if (!isArray(&bboxObj) || ObjArrayGetLength(&bboxObj) < 4)
-    {
-        ObjFree(&bboxObj);
-        ObjFree(&nObj);
-        return;
-    }
-    GfxReadNumArray(&bboxObj, bbox, 4, gfx->xref);
-    ObjFree(&bboxObj);
-
-    DictLookup(formDict, "Matrix", &matrixObj, gfx->xref);
-    if (isArray(&matrixObj) && ObjArrayGetLength(&matrixObj) >= 6)
-    {
-        GfxReadNumArray(&matrixObj, matrix, 6, gfx->xref);
-    }
-    else
-    {
-        matrix[0] = IntToGdouble(1); matrix[1] = 0;
-        matrix[2] = 0; matrix[3] = IntToGdouble(1);
-        matrix[4] = 0; matrix[5] = 0;
-    }
-    ObjFree(&matrixObj);
-
-    nx = GrMulWWFixed(bbox[0], matrix[0]) + GrMulWWFixed(bbox[1],
-        matrix[2]) + matrix[4];
-    ny = GrMulWWFixed(bbox[0], matrix[1]) + GrMulWWFixed(bbox[1],
-        matrix[3]) + matrix[5];
-    tx0 = tx1 = nx;
-    ty0 = ty1 = ny;
-
-    nx = GrMulWWFixed(bbox[2], matrix[0]) + GrMulWWFixed(bbox[1],
-        matrix[2]) + matrix[4];
-    ny = GrMulWWFixed(bbox[2], matrix[1]) + GrMulWWFixed(bbox[1],
-        matrix[3]) + matrix[5];
-    if (nx < tx0)
-    {
-        tx0 = nx;
-    }
-    if (nx > tx1)
-    {
-        tx1 = nx;
-    }
-    if (ny < ty0)
-    {
-        ty0 = ny;
-    }
-    if (ny > ty1)
-    {
-        ty1 = ny;
-    }
-
-    nx = GrMulWWFixed(bbox[2], matrix[0]) + GrMulWWFixed(bbox[3],
-        matrix[2]) + matrix[4];
-    ny = GrMulWWFixed(bbox[2], matrix[1]) + GrMulWWFixed(bbox[3],
-        matrix[3]) + matrix[5];
-    if (nx < tx0)
-    {
-        tx0 = nx;
-    }
-    if (nx > tx1)
-    {
-        tx1 = nx;
-    }
-    if (ny < ty0)
-    {
-        ty0 = ny;
-    }
-    if (ny > ty1)
-    {
-        ty1 = ny;
-    }
-
-    nx = GrMulWWFixed(bbox[0], matrix[0]) + GrMulWWFixed(bbox[3],
-        matrix[2]) + matrix[4];
-    ny = GrMulWWFixed(bbox[0], matrix[1]) + GrMulWWFixed(bbox[3],
-        matrix[3]) + matrix[5];
-    if (nx < tx0)
-    {
-        tx0 = nx;
-    }
-    if (nx > tx1)
-    {
-        tx1 = nx;
-    }
-    if (ny < ty0)
-    {
-        ty0 = ny;
-    }
-    if (ny > ty1)
-    {
-        ty1 = ny;
-    }
-
-    if (tx1 == tx0 || ty1 == ty0)
-    {
-        ObjFree(&nObj);
-        return; /* degenerate BBox */
-    }
-
-    /* A: maps the transformed appearance box onto Rect */
-    sx = GrUDivWWFixed(rect[2] - rect[0], tx1 - tx0);
-    sy = GrUDivWWFixed(rect[3] - rect[1], ty1 - ty0);
-    a[0] = sx; a[1] = 0; a[2] = 0; a[3] = sy;
-    a[4] = rect[0] - GrMulWWFixed(tx0, sx);
-    a[5] = rect[1] - GrMulWWFixed(ty0, sy);
-
-    /* combined = Matrix followed by A */
-    combined[0] = GrMulWWFixed(matrix[0], a[0]) + GrMulWWFixed(matrix[1], a[2]);
-    combined[1] = GrMulWWFixed(matrix[0], a[1]) + GrMulWWFixed(matrix[1], a[3]);
-    combined[2] = GrMulWWFixed(matrix[2], a[0]) + GrMulWWFixed(matrix[3], a[2]);
-    combined[3] = GrMulWWFixed(matrix[2], a[1]) + GrMulWWFixed(matrix[3], a[3]);
-    combined[4] = GrMulWWFixed(matrix[4], a[0]) + GrMulWWFixed(matrix[5],
-        a[2]) + a[4];
-    combined[5] = GrMulWWFixed(matrix[4], a[1]) + GrMulWWFixed(matrix[5],
-        a[3]) + a[5];
-
-    /*
-     * --- push a resource layer for the appearance stream's own /Resources,
-     * same construction GfxInit uses for the page's top- level resources.
-     */
-    GfxPushResources(gfx, &newRes, formDict);
-
-    GfxStateSave(gfx->state);
-    GrSaveState(gstring);
-
-    GfxApplyMatrix6(gstring, combined[0], combined[1], combined[2],
-        combined[3], combined[4], combined[5]);
-    GfxConcatCtm(gfx->state, combined);
-    memcpy(gfx->state->baseCtm, gfx->state->ctm, sizeof(gfx->state->ctm));
-
-    /*
-     * clip to BBox in its own (now current) coordinate system -- axis-aligned
-     * only, see STRATEGY above
-     */
-    GrSetClipRect(gstring, PCT_INTERSECTION,
-        GdoubleToWord(bbox[0]), GdoubleToWord(bbox[1]),
-        GdoubleToWord(bbox[2]), GdoubleToWord(bbox[3]));
-
-    GfxDisplayNested(gfx, &nObj);
-
-    GfxStateRestore(gfx->state);
-    GrRestoreState(gstring);
-
-    gfx->res = newRes.next;
-    GfxResourcesFree(&newRes);
-
-    ObjFree(&nObj);
-}
-
-/***********************************************************************
- *      GfxDrawAnnotations
- ***********************************************************************
- * SYNOPSIS:        Draw annotations.
- * PARAMETERS:      Gfx *gfx    graphics context
- *                  Obj *annotsObj    annots obj
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-void GfxDrawAnnotations(Gfx *gfx, Obj *annotsObj)
-{
-    word i, n;
-    Obj annotObj;
-
-    if (!isArray(annotsObj))
-    {
-        return;
-    }
-    n = ObjArrayGetLength(annotsObj);
-    for (i = 0; i < n; ++i)
-    {
-        ObjArrayGet(annotsObj, i, &annotObj, gfx->xref);
-        GfxDrawOneAnnotation(gfx, &annotObj);
-        ObjFree(&annotObj);
     }
 }
 

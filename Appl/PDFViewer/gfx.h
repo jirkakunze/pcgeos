@@ -87,7 +87,6 @@ extern void GfxSetPageBox(Gfx *this, gdouble x0, gdouble y0, gdouble x1,
     gdouble y1);
 
 /* Draw annotations. */
-extern void GfxDrawAnnotations(Gfx *gfx, Obj *annotsObj);
 
 #endif  /* GFX_H */
 

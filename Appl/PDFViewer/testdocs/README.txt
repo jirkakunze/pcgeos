@@ -151,10 +151,15 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
 
 25_shadings.pdf
     Verläufe (Shadings) aller Typen, zum Vergleich mit poppler/Acrobat.
-    GEOS zeichnet nur die Typen 1-3 mit Funktionstyp 0/2/3 (seit 13b′,
-    Codegröße); Netze/Patches (Typ 4-7) und PostScript-Funktionen
-    (Typ 4: A5, A8, Seite 3 links) bleiben bei 'sh' leer, als
-    Pattern-Füllung erscheint die Fläche einfarbig. Axial/radial mit
+    Seit I1 zeichnet der RM-Viewer KEINE Verläufe mehr (kommen im PM
+    zurück): 'sh' füllt die aktuelle Clip-Fläche und eine Pattern-
+    Füllung die Fläche einfarbig mit einer Ersatzfarbe (Mitte von C0/C1
+    einer Typ-2-Funktion, auch Teilfunktion einer Typ-3-Funktion, sonst
+    /Background, sonst keine Füllung bzw. bisherige Farbe). Die Seite
+    darf weder abstürzen noch langsam sein. Bis I1 (13b′) galt: nur
+    Typen 1-3 mit Funktionstyp 0/2/3; Netze/Patches (Typ 4-7) und
+    PostScript-Funktionen (Typ 4: A5, A8, Seite 3 links) leer, als
+    Pattern-Füllung einfarbig. Axial/radial mit
     höchstens 64 Bändern/Ringen, Typ 1 mit höchstens 16 x 16 Zellen:
     Seite 1: axial (Typ 2) mit allen Funktionstypen: A1 rot->blau im
     Einheitsquadrat (per cm skaliert), A2 Achse 0,3..0,7 mit Extend,

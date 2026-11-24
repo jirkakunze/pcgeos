@@ -67,6 +67,18 @@ extern short GfxColorSpaceGetNumPixelComps(GfxColorSpace *this);
 extern void GfxColorSpaceGetColor(GfxColorSpace *this, short x[4],
     GfxColor *color);
 
+/* Type 2 (exponential) function: C0, C1, N (Separation tint, 'sh' color). */
+extern GBool GfxParseType2Function(Obj *funcObj, XRef *xref, gdouble c0[4],
+    gdouble c1[4], gdouble *n);
+
+/* 2x3 matrices [a b c d e f], 16.16 fixed (main/gfxState.c). */
+extern void GfxMatMul(const gdouble *a, const gdouble *b, gdouble *out);
+extern GBool GfxMatInvert(const gdouble *m, gdouble *out);
+extern void GfxMatApply(const gdouble *m, gdouble x, gdouble y,
+    gdouble *ox, gdouble *oy);
+extern void GfxMatApplyBox(const gdouble *m, const gdouble *box,
+    gdouble *out);
+
 /*
  * GfxImageColorMap
  */

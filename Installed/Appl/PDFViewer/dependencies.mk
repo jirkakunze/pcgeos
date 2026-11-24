@@ -35,8 +35,7 @@ gfx.eobj: Ansi/string.h geos.h Ansi/stdio.h pdfEngine.h graphics.h \
                 Ansi/ctype.h timedate.h file.h sllang.h ec.h lmem.h \
                 hugearr.h resource.h gfx.h gtypes.h pdfGeode.h parser.h \
                 lexer.h obj.h dict.h gfxFont.h gstring.h object.h geode.h \
-                cidFont.h shading.h gfxState.h array.h stream.h gmem.h \
-                gstr.h
+                cidFont.h gfxState.h array.h stream.h gmem.h gstr.h
 stream.obj \
 stream.eobj: ccitt.goh
 stream.obj \
@@ -86,11 +85,6 @@ pdfvu.eobj: geos.h heap.h geode.h resource.h ec.h object.h lmem.h \
                 driver.h thread.h print.h Internal/spoolInt.h serialDr.h \
                 parallDr.h hugearr.h fileEnum.h pdfEngine.h initfile.h \
                 Ansi/string.h
-shading.obj \
-shading.eobj: geos.h heap.h ec.h graphics.h fontID.h font.h color.h \
-                Ansi/string.h obj.h pdfGeode.h file.h gtypes.h array.h \
-                dict.h stream.h gfxState.h function.h shading.h gmem.h \
-                Ansi/stdio.h
 catalog.obj \
 catalog.eobj: pdfGeode.h geos.h file.h gtypes.h catalog.h obj.h page.h \
                 xref.h dict.h array.h gmem.h Ansi/stdio.h heap.h ec.h
@@ -102,8 +96,10 @@ xref.eobj: Ansi/string.h geos.h Ansi/stdlib.h Ansi/stdio.h obj.h \
 pdfEngine.obj \
 pdfEngine.eobj: pdfGeode.h geos.h file.h gtypes.h pdfEngine.h graphics.h \
                 fontID.h font.h color.h heap.h char.h catalog.h xref.h \
-                obj.h page.h gfx.h gmem.h Ansi/stdio.h geode.h lmem.h \
-                hugearr.h vm.h ec.h gstring.h
+                dict.h array.h obj.h page.h gfx.h gmem.h Ansi/stdio.h \
+                geode.h lmem.h hugearr.h vm.h ec.h gstring.h \
+                Ansi/string.h localize.h Ansi/ctype.h timedate.h sllang.h \
+                gfxFont.h object.h gstr.h
 gfxState.obj \
 gfxState.eobj: geos.h math.h graphics.h fontID.h font.h color.h \
                 Ansi/string.h gmem.h Ansi/stdio.h gtypes.h obj.h \
@@ -112,14 +108,10 @@ gfxState.eobj: geos.h math.h graphics.h fontID.h font.h color.h \
 page.obj \
 page.eobj: pdfGeode.h geos.h file.h gtypes.h page.h obj.h dict.h \
                 array.h Ansi/string.h ec.h
-function.obj \
-function.eobj: geos.h heap.h ec.h graphics.h fontID.h font.h color.h \
-                Ansi/string.h obj.h pdfGeode.h file.h gtypes.h array.h \
-                dict.h stream.h function.h gmem.h Ansi/stdio.h
 parser.obj \
 parser.eobj: obj.h pdfGeode.h geos.h file.h gtypes.h array.h dict.h \
                 parser.h lexer.h stream.h gmem.h Ansi/stdio.h crypt.h \
-                ec.h
+                gstr.h ec.h
 lexer.obj \
 lexer.eobj: pdfGeode.h geos.h file.h gtypes.h char.h Ansi/ctype.h ec.h \
                 Ansi/string.h Ansi/stdio.h obj.h array.h stream.h lexer.h \

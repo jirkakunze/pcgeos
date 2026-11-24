@@ -258,8 +258,6 @@ typedef struct Lexer
 
 /* Geos needs to be told when a path is starting, and when to set a clip path */
 
-#define GFX_PATTERN_NAME_LEN 32
-
 typedef enum PathType
 {
     PATH_NONE,
@@ -361,17 +359,12 @@ typedef struct GfxState
     GBool pathSubpathStartValid;
 
     /*
-     * Shadings and patterns need what GEOS keeps to itself: the CTM (user
-     * space -> page space, [a b c d e f]), the pattern space of the current
-     * content stream (page, or form space inside a form XObject) and a
-     * page space box around the current clip.
+     * What GEOS keeps to itself: the CTM (user space -> page space,
+     * [a b c d e f]) and a page space box around the current clip, for the
+     * replacement fill of 'sh' (opShFill).
      */
     gdouble ctm[6];
-    gdouble baseCtm[6];
     gdouble clipBox[4];
-
-    /* fill with this /Pattern resource ("" = plain color) */
-    char fillPattern[GFX_PATTERN_NAME_LEN];
 
 } GfxState;
 
