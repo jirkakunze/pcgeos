@@ -83,6 +83,30 @@ static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
 
 static word FlateStreamReadRaw(Stream *str, Guchar *buf, word size);
 static void FlateStreamEndZlib(FlateData *fd);
+static void FStreamFree(Stream *this);
+static void FStreamReset(Stream *str);
+static void FStreamSetPos(Stream *str, long pos1);
+static short FStreamLookChar(Stream *str);
+static long FStreamGetLength(Stream *str);
+static FileHandle FStreamGetFile(Stream *str);
+static Dict *FStreamGetDict(Stream *str);
+static void SubStreamFree(Stream *str);
+static void SubStreamReset(Stream *str);
+static void EOFStreamFree(Stream *str);
+static void EOFStreamReset(Stream *str);
+static short EOFStreamGetChar(Stream *str);
+static short EOFStreamLookChar(Stream *str);
+static void LZWStreamInit(Stream *str, Stream *str2, short early1);
+static void LZWStreamFree(Stream *str);
+static void LZWStreamReset(Stream *str);
+static short LZWStreamGetChar(Stream *str);
+static short LZWStreamLookChar(Stream *str);
+static void FlateStreamInit(Stream *str, Stream *str1);
+static void FlateStreamFree(Stream *str);
+static void FlateStreamReset(Stream *str);
+static short FlateStreamGetChar(Stream *str);
+static word FlateStreamRead(Stream *str, Guchar *buf, word size);
+static short FlateStreamLookChar(Stream *str);
 
 static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     long colors, long bits);
@@ -90,42 +114,42 @@ static void PredictorStreamFree(Stream *str);
 static void PredictorStreamReset(Stream *str);
 static void PredictorStreamResetLines(PredictorData *pd);
 static GBool PredictorStreamFillLine(Stream *str);
-static long PredictorStreamGetChar(Stream *str);
-static long PredictorStreamLookChar(Stream *str);
+static short PredictorStreamGetChar(Stream *str);
+static short PredictorStreamLookChar(Stream *str);
 static word PredictorStreamRead(Stream *str, Guchar *buf, word size);
 
 static void ASCIIHexStreamInit(Stream *str, Stream *str1);
 static void ASCIIHexStreamFree(Stream *str);
 static void ASCIIHexStreamReset(Stream *str);
-static long ASCIIHexStreamLookChar(Stream *str);
-static long ASCIIHexStreamGetChar(Stream *str);
+static short ASCIIHexStreamLookChar(Stream *str);
+static short ASCIIHexStreamGetChar(Stream *str);
 
 static void ASCII85StreamInit(Stream *str, Stream *str1);
 static void ASCII85StreamFree(Stream *str);
 static void ASCII85StreamReset(Stream *str);
-static long ASCII85StreamLookChar(Stream *str);
-static long ASCII85StreamGetChar(Stream *str);
+static short ASCII85StreamLookChar(Stream *str);
+static short ASCII85StreamGetChar(Stream *str);
 
 void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen);
 static void RC4StreamFree(Stream *str);
 static void RC4StreamReset(Stream *str);
-static long RC4StreamLookChar(Stream *str);
-static long RC4StreamGetChar(Stream *str);
+static short RC4StreamLookChar(Stream *str);
+static short RC4StreamGetChar(Stream *str);
 
 static void RunLengthStreamInit(Stream *str, Stream *str1);
 static void RunLengthStreamFree(Stream *str);
 static void RunLengthStreamReset(Stream *str);
 static GBool RunLengthStreamFillBuf(Stream *str);
-static long RunLengthStreamGetChar(Stream *str);
-static long RunLengthStreamLookChar(Stream *str);
+static short RunLengthStreamGetChar(Stream *str);
+static short RunLengthStreamLookChar(Stream *str);
 
-void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
+static void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
     GBool byteAlign1,
     long columns1, long rows1, GBool black1);
 static void CCITTFaxStreamFree(Stream *str);
 static void CCITTFaxStreamReset(Stream *str);
-static long CCITTFaxStreamLookChar(Stream *str);
-static long CCITTFaxStreamGetChar(Stream *str);
+static short CCITTFaxStreamLookChar(Stream *str);
+static short CCITTFaxStreamGetChar(Stream *str);
 static void CCITTFaxStreamEatBits(Stream *str, short bits);
 static short CCITTFaxStreamGetTwoDimCode(Stream *str);
 static short CCITTFaxStreamGetWhiteCode(Stream *str);
@@ -309,7 +333,7 @@ FileHandle StreamGetFile(Stream *str)
  *
  ***********************************************************************/
 
-long StreamGetChar(Stream *str)
+short StreamGetChar(Stream *str)
 {
 
     switch (str->kind)
@@ -380,7 +404,7 @@ long StreamGetChar(Stream *str)
 word StreamRead(Stream *str, Guchar *buf, word size)
 {
     word n;
-    long c;
+    short c;
 
     if (size == 0)
     {
@@ -438,7 +462,7 @@ word StreamRead(Stream *str, Guchar *buf, word size)
  *
  ***********************************************************************/
 
-long StreamLookChar(Stream *str)
+short StreamLookChar(Stream *str)
 {
 
     switch (str->kind)
@@ -504,7 +528,7 @@ long StreamLookChar(Stream *str)
  *
  ***********************************************************************/
 
-long FlateStreamGetChar(Stream *str)
+static short FlateStreamGetChar(Stream *str)
 {
     FlateData *pflate = str->u.flate;
 
@@ -543,7 +567,7 @@ long FlateStreamGetChar(Stream *str)
  *
  ***********************************************************************/
 
-word FlateStreamRead(Stream *str, Guchar *buf, word size)
+static word FlateStreamRead(Stream *str, Guchar *buf, word size)
 {
     FlateData *pflate = str->u.flate;
     word total = 0;
@@ -796,10 +820,10 @@ void StreamSetPos(Stream *str, long pos1)
  *
  ***********************************************************************/
 
-void StreamGetLine(Stream *str, char *buf, long size)
+void StreamGetLine(Stream *str, char *buf, word size)
 {
-    long i;
-    long c;
+    word i;
+    short c;
 
     if (StreamLookChar(str) == EOF)
     {
@@ -848,23 +872,24 @@ void StreamGetLine(Stream *str, char *buf, long size)
  *
  ***********************************************************************/
 
-GBool StreamResetImage(Stream *stream, long width1, short nComps1, short nBits1)
+GBool StreamResetImage(Stream *stream, word width1, short nComps1, short nBits1)
 {
-    long rowBytes;
+    long nVals, rowBytes;
 
     StreamReset(stream);
 
-    stream->width = width1;
-    stream->nComps = nComps1;
-    stream->nBits = nBits1;
-    stream->nVals = (long)(stream->width) * stream->nComps;
-    rowBytes = (stream->nVals * stream->nBits + 7) >> 3;
-    if (rowBytes < 1 || rowBytes > 65535L ||
-        stream->nVals + 7 > 65535L)
+    /* check the sizes in 32 bits, then keep them as words */
+    nVals = (long)width1 * nComps1;
+    rowBytes = (nVals * nBits1 + 7) >> 3;
+    if (rowBytes < 1 || rowBytes > 65535L || nVals + 7 > 65535L)
     {
         return gFalse;
     }
-    stream->rowBytes = rowBytes;
+    stream->width = width1;
+    stream->nComps = nComps1;
+    stream->nBits = nBits1;
+    stream->nVals = (word)nVals;
+    stream->rowBytes = (word)rowBytes;
     {
         Guchar *newRawLine;
         Guchar *newPixLine;
@@ -908,10 +933,10 @@ GBool StreamResetImage(Stream *stream, long width1, short nComps1, short nBits1)
 GBool StreamGetImagePixel(Stream *this, Guchar *pix)
 {
     Gulong buf, bitMask;
-    long c;
+    word c;
     short bits;
     word n;
-    long i, j;
+    word i, j;
 
     if (this->pixIdx >= this->nVals)
     {
@@ -1245,7 +1270,7 @@ static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
         }
         else
         {
-            LZWStreamInit(str, str1, early);
+            LZWStreamInit(str, str1, (short)early);
             str = PredictorStreamWrap(str, pred, columns, colors, bits);
         }
     }
@@ -1493,7 +1518,7 @@ static GBool PredictorStreamFillLine(Stream *str)
     Guchar *cur, *prev, *tmp;
     word i, n, rowBytes = pd->rowBytes, pb = pd->pixBytes;
     short curPred;
-    long c;
+    short c;
     int a, b, cc, p, pa, pbb, pc;
 
     if (pd->eof)
@@ -1606,7 +1631,7 @@ static GBool PredictorStreamFillLine(Stream *str)
                 short inBits = 0, outBits = 0, k;
                 word bitMask = (1 << pd->nBits) - 1;
                 word in = 0, out = 0;
-                long x;
+                word x;
 
                 memset(pd->compBuf, 0, pd->nComps);
                 for (x = 0; x < pd->width; ++x)
@@ -1651,7 +1676,7 @@ static GBool PredictorStreamFillLine(Stream *str)
  *      PredictorStreamGetChar / PredictorStreamLookChar
  ***********************************************************************/
 
-static long PredictorStreamGetChar(Stream *str)
+static short PredictorStreamGetChar(Stream *str)
 {
     PredictorData *pd = str->u.pred;
 
@@ -1662,7 +1687,7 @@ static long PredictorStreamGetChar(Stream *str)
     return pd->curLine[pd->lineIdx++];
 }
 
-static long PredictorStreamLookChar(Stream *str)
+static short PredictorStreamLookChar(Stream *str)
 {
     PredictorData *pd = str->u.pred;
 
@@ -1863,7 +1888,7 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
  *
  ***********************************************************************/
 
-void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1,
+static void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1,
     long start1, long length1, Obj *dict1)
 {
     FStream *myfs;
@@ -1940,7 +1965,7 @@ void FStreamInit(Stream *this, FileHandle f1, long start1, long length1,
  *
  ***********************************************************************/
 
-void FStreamFree(Stream *this)
+static void FStreamFree(Stream *this)
 {
     FStream *fs = this->u.fs;
 
@@ -1974,7 +1999,7 @@ void FStreamFree(Stream *this)
  *
  ***********************************************************************/
 
-void FStreamReset(Stream *str)
+static void FStreamReset(Stream *str)
 {
     FStream *this = str->u.fs;
 
@@ -2058,7 +2083,7 @@ static GBool FStreamFillBuf(Stream *str)
  *
  ***********************************************************************/
 
-void FStreamSetPos(Stream *str, long pos1)
+static void FStreamSetPos(Stream *str, long pos1)
 {
     FStream *this = str->u.fs;
     long size;
@@ -2099,7 +2124,7 @@ void FStreamSetPos(Stream *str, long pos1)
  *
  ***********************************************************************/
 
-long FStreamGetChar(Stream *str)
+short FStreamGetChar(Stream *str)
 {
     FStream *this = str->u.fs;
 
@@ -2126,7 +2151,7 @@ long FStreamGetChar(Stream *str)
  *
  ***********************************************************************/
 
-long FStreamLookChar(Stream *str)
+static short FStreamLookChar(Stream *str)
 {
     FStream *this = str->u.fs;
 
@@ -2153,7 +2178,7 @@ long FStreamLookChar(Stream *str)
  *
  ***********************************************************************/
 
-long FStreamGetLength(Stream *str)
+static long FStreamGetLength(Stream *str)
 {
     return str->u.fs->length;
 }
@@ -2203,7 +2228,7 @@ long FStreamGetPos(Stream *str)
  *
  ***********************************************************************/
 
-FileHandle FStreamGetFile(Stream *str)
+static FileHandle FStreamGetFile(Stream *str)
 {
     return str->u.fs->f;
 }
@@ -2227,7 +2252,7 @@ FileHandle FStreamGetFile(Stream *str)
  *
  ***********************************************************************/
 
-Dict *FStreamGetDict(Stream *str)
+static Dict *FStreamGetDict(Stream *str)
 {
     return getDict(&str->u.fs->dict);
 }
@@ -2285,7 +2310,7 @@ void SubStreamInit(Stream *str, Stream *str1, Obj *dict1)
  *
  ***********************************************************************/
 
-void SubStreamFree(Stream *str)
+static void SubStreamFree(Stream *str)
 {
     ObjFree(&str->dict);
 }
@@ -2309,7 +2334,7 @@ void SubStreamFree(Stream *str)
  *
  ***********************************************************************/
 
-void SubStreamReset(Stream *str)
+static void SubStreamReset(Stream *str)
 {
     str->eof = gFalse;
 }
@@ -2386,7 +2411,7 @@ void EOFStreamInit(Stream *str, Stream *str2)
  *
  ***********************************************************************/
 
-void EOFStreamFree(Stream *str)
+static void EOFStreamFree(Stream *str)
 {
     (void)str;
 }
@@ -2410,7 +2435,7 @@ void EOFStreamFree(Stream *str)
  *
  ***********************************************************************/
 
-void EOFStreamReset(Stream *str)
+static void EOFStreamReset(Stream *str)
 {
     (void)str;
 }
@@ -2434,7 +2459,7 @@ void EOFStreamReset(Stream *str)
  *
  ***********************************************************************/
 
-long EOFStreamGetChar(Stream *str)
+static short EOFStreamGetChar(Stream *str)
 {
     (void)str;
     return EOF;
@@ -2459,7 +2484,7 @@ long EOFStreamGetChar(Stream *str)
  *
  ***********************************************************************/
 
-long EOFStreamLookChar(Stream *str)
+static short EOFStreamLookChar(Stream *str)
 {
     (void)str;
     return EOF;
@@ -2574,9 +2599,9 @@ static void ASCIIHexStreamReset(Stream *str)
  *
  ***********************************************************************/
 
-static long ASCIIHexStreamLookChar(Stream *str)
+static short ASCIIHexStreamLookChar(Stream *str)
 {
-    long c1, c2, x;
+    short c1, c2, x;
 
     if (str->buf != EOF)
     {
@@ -2676,9 +2701,9 @@ static long ASCIIHexStreamLookChar(Stream *str)
  *
  ***********************************************************************/
 
-static long ASCIIHexStreamGetChar(Stream *str)
+static short ASCIIHexStreamGetChar(Stream *str)
 {
-    long c = ASCIIHexStreamLookChar(str);
+    short c = ASCIIHexStreamLookChar(str);
     str->buf = EOF;
     return c;
 }
@@ -2791,7 +2816,7 @@ static void ASCII85StreamReset(Stream *str)
  *
  ***********************************************************************/
 
-static long ASCII85StreamLookChar(Stream *str)
+static short ASCII85StreamLookChar(Stream *str)
 {
     short k;
     Gulong t;
@@ -2850,7 +2875,7 @@ static long ASCII85StreamLookChar(Stream *str)
             }
             for (k = 3; k >= 0; --k)
             {
-                p85->b[k] = (long)(t & 0xff);
+                p85->b[k] = (Guchar)(t & 0xff);
                 t >>= 8;
             }
         }
@@ -2877,9 +2902,9 @@ static long ASCII85StreamLookChar(Stream *str)
  *
  ***********************************************************************/
 
-static long ASCII85StreamGetChar(Stream *str)
+static short ASCII85StreamGetChar(Stream *str)
 {
-    long ch = ASCII85StreamLookChar(str);
+    short ch = ASCII85StreamLookChar(str);
     ++str->u.a85->index;
     return ch;
 }
@@ -2895,7 +2920,7 @@ static long ASCII85StreamGetChar(Stream *str)
 
 /* code copied from Acorn port of xpdf */
 
-static long LZWStreamGetCode(Stream *str);
+static short LZWStreamGetCode(Stream *str);
 
 /* Code */
 
@@ -2920,7 +2945,7 @@ static long LZWStreamGetCode(Stream *str);
  *
  ***********************************************************************/
 
-void LZWStreamInit(Stream *str, Stream *str2, long early1)
+static void LZWStreamInit(Stream *str, Stream *str2, short early1)
 {
 
     StreamInit(str);
@@ -2957,7 +2982,7 @@ void LZWStreamInit(Stream *str, Stream *str2, long early1)
  *
  ***********************************************************************/
 
-void LZWStreamFree(Stream *str)
+static void LZWStreamFree(Stream *str)
 {
 
     gfree(str->u.lzw);
@@ -2982,9 +3007,9 @@ void LZWStreamFree(Stream *str)
  *
  ***********************************************************************/
 
-void LZWStreamReset(Stream *str)
+static void LZWStreamReset(Stream *str)
 {
-    long code;
+    short code;
     LZWData *plzw = str->u.lzw;
 
     StreamReset(str->str);
@@ -3033,10 +3058,10 @@ void LZWStreamReset(Stream *str)
  *
  ***********************************************************************/
 
-static long LZWStreamGetCode(Stream *str)
+static short LZWStreamGetCode(Stream *str)
 {
-    long c;
-    long code;
+    short c;
+    short code;
     LZWData *plzw = str->u.lzw;
 
     while (plzw->inputBits < plzw->inCodeBits)
@@ -3076,26 +3101,33 @@ static long LZWStreamGetCode(Stream *str)
  *
  ***********************************************************************/
 
-GBool LZWStreamFillBuf(Stream *str)
+static GBool LZWStreamFillBuf(Stream *str)
 {
-    long code, incode, count;
+    short code, incode, count;
     LZWData *plzw = str->u.lzw;
 
     code = LZWStreamGetCode(str);
     if (code == 256)
     {
         /* Clear code */
-#if 1==0
-        for (code = 0; code < 256; ++code)
-        {
-            codetab[code] = 0;
-        }
-#else
         memset(&plzw->codetab[0], 0, 256 * sizeof(short));
-#endif
         plzw->free_ent = 258;
         plzw->inCodeBits = 9;
         while ((code = LZWStreamGetCode(str)) == 256);
+
+        /*
+         * The first code after a clear code makes no table entry (as at
+         * the start of the stream, see LZWStreamReset). Before, it added
+         * an entry here and all later codes were off by one entry.
+         */
+        if (code != EOF && code != 257)
+        {
+            plzw->buf[0] = (char)code;
+            plzw->oldcode = plzw->finchar = code;
+            plzw->bufPtr = plzw->buf;
+            plzw->bufEnd = &plzw->buf[1];
+            return gTrue;
+        }
     }
 
     if (code == EOF || code == 257)
@@ -3136,7 +3168,7 @@ GBool LZWStreamFillBuf(Stream *str)
     /* Generate the new entry. */
     if ((code = plzw->free_ent) < 4096)
     {
-        plzw->codetab[code] = (short)plzw->oldcode;
+        plzw->codetab[code] = plzw->oldcode;
         plzw->htab[code] = (Guchar)plzw->finchar;
         plzw->free_ent = code + 1;
         if (plzw->free_ent + plzw->early == 0x200)
@@ -3180,7 +3212,7 @@ GBool LZWStreamFillBuf(Stream *str)
  *
  ***********************************************************************/
 
-long LZWStreamGetChar(Stream *str)
+static short LZWStreamGetChar(Stream *str)
 {
     LZWData *plzw = str->u.lzw;
 
@@ -3207,7 +3239,7 @@ long LZWStreamGetChar(Stream *str)
  *
  ***********************************************************************/
 
-long LZWStreamLookChar(Stream *str)
+static short LZWStreamLookChar(Stream *str)
 {
     LZWData *plzw = str->u.lzw;
 
@@ -3334,7 +3366,7 @@ static void RunLengthStreamReset(Stream *str)
 static GBool RunLengthStreamFillBuf(Stream *str)
 {
     RunLengthData *pRun = str->u.runLength;
-    long c;
+    short c;
     short n, i;
 
     if (str->eof)
@@ -3388,7 +3420,7 @@ static GBool RunLengthStreamFillBuf(Stream *str)
  *
  ***********************************************************************/
 
-static long RunLengthStreamGetChar(Stream *str)
+static short RunLengthStreamGetChar(Stream *str)
 {
     RunLengthData *pRun = str->u.runLength;
 
@@ -3415,7 +3447,7 @@ static long RunLengthStreamGetChar(Stream *str)
  *
  ***********************************************************************/
 
-static long RunLengthStreamLookChar(Stream *str)
+static short RunLengthStreamLookChar(Stream *str)
 {
     RunLengthData *pRun = str->u.runLength;
 
@@ -3457,7 +3489,7 @@ static long RunLengthStreamLookChar(Stream *str)
  *
  ***********************************************************************/
 
-void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
+static void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
     GBool byteAlign1, long columns1, long rows1, GBool black1)
 {
 
@@ -3476,7 +3508,7 @@ void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
 
     pfax->encoding = encoding1;
     pfax->byteAlign = byteAlign1;
-    pfax->columns = columns1;
+    pfax->columns = (short)columns1; /* checked by StreamMakeFilter */
     pfax->rows = rows1;
     pfax->black = black1;
     pfax->refLine = (short *)gmalloc((pfax->columns + 2) * sizeof(short));
@@ -3584,12 +3616,12 @@ static void CCITTFaxStreamReset(Stream *str)
  *
  ***********************************************************************/
 
-static long CCITTFaxStreamLookChar(Stream *str)
+static short CCITTFaxStreamLookChar(Stream *str)
 {
     CCITTFaxData *pfax = str->u.fax;
-    long a0New;
-    long ret;
-    long bits, i;
+    short a0New;
+    short ret;
+    short bits, i;
     short code1, code2, code3;
 
     if (str->eof && pfax->codingLine[pfax->a0] >= pfax->columns)
@@ -3912,9 +3944,9 @@ static long CCITTFaxStreamLookChar(Stream *str)
  *
  ***********************************************************************/
 
-static long CCITTFaxStreamGetChar(Stream *str)
+static short CCITTFaxStreamGetChar(Stream *str)
 {
-    long c = CCITTFaxStreamLookChar(str);
+    short c = CCITTFaxStreamLookChar(str);
     str->u.fax->buf = EOF;
     return c;
 }
@@ -4145,7 +4177,7 @@ static short CCITTFaxStreamGetBlackCode(Stream *str)
 
 static short CCITTFaxStreamLook13Bits(Stream *str)
 {
-    long c;
+    short c;
     CCITTFaxData *pfax = str->u.fax;
 
     while (pfax->inputBits < 13)
@@ -4289,10 +4321,10 @@ static void RC4StreamReset(Stream *str)
  *
  ***********************************************************************/
 
-static long RC4StreamAdvance(Stream *str)
+static short RC4StreamAdvance(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
-    long c;
+    short c;
 
     c = StreamGetChar(str->str);
     if (c == EOF)
@@ -4322,7 +4354,7 @@ static long RC4StreamAdvance(Stream *str)
  *
  ***********************************************************************/
 
-static long RC4StreamGetChar(Stream *str)
+static short RC4StreamGetChar(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
 
@@ -4353,7 +4385,7 @@ static long RC4StreamGetChar(Stream *str)
  *
  ***********************************************************************/
 
-static long RC4StreamLookChar(Stream *str)
+static short RC4StreamLookChar(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
 
@@ -4405,7 +4437,7 @@ static void FlateStreamEndZlib(FlateData *fd)
  *      has read "endstream" (see PredictorStreamWrap).
  ***********************************************************************/
 
-void FlateStreamInit(Stream *str, Stream *str1)
+static void FlateStreamInit(Stream *str, Stream *str1)
 {
     FlateData *fd;
 
@@ -4431,7 +4463,7 @@ void FlateStreamInit(Stream *str, Stream *str1)
  * SYNOPSIS:        Release the zlib state and the wrapper data.
  ***********************************************************************/
 
-void FlateStreamFree(Stream *str)
+static void FlateStreamFree(Stream *str)
 {
     if (str->u.flate)
     {
@@ -4447,7 +4479,7 @@ void FlateStreamFree(Stream *str)
  * SYNOPSIS:        Restart decoding at the beginning of the data.
  ***********************************************************************/
 
-void FlateStreamReset(Stream *str)
+static void FlateStreamReset(Stream *str)
 {
     FlateData *fd = str->u.flate;
 
@@ -4497,7 +4529,7 @@ void FlateStreamReset(Stream *str)
  * RETURNS:         byte value or EOF
  ***********************************************************************/
 
-long FlateStreamLookChar(Stream *str)
+static short FlateStreamLookChar(Stream *str)
 {
     FlateData *fd = str->u.flate;
 

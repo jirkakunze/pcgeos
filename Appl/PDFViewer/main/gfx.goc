@@ -64,8 +64,8 @@ static void GfxExecOp(Gfx *gfx, Obj *cmd, Obj args[], int numArgs,
     Operator *pOpTab);
 static Operator *GfxFindOp(char *name, Operator *opTab);
 static GBool GfxCheckArg(Obj *arg, TchkType type);
-void setTextTransform(Gfx *gfx);
-void resetTextTransform(Gfx *gfx);
+static void setTextTransform(Gfx *gfx);
+static void resetTextTransform(Gfx *gfx);
 static void doShowText(Gfx *gfx, GooString *s);
 static void GfxUpdateFont(Gfx *gfx);
 static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg);
@@ -98,8 +98,10 @@ static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref);
 #define GFX_MAX_SAVE_DEPTH                32
 static void buildImageStream(Gfx *gfx, Stream **str);
 static GBool GfxLookupXObject(Gfx *this, char *name, Obj *obj);
+static void GfxResourcesInit(GfxResources *this, GfxResources *next1);
+static void GfxResourcesFree(GfxResources *this);
 
-void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
+static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GBool invert, GBool inlineImage);
 /*
  * Image transparency (C3): a soft mask (/SMask), an explicit stencil
@@ -116,7 +118,7 @@ typedef struct {
     Guchar keyMax[4];
 } GfxImageMask;
 
-void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
+static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     GfxImageColorMap *colorMap, GBool inlineImage, GfxImageMask *imgMask);
 static void GfxImageMaskStream(Gfx *gfx, Obj *maskObj, GfxImageMask *m);
 
@@ -617,7 +619,7 @@ void GfxFree(Gfx *this)
  *
  ***********************************************************************/
 
-void GfxResourcesInit(GfxResources *this, GfxResources *next1)
+static void GfxResourcesInit(GfxResources *this, GfxResources *next1)
 {
     this->next = next1;
     this->fonts = NULL;
@@ -647,7 +649,7 @@ void GfxResourcesInit(GfxResources *this, GfxResources *next1)
  *
  ***********************************************************************/
 
-void GfxResourcesFree(GfxResources *this)
+static void GfxResourcesFree(GfxResources *this)
 {
     if (this->fonts)
     {
@@ -4345,7 +4347,7 @@ static void _near opShowSpaceText(Gfx *gfx, Obj args[], int numArgs)
  *
  ***********************************************************************/
 
-void setTextTransform(Gfx *gfx)
+static void setTextTransform(Gfx *gfx)
 {
     GfxFont *font;
     Handle gstring = gfx->state->gstring;
@@ -4451,7 +4453,7 @@ void setTextTransform(Gfx *gfx)
  *
  ***********************************************************************/
 
-void resetTextTransform(Gfx *gfx)
+static void resetTextTransform(Gfx *gfx)
 {
     GrRestoreTransform(gfx->state->gstring);
 }
@@ -5559,7 +5561,7 @@ static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref)
 static void opBeginImage(Gfx *gfx, Obj args[], int numArgs)
 {
     Stream *str;
-    long c1, c2;
+    short c1, c2;
 
     /*
      * This can't be allocated "Stream str" on the stack, because StreamFree
@@ -6030,7 +6032,7 @@ static void GfxImageMaskStream(Gfx *gfx, Obj *maskObj, GfxImageMask *m)
  *  mevissen    5/21/99     Initial Revision
  *
  ***********************************************************************/
-void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
+static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GBool invert, GBool inlineImage)
 {
 
@@ -6310,7 +6312,7 @@ void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
  *  JK      11/24/26    Bitmap mask for /SMask, /Mask, /ca (C3)
  *
  ***********************************************************************/
-void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
+static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     GfxImageColorMap *colorMap, GBool inlineImage, GfxImageMask *m)
 {
 
@@ -6318,7 +6320,8 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     Guchar maskPixBuf[4];
     Guchar *maskRowBuf;
     long maskRowLoaded;
-    long maskTargetRow, maskCol;
+    long maskTargetRow;
+    word maskCol;
     long maskAccum;
     word alpha, fillAlpha, dither;
     short nComps, nBits, k;
@@ -6566,8 +6569,8 @@ void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
                         alpha = fillAlpha;
                         if (m->str)
                         {
-                            maskCol = (m->width == width) ? (long)j :
-                                (long)j * m->width / width;
+                            maskCol = (m->width == width) ? j : (word)
+                                ((long)j * m->width / width);
                             alpha = (word)(((word)maskRowBuf[maskCol] *
                                 alpha + 127) / 255);
                         }

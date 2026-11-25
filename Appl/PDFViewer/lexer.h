@@ -64,10 +64,7 @@ extern void LexerSetPos(Lexer *lexer, long pos);
 /*
  * Read and consume the next raw character, advancing across stream boundaries.
  */
-extern long LexerGetChar(Lexer *lexer);
-
-/* Peek at the next raw character without consuming it. */
-extern long LexerLookChar(Lexer *lexer);
+extern short LexerGetChar(Lexer *lexer);
 
 /*
  * Get the cross-reference table this lexer resolves indirect objects against.

@@ -48,16 +48,16 @@ extern void CatalogFree(Catalog *cat);
 extern GBool CatalogIsOk(Catalog *cat);
 
 /* Get number pages. */
-extern long CatalogGetNumPages(Catalog *cat);
+extern word CatalogGetNumPages(Catalog *cat);
 
 /*
  * Materialize one page into caller-owned storage. The caller must call
  * PageFree() exactly once if this returns gTrue.
  */
-extern GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page);
+extern GBool CatalogGetPage(Catalog *cat, word i, XRef *xref, Page *page);
 
 /* Find a page by its object ID (link targets). */
-extern long CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref);
+extern word CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref);
 
 #endif  /* CATALOG_H */
 

@@ -45,8 +45,8 @@ extern
 void StreamFree(Stream *stream);
 
 /* Reference counting. */
-#define StreamIncRef(stream) ((long)++((stream)->ref))
-#define StreamDecRef(stream) ((long)--((stream)->ref))
+#define StreamIncRef(stream) ((word)++((stream)->ref))
+#define StreamDecRef(stream) ((word)--((stream)->ref))
 
 /* Get file. */
 extern
@@ -54,7 +54,7 @@ FileHandle StreamGetFile(Stream *str);
 
 /* Get char. */
 extern
-long StreamGetChar(Stream *str);
+short StreamGetChar(Stream *str);
 
 /* Read. */
 extern
@@ -62,7 +62,7 @@ word StreamRead(Stream *str, Guchar *buf, word size);
 
 /* Process stream look char. */
 extern
-long StreamLookChar(Stream *str);
+short StreamLookChar(Stream *str);
 
 /* Get dictionary. */
 extern
@@ -89,11 +89,11 @@ Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref);
 
 /* Get line. */
 extern
-void StreamGetLine(Stream *str, char *buf, long size);
+void StreamGetLine(Stream *str, char *buf, word size);
 
 /* Reset image. */
 extern
-GBool StreamResetImage(Stream *stream, long width1, short nComps1,
+GBool StreamResetImage(Stream *stream, word width1, short nComps1,
     short nBits1);
 
 /* Get image pixel. */
@@ -104,66 +104,19 @@ GBool StreamGetImagePixel(Stream *this, Guchar *pix);
 
 void FStreamInit(Stream *this, FileHandle f1, long start1, long length1,
     Obj *dict1);
-/* Initialize with storage. */
-void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1,
-    long start1, long length1, Obj *dict1);
-    
+
 /* Read cache. */
 void FStreamInvalidateReadCache(FileHandle file);
 
-/* Release. */
-void FStreamFree(Stream *this);
-
-/* Reset. */
-void FStreamReset(Stream *str);
-void FStreamSetPos(Stream *str, long pos1);
-
 /* Get char. */
-long FStreamGetChar(Stream *str);
-
-/* Handle fstream look char. */
-long FStreamLookChar(Stream *str);
-
-/* Get length. */
-long FStreamGetLength(Stream *str);
+short FStreamGetChar(Stream *str);
 
 /* Get position. */
 long FStreamGetPos(Stream *str);
 
-/* Get file. */
-FileHandle FStreamGetFile(Stream *str);
-
-/* Get dictionary. */
-Dict *FStreamGetDict(Stream *str);
-
 /* SubStream */
 
 void SubStreamInit(Stream *str, Stream *str1, Obj *dict1);
-/* Release. */
-void SubStreamFree(Stream *str);
-/* Reset. */
-void SubStreamReset(Stream *str);
-
-/* LZWStream */
-
-extern
-void LZWStreamInit(Stream *str, Stream *str2, long early1);
-    
-/* Release. */
-extern
-void LZWStreamFree(Stream *str);
-
-/* Reset. */
-extern
-void LZWStreamReset(Stream *str);
-
-/* Get char. */
-extern
-long LZWStreamGetChar(Stream *str);
-
-/* Process lzwstream look char. */
-extern
-long LZWStreamLookChar(Stream *str);
 
 /* DCTStream (main/dctStream.c, IJG JPEG library) */
 
@@ -176,34 +129,11 @@ void DCTStreamFree(Stream *str);
 extern
 void DCTStreamReset(Stream *str);
 extern
-long DCTStreamGetChar(Stream *str);
+short DCTStreamGetChar(Stream *str);
 extern
-long DCTStreamLookChar(Stream *str);
+short DCTStreamLookChar(Stream *str);
 extern
 word DCTStreamRead(Stream *str, Guchar *buf, word size);
-
-/* FlateStream */
-
-extern
-void FlateStreamInit(Stream *str, Stream *str1);
-/* Release. */
-extern
-/* Release. */
-void FlateStreamFree(Stream *str);
-/* Reset. */
-extern
-/* Reset. */
-void FlateStreamReset(Stream *str);
-/* Get char. */
-extern
-long FlateStreamGetChar(Stream *str);
-/* Read. */
-extern
-word FlateStreamRead(Stream *str, Guchar *buf, word size);
-/* Process flate stream look char. */
-extern
-/* Handle flate stream look char. */
-long FlateStreamLookChar(Stream *str);
 
 /* RC4Stream */
 
@@ -213,18 +143,6 @@ void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen);
 /* EOFStream */
 
 void EOFStreamInit(Stream *str, Stream *str2);
-
-/* Release. */
-void EOFStreamFree(Stream *str);
-
-/* Reset. */
-void EOFStreamReset(Stream *str);
-
-/* Get char. */
-long EOFStreamGetChar(Stream *str);
-
-/* Handle eofstream look char. */
-long EOFStreamLookChar(Stream *str);
 
 #endif  /* STREAM_H */
 

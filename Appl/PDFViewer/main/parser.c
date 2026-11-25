@@ -42,7 +42,8 @@
 #include "gstr.h"
 #include <ec.h>
 
-GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict);
+static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict);
+static void ParserShift(Parser *parser);
 
 
 /***********************************************************************
@@ -438,7 +439,7 @@ void ParserGetObj(Parser *parser, Obj *obj)
  *
  ***********************************************************************/
 
-GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
+static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
 {
     Obj obj, obj2;
     long pos, length;
@@ -559,7 +560,7 @@ GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
  *
  ***********************************************************************/
 
-void ParserShift(Parser *parser)
+static void ParserShift(Parser *parser)
 {
     if (parser->inlineImg > 0)
     {

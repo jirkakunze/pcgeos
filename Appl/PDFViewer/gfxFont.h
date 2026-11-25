@@ -54,14 +54,6 @@
 
 /* GfxFont */
 
-/* Constructor. */
-extern void
-GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref);
-
-/* Destructor. */
-extern
-void GfxFontFree(GfxFont *this);
-
 /* Map char. */
 extern
 char GfxFontMapChar(GfxFont *this, unsigned char c, char defaultChar);
@@ -82,10 +74,6 @@ GBool GfxFontIsSymbolChar(GfxFont *this, byte code);
 
 /* Pick the GEOS substitute font class (flags) from the font name. */
 void GfxFontMapName(GfxFont *this, const char *name);
-
-/* Process gfx font matches. */
-extern
-GBool GfxFontMatches(GfxFont *this, char *tag1);
 
 /* Process gfx font is16 bit. */
 extern
@@ -108,10 +96,6 @@ GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag);
 /* Look up by object reference (ExtGState /Font). */
 extern
 GfxFont *GfxFontDictLookupRef(GfxFontDict *this, Ref ref);
-
-/* Process gfx font matches. */
-extern
-GBool GfxFontMatches(GfxFont *this, char *tag1);
 
 /* Process gfx font is16 bit. */
 extern

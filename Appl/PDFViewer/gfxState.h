@@ -37,18 +37,6 @@
 #include "gtypes.h"
 
 /*
- * GfxColor
- */
-
-extern void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k);
-
-/* Set gray. */
-extern void GfxColorSetGray(GfxColor *this, short gray);
-
-/* Set rgb. */
-extern void GfxColorSetRGB(GfxColor *this, short r1, short g1, short b1);
-
-/*
  * GfxColorSpace
  */
 
@@ -109,9 +97,6 @@ extern void GfxStateInit(GfxState *state, Handle gstring);
 
 /* Release the saved-state chain owned by a GfxState. */
 extern void GfxStateFree(GfxState *state);
-
-/* Copy. */
-extern void GfxStateCopy(GfxState *dest, GfxState *state);
 
 /* Push the current state onto its own saved-state stack. */
 extern void GfxStateSave(GfxState *state);

@@ -109,6 +109,7 @@ void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref)
 {
     Obj pagesDict;
     Obj obj;
+    long count;
 
     (void)vmFile;
 
@@ -144,13 +145,14 @@ void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref)
         EC_WARNING(-1);
         goto err4;
     }
-    cat->numPages = getInt(&obj);
+    count = getInt(&obj);
     ObjFree(&obj);
-    if (cat->numPages <= 0 || cat->numPages > PDF_MAX_PAGE_COUNT)
+    if (count <= 0 || count > PDF_MAX_PAGE_COUNT)
     {
         EC_WARNING(-1);
         goto err3;
     }
+    cat->numPages = (word)count;
 
     ObjFree(&pagesDict);
 
@@ -311,7 +313,7 @@ static void CatalogFreePageTreeFrame(CatalogPageTreeFrame *frame)
  ***********************************************************************/
 static short
 CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
-    long target, long *start, XRef *xref, Page *page,
+    word target, word *start, XRef *xref, Page *page,
     short depth, GBool useCounts)
 {
     MemHandle stackHandle;
@@ -413,11 +415,12 @@ CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
             ObjFree(&countObj);
 
             if (useCounts && childCount >= 0 &&
-                *start >= 0 && *start <= cat->numPages &&
+                *start <= cat->numPages &&
                 childCount <= cat->numPages - *start &&
                 target >= *start + childCount)
             {
-                *start += childCount;
+                /* fits: childCount <= numPages - start */
+                *start += (word)childCount;
                 ObjFree(&kid);
                 continue;
             }
@@ -485,10 +488,10 @@ CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page)
+GBool CatalogGetPage(Catalog *cat, word i, XRef *xref, Page *page)
 {
     Obj pagesDict;
-    long start = 0;
+    word start = 0;
     short result;
 
     EC(ECCheckBounds(cat));
@@ -549,12 +552,12 @@ GBool CatalogGetPage(Catalog *cat, long i, XRef *xref, Page *page)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-static long CatalogFindPageRefInTree(Dict *pagesDict, long num, long gen,
-    long *pageIndex, XRef *xref, short depth)
+static word CatalogFindPageRefInTree(Dict *pagesDict, long num, long gen,
+    word *pageIndex, XRef *xref, short depth)
 {
     Obj kids, kidNF, kid;
     word i;
-    long result;
+    word result;
 
     if (depth > catalogPageTreeMaxDepth)
     {
@@ -629,11 +632,11 @@ static long CatalogFindPageRefInTree(Dict *pagesDict, long num, long gen,
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-long CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref)
+word CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref)
 {
     Obj pagesDict;
-    long pageIndex = 0;
-    long result = 0;
+    word pageIndex = 0;
+    word result = 0;
 
     if (!cat || !xref || !cat->ok)
     {
@@ -691,7 +694,7 @@ GBool CatalogIsOk(Catalog *cat)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-long CatalogGetNumPages(Catalog *cat)
+word CatalogGetNumPages(Catalog *cat)
 {
     return cat->numPages;
 }

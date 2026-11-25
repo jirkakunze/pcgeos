@@ -210,9 +210,9 @@ void LexerFree(Lexer *lexer)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-long LexerGetChar(Lexer *lexer)
+short LexerGetChar(Lexer *lexer)
 {
-    long c;
+    short c;
 
     c = EOF;
     while (!isNone(&lexer->curStr) && (c =
@@ -250,9 +250,9 @@ long LexerGetChar(Lexer *lexer)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-long LexerLookChar(Lexer *lexer)
+static short LexerLookChar(Lexer *lexer)
 {
-    long c;
+    short c;
 
     c = EOF;
     while (!isNone(&lexer->curStr) && (c =
@@ -294,9 +294,9 @@ long LexerLookChar(Lexer *lexer)
 void LexerGetObj(Lexer *lexer, Obj *obj)
 {
     char *p;
-    long c, c2;
+    short c, c2;
     GBool comment, neg, done;
-    long numParen;
+    word numParen;
     long xi;
     /*
      * unsigned accumulator for the digit-reading loop below -- some PDF
@@ -798,7 +798,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
  ***********************************************************************/
 void LexerSkipToNextLine(Lexer *lexer)
 {
-    long c;
+    short c;
 
     while (1)
     {

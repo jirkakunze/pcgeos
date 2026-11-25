@@ -355,6 +355,18 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     bleibt im Viewer leer (Koeffizienten über 4 MB, Grenze unverändert).
     Qualität 10, daher Blockartefakte. Generator mk35.py (nur Scratchpad).
 
+36_filters.pdf
+    Stream-Filter (Typ-Optimierung long -> short), Referenz pdftoppm und
+    mutool. Seite 1: dasselbe 96x96-RGB-Bild (Farbflächen, roter Rahmen,
+    weiße Diagonale, grüner Kreis, schwarzer Balken unten) acht Mal: roh,
+    ASCIIHex, ASCII85 (mit z), LZW EarlyChange 1 und 0, RunLength,
+    ASCII85 + LZW + TIFF-Prädiktor, LZW + PNG-Prädiktor. Alle acht müssen
+    gleich aussehen. Seite 2: CCITT G4 (K -1) als 1-Bit-Graubild
+    (BlackIs1 true: schwarze Linien auf weiß) und als ImageMask (rot auf
+    gelb); der Inhalt der Seite ist ASCII85 + LZW kodiert (Text unten
+    muss lesbar sein). Seite 3: Geschwindigkeit, 600x600 LZW (RGB) und
+    RunLength (grau). Generator mk36.py (nur Scratchpad).
+
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,
 11) wurden zusätzlich mit pdftoppm gegengeprüft.

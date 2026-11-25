@@ -46,53 +46,9 @@ PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref);
 extern
 void PageAttrsFree(PageAttrs *this);
 
-/* Accessors. */
-extern
-gdouble PageAttrsGetX1(PageAttrs *this);
-
-/* Get y1. */
-extern
-gdouble PageAttrsGetY1(PageAttrs *this);
-
-/* Get x2. */
-extern
-gdouble PageAttrsGetX2(PageAttrs *this);
-
-/* Get y2. */
-extern
-gdouble PageAttrsGetY2(PageAttrs *this);
-
-/* Check cropped. */
-extern
-GBool PageAttrsIsCropped(PageAttrs *this);
-
-/* Get crop x1. */
-extern
-gdouble PageAttrsGetCropX1(PageAttrs *this);
-
-/* Get crop y1. */
-extern
-gdouble PageAttrsGetCropY1(PageAttrs *this);
-
-/* Get crop x2. */
-extern
-gdouble PageAttrsGetCropX2(PageAttrs *this);
-
-/* Get crop y2. */
-extern
-gdouble PageAttrsGetCropY2(PageAttrs *this);
-
-/* Get rotate. */
-extern
-long PageAttrsGetRotate(PageAttrs *this);
-
-
-extern
-void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref);
-
 /* Constructor. */
 extern
-void PageInit(Page *page, long num1, Dict *pageDict, PageAttrs *attrs1);
+void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1);
 
 /* Destructor. */
 extern
@@ -141,7 +97,7 @@ gdouble PageGetHeight(Page *page);
 
 /* Get rotate. */
 extern
-long PageGetRotate(Page *page);
+sword PageGetRotate(Page *page);
 
 extern
 void PageCopyResourceDict(Page *page, Obj *dest, XRef *xref);

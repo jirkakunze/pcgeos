@@ -273,7 +273,7 @@ static GBool DCTStreamHaveData(DCTData *d)
     return gTrue;
 }
 
-long DCTStreamGetChar(Stream *str)
+short DCTStreamGetChar(Stream *str)
 {
     DCTData *d = str->u.dct;
 
@@ -284,7 +284,7 @@ long DCTStreamGetChar(Stream *str)
     return d->dec->buf[d->dec->bufIdx++];
 }
 
-long DCTStreamLookChar(Stream *str)
+short DCTStreamLookChar(Stream *str)
 {
     DCTData *d = str->u.dct;
 

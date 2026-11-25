@@ -56,9 +56,5 @@ ParserGetPos(Parser *parser);
 extern long
 ParserGetLength(Parser *parser);
 
-/* Process parser shift. */
-extern void
-ParserShift(Parser *parser);
-
 #endif  /* PARSER_H */
 

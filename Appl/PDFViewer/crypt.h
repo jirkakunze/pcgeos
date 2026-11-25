@@ -28,9 +28,6 @@
 
 #include "dict.h"
 
-/* Compute. */
-void MD5Compute(Guchar *data, word len, Guchar digest[16]);
-
 /* Process rc4 key schedule. */
 void RC4KeySchedule(Guchar *key, short keyLen, Guchar sBox[256]);
 /* Handle rc4 next byte. */

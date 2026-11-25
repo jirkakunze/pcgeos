@@ -73,12 +73,6 @@ extern void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
 /* Release storage owned by a Gfx interpreter. */
 extern void GfxFree(Gfx *this);
 
-/* Push a new resource-dictionary scope onto the resource chain. */
-extern void GfxResourcesInit(GfxResources *this, GfxResources *next1);
-
-/* Release storage owned by a resource-dictionary scope. */
-extern void GfxResourcesFree(GfxResources *this);
-
 /* Interpret a content stream object, drawing into the bound gstring. */
 extern GBool GfxDisplay(Gfx *this, Obj *obj);
 

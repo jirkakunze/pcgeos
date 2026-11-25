@@ -77,7 +77,7 @@ GBool GfxParseType2Function(Obj *funcObj, XRef *xref,
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k)
+static void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k)
 {
     if ((this->r = 255 - (c + k)) < 0)
     {
@@ -113,7 +113,7 @@ void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-void GfxColorSetGray(GfxColor *this, short gray)
+static void GfxColorSetGray(GfxColor *this, short gray)
 {
     this->r = this->g = this->b = gray;
 }
@@ -140,7 +140,7 @@ void GfxColorSetGray(GfxColor *this, short gray)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-void GfxColorSetRGB(GfxColor *this, short r1, short g1, short b1)
+static void GfxColorSetRGB(GfxColor *this, short r1, short g1, short b1)
 {
     this->r = r1;
     this->g = g1;
@@ -301,7 +301,7 @@ void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref)
     Obj csObj;
     Obj obj, obj2;
     char *s;
-    long x;
+    short x;
     short i, j;
     word tintComps;
     Obj altObj, funcObj;
@@ -1281,7 +1281,7 @@ void GfxStateFree(GfxState *state)
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-void GfxStateCopy(GfxState *dest, GfxState *state)
+static void GfxStateCopy(GfxState *dest, GfxState *state)
 {
     memcpy(dest, state, sizeof(GfxState));
     dest->saved = NULL;

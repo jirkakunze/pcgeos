@@ -50,17 +50,27 @@
 
 #define xrefSearchSize 1024  /* Bytes scanned for startxref near EOF. */
 
+/*
+ * XRefEntry.gen is a word. A generation above 65535 is not valid PDF;
+ * store 65535 (the value of a free entry) so that it can not match a
+ * truncated reference.
+ */
+static word XRefClampGen(long v)
+{
+    return (v > 0xFFFFL) ? (word)0xFFFF : (word)v;
+}
+
 static long XRefParseVarDigits(const char *p);
 
-long XRefReadTrailer(XRef *xref, Stream *fs);
+static long XRefReadTrailer(XRef *xref, Stream *fs);
 static void XRefSetStart(XRef *xref, Stream *fs);
 
 /* PDF 1.5+ cross-reference streams. */
 static GBool XRefSectionIsStream(XRef *xref, Stream *fs, long pos);
 static long XRefStreamReadField(Obj *streamObj, long width, long defaultVal);
 static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos);
-GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection);
-GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos,
+static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection);
+static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos,
     GBool isFirstSection, GBool hybrid);
 static void XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm,
     Obj *obj);
@@ -345,7 +355,7 @@ static void XRefSetStart(XRef *xref, Stream *fs)
     static const char pattern[] = "%PDF-";
     short matchLen = 0;
     short i;
-    long c;
+    short c;
 
     StreamSetPos(fs, 0);
 
@@ -397,7 +407,7 @@ static void XRefSetStart(XRef *xref, Stream *fs)
 
 static GBool XRefSectionIsStream(XRef *xref, Stream *fs, long pos)
 {
-    long c;
+    short c;
     char s[4];
     short i;
 
@@ -590,7 +600,7 @@ static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
  *
  ***********************************************************************/
 
-GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection,
+static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection,
     GBool hybrid)
 {
     Parser parser;
@@ -741,14 +751,14 @@ GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection
                         newEntry.type = xrefEntryClassic;
                         newEntry.used = gTrue;
                         newEntry.offset = f2;
-                        newEntry.gen = f3;
+                        newEntry.gen = XRefClampGen(f3);
                         break;
                     case 2:
                         newEntry.type = xrefEntryCompressed;
                         newEntry.used = gTrue;
                         /* containing ObjStm's object number */
                         newEntry.offset = f2;
-                        newEntry.gen = f3; /* index within that ObjStm */
+                        newEntry.gen = XRefClampGen(f3); /* index within that ObjStm */
                         break;
                     default:
                         /*
@@ -809,7 +819,7 @@ GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection
                         pEntry->type = xrefEntryClassic;
                         pEntry->used = gTrue;
                         pEntry->offset = f2;
-                        pEntry->gen = f3;
+                        pEntry->gen = XRefClampGen(f3);
                         HugeArrayDirty(pEntry);
                         break;
                     case 2:
@@ -817,7 +827,7 @@ GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection
                         pEntry->used = gTrue;
                         /* containing ObjStm's object number */
                         pEntry->offset = f2;
-                        pEntry->gen = f3; /* index within that ObjStm */
+                        pEntry->gen = XRefClampGen(f3); /* index within that ObjStm */
                         HugeArrayDirty(pEntry);
                         break;
                     default:
@@ -902,7 +912,7 @@ GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection
  *
  ***********************************************************************/
 
-long XRefReadTrailer(XRef *xref, Stream *fs)
+static long XRefReadTrailer(XRef *xref, Stream *fs)
 {
 
     Parser parser;
@@ -914,7 +924,7 @@ long XRefReadTrailer(XRef *xref, Stream *fs)
     char buf[40];
     long n, pos, pos1;
     char *p;
-    long c;
+    short c;
     long i;
     Obj *ptrailerDict = &xref->trailerDict;
     Stream *fs2;
@@ -1168,7 +1178,7 @@ static long XRefParseVarDigits(const char *p)
  *
  ***********************************************************************/
 
-GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
+static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
 {
     Parser parser;
     Obj obj, obj2;
@@ -1176,7 +1186,7 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
     GBool more, ok;
     long stmPos;
     long first, n, i;
-    long c;
+    short c;
     word j;
     Stream *fs2;
     Lexer *lexer;
@@ -1288,7 +1298,7 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
                 }
                 pBatch = &batchBuf[batchCount];
                 pBatch->offset = XRefParseDigits(s, 10);
-                pBatch->gen = XRefParseDigits(&s[11], 5);
+                pBatch->gen = XRefClampGen(XRefParseDigits(&s[11], 5));
                 pBatch->type = xrefEntryClassic;
                 if (s[17] == 'n')
                 {
@@ -1328,7 +1338,7 @@ GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
                 if (pEntry->offset < 0)
                 {
                     pEntry->offset = XRefParseDigits(s, 10);
-                    pEntry->gen = XRefParseDigits(&s[11], 5);
+                    pEntry->gen = XRefClampGen(XRefParseDigits(&s[11], 5));
                     pEntry->type = xrefEntryClassic;
                     if (s[17] == 'n')
                     {
@@ -1536,7 +1546,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     Obj dummyDict;
     Dict *dict;
     long n, first, i, pairOffset, targetOffset, consumed;
-    long c;
+    short c;
     short j;
     Parser parser;
     Lexer *lexer;
@@ -1722,8 +1732,9 @@ void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
     XRefEntry *e;
     XRefFetchFrame *f;
     word entrySize;
-    short entryType;
-    long entryOffset, entryGen;
+    byte entryType;
+    long entryOffset;
+    word entryGen;
 
     Stream *fs2;
 

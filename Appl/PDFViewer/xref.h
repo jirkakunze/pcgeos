@@ -65,10 +65,6 @@ extern void XRefFetch(XRef *xref, long num, long gen, Obj *obj);
 /* Get document info. */
 extern void XRefGetDocInfo(XRef *xref, Obj *obj);
 
-/* Read cross-reference table. */
-extern GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos,
-    GBool isFirstSection);
-
 /* Check encrypted. */
 extern GBool XRefCheckEncrypted(XRef *xref);
 

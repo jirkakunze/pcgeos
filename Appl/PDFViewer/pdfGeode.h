@@ -108,9 +108,9 @@ typedef struct Array
 {
 
     Obj *elems; /* array of elements */
-    long size; /* size of <elems> array */
-    long length; /* number of elements in array */
-    long ref; /* reference count */
+    word size; /* size of <elems> array, max. ARRAY_MAX_ELEMS */
+    word length; /* number of elements in array */
+    word ref; /* reference count */
 
 } Array;
 
@@ -119,7 +119,7 @@ typedef struct Array
 typedef struct Catalog
 {
     Obj pagesRoot; /* top-level /Pages ref or direct dict */
-    long numPages; /* number of pages */
+    word numPages; /* number of pages, max. PDF_MAX_PAGE_COUNT */
     Obj dests; /* named destination dictionary */
     Obj nameTree; /* name tree */
     GBool ok; /* true if catalog is valid */
@@ -137,9 +137,9 @@ typedef struct DictEntry
 typedef struct Dict
 {
     DictEntry *entries; /* array of entries */
-    long size; /* size of <entries> array */
-    long length; /* number of entries in dictionary */
-    long ref; /* reference count */
+    word size; /* size of <entries> array, max. DICT_MAX_ENTRIES */
+    word length; /* number of entries in dictionary */
+    word ref; /* reference count */
 
 } Dict;
 
@@ -151,7 +151,7 @@ typedef struct PageAttrs
 #ifdef USE_FULL_PAGE_ATTRS
     gdouble x1, y1, x2, y2;
     gdouble cropX1, cropY1, cropX2, cropY2;
-    long rotate;
+    sword rotate; /* 0, 90, 180 or 270 */
 #endif
 
     Obj resources;
@@ -159,7 +159,7 @@ typedef struct PageAttrs
 
 typedef struct Page
 {
-    long num; /* page number */
+    word num; /* page number */
     PageAttrs attrs; /* page attributes */
     Obj annots; /* annotations array */
     Obj contents; /* page contents */
@@ -171,7 +171,7 @@ typedef struct Page
 typedef struct Parser
 {
     Obj buf1, buf2; /* next two tokens */
-    long inlineImg; /* set when inline image data is encountered */
+    short inlineImg; /* set when inline image data is encountered */
     struct Lexer *lexer;
 
     /*
@@ -183,16 +183,20 @@ typedef struct Parser
 
 } Parser;
 
+/*
+ * One entry per object, kept in a HugeArray in the scratch VM file. Keep it
+ * small (8 bytes): documents can have tens of thousands of objects.
+ */
 typedef struct XRefEntry
 {
-    long offset;
-    long gen;
-    GBool used;
+    long offset;    /* file offset; compressed: number of the ObjStm */
+    word gen;       /* generation (max. 65535); compressed: index in ObjStm */
+    byte used;      /* gTrue or gFalse */
     /*
      * 0 = free/unused, 1 = classic , 2 = compressed inside an Object Stream
      * (PDF 1.5+ cross-reference streams).
      */
-    short type;
+    byte type;
 } XRefEntry;
 
 #define xrefEntryFree 0
@@ -242,7 +246,7 @@ typedef struct XRef
 typedef struct Lexer
 {
     Array *streams; /* array of input streams */
-    long strPtr; /* index of current stream */
+    word strPtr; /* index of current stream */
     Obj curStr; /* current stream */
     GBool freeArray; /* should lexer free the streams array? */
 
@@ -368,7 +372,7 @@ typedef struct GfxState
 typedef struct GfxFontDict
 {
     struct GfxFont **fonts; /* list of fonts */
-    long numFonts; /* number of fonts */
+    word numFonts; /* number of fonts */
     /*
      * 1-entry "last lookup" cache : GfxFontDictLookup runs a linear, string-
      * comparing scan over every font in the page's /Resources on EVERY /Tf
@@ -519,7 +523,7 @@ typedef enum StreamKind
 
 typedef struct Stream
 {
-    long ref; /* reference count */
+    word ref; /* reference count */
 
     StreamKind kind;
 
@@ -528,14 +532,14 @@ typedef struct Stream
     /* ----- image stuff (StreamResetImage/StreamGetImagePixel) */
     short nComps; /* components per pixel */
     short nBits; /* bits per component */
-    long width; /* pixels per line */
-    long nVals; /* components per line */
-    long rowBytes; /* bytes per line */
+    word width; /* pixels per line */
+    word nVals; /* components per line, max. 65528 */
+    word rowBytes; /* bytes per line */
     Guchar *rawLine; /* raw line buffer */
     Guchar *pixLine; /* pixel line buffer */
-    long pixIdx; /* current index in line buffer */
+    word pixIdx; /* current index in line buffer */
 
-    long buf; /* asciiHex data */
+    short buf; /* asciiHex data: char or EOF */
     Obj dict; /* SubStream data */
     GBool eof;
 
@@ -584,7 +588,7 @@ typedef struct RC4Data
     short keyLen;
     Guchar rc4i, rc4j; /* RC4 PRGA indices */
     GBool peeked; /* one-byte lookahead, for *LookChar */
-    long peekedChar;
+    short peekedChar;
 } RC4Data;
 
 /*
@@ -599,7 +603,7 @@ typedef struct PredictorData
     short nComps;
     short nBits;
     short pixBytes; /* bytes per pixel, at least 1 */
-    long width; /* pixels per row */
+    word width; /* pixels per row, max. PDF_MAX_PREDICTOR_VALUES */
     word rowBytes; /* bytes per row, without the PNG tag byte */
     word lineIdx; /* next byte to hand out from curLine */
     GBool eof;
@@ -614,10 +618,10 @@ typedef struct PredictorData
 typedef struct LZWData
 {
 
-    long early;
+    short early;
     long inputBuf; /* input buffer */
-    long inputBits; /* number of bits in input buffer */
-    long inCodeBits; /* size of input code */
+    short inputBits; /* number of bits in input buffer */
+    short inCodeBits; /* size of input code */
     char buf[1024]; /* buffer */
     char *bufPtr; /* next char to read */
     char *bufEnd; /* end of buffer */
@@ -629,9 +633,9 @@ typedef struct LZWData
     /* off-by-2 overflow independent of the */
     /* type) */
     short codetab[4096];
-    long oldcode;
-    long free_ent;
-    long finchar;
+    short oldcode;
+    short free_ent;
+    short finchar;
 } LZWData;
 
 /* FlateStream: FlateData is private to main/stream.goc (wraps zlib) */
@@ -640,8 +644,8 @@ typedef struct LZWData
 
 typedef struct ASCII85Data
 {
-    long c[5];
-    long b[4];
+    short c[5]; /* char or EOF */
+    Guchar b[4];
     short index, n;
 } ASCII85Data;
 
@@ -660,18 +664,18 @@ typedef struct CCITTFaxData
 {
     long encoding; /* 'K' parameter */
     GBool byteAlign; /* 'EncodedByteAlign' parameter */
-    long columns; /* 'Columns' parameter */
+    short columns; /* 'Columns' parameter, max. PDF_MAX_CCITT_COLUMNS */
     long rows; /* 'Rows' parameter */
     GBool black; /* 'BlackIs1' parameter */
     GBool nextLine2D; /* true if next line uses 2D encoding */
     long inputBuf; /* input buffer */
-    long inputBits; /* number of bits in input buffer */
+    short inputBits; /* number of bits in input buffer */
     short *refLine; /* reference line changing elements */
-    long b1; /* index into refLine */
+    short b1; /* index into refLine */
     short *codingLine; /* coding line changing elements */
-    long a0; /* index into codingLine */
-    long outputBits; /* remaining ouput bits */
-    long buf; /* character buffer */
+    short a0; /* index into codingLine */
+    short outputBits; /* remaining ouput bits */
+    short buf; /* character buffer */
 } CCITTFaxData;
 
 /* DCTStream: DCTData is private to main/dctStream.c (wraps ijgjpeg) */

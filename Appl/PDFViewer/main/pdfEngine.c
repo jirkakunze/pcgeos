@@ -106,7 +106,7 @@ typedef struct {
      */
     word clipWidth;
     word clipHeight; /* same, for height */
-    long rotate; /* normalized to 0/90/180/270 */
+    sword rotate; /* normalized to 0/90/180/270 */
     /*
      * PageGetHeight(page), unrotated -- only needed for PdfDrawPage's
      * printing- translation case
@@ -170,15 +170,15 @@ PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
     geom->clipHeight = geom->height;
 
     geom->rotate = PageGetRotate(&page);
-    if (geom->rotate == 90L || geom->rotate == 270L)
+    if (geom->rotate == 90 || geom->rotate == 270)
     {
         word temp = geom->width;
         geom->width = geom->height;
         geom->height = temp;
     }
-    else if (geom->rotate != 0L && geom->rotate != 180L)
+    else if (geom->rotate != 0 && geom->rotate != 180)
     {
-        geom->rotate = 0L;
+        geom->rotate = 0;
     }
 
     geom->rawHeight = PageGetHeight(&page);
@@ -262,7 +262,7 @@ static void PdfFitPrintPage(GStateHandle target, PdfPageGeometry *geom,
     if (sTurn > s)
     {
         s = sTurn;
-        geom->rotate = (geom->rotate + 90L) % 360L;
+        geom->rotate = (geom->rotate + 90) % 360;
         t = geom->width;
         geom->width = geom->height;
         geom->height = t;
@@ -744,7 +744,7 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
     }
 
     /* ----- success: fill in what PdfGetPageCount/PdfDecodePage need ----- */
-    pdoc->pageCount = (word)CatalogGetNumPages(&pdoc->catalog);
+    pdoc->pageCount = CatalogGetNumPages(&pdoc->catalog);
 
     pdoc->ok = TRUE;
 
@@ -1730,7 +1730,7 @@ static word PdfResolveDest(PdfDocInternal *pdoc, Obj *dest, sdword *topOut)
         ObjArrayGetNF(&d, 0, &pg);
         if (isRef(&pg))
         {
-            page = (word)CatalogFindPage(&pdoc->catalog, getRefNum(&pg),
+            page = CatalogFindPage(&pdoc->catalog, getRefNum(&pg),
                 getRefGen(&pg), &pdoc->xref);
         }
         else if (isInt(&pg) && getInt(&pg) >= 0 &&

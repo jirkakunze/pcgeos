@@ -168,7 +168,7 @@ void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
     DictLookup(dict, "Rotate", &obj1, xref);
     if (isInt(&obj1))
     {
-        this->rotate = getInt(&obj1);
+        this->rotate = (sword)getInt(&obj1);
     }
     ObjFree(&obj1);
     while (this->rotate < 0)
@@ -240,7 +240,7 @@ void PageAttrsFree(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetX1(PageAttrs *this)
+static gdouble PageAttrsGetX1(PageAttrs *this)
 {
     return this->x1;
 }
@@ -264,7 +264,7 @@ gdouble PageAttrsGetX1(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetY1(PageAttrs *this)
+static gdouble PageAttrsGetY1(PageAttrs *this)
 {
     return this->y1;
 }
@@ -288,7 +288,7 @@ gdouble PageAttrsGetY1(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetX2(PageAttrs *this)
+static gdouble PageAttrsGetX2(PageAttrs *this)
 {
     return this->x2;
 }
@@ -312,7 +312,7 @@ gdouble PageAttrsGetX2(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetY2(PageAttrs *this)
+static gdouble PageAttrsGetY2(PageAttrs *this)
 {
     return this->y2;
 }
@@ -336,7 +336,7 @@ gdouble PageAttrsGetY2(PageAttrs *this)
  *
  ***********************************************************************/
 
-GBool PageAttrsIsCropped(PageAttrs *this)
+static GBool PageAttrsIsCropped(PageAttrs *this)
 {
     return this->cropX2 > this->cropX1;
 }
@@ -360,7 +360,7 @@ GBool PageAttrsIsCropped(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetCropX1(PageAttrs *this)
+static gdouble PageAttrsGetCropX1(PageAttrs *this)
 {
     return this->cropX1;
 }
@@ -384,7 +384,7 @@ gdouble PageAttrsGetCropX1(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetCropY1(PageAttrs *this)
+static gdouble PageAttrsGetCropY1(PageAttrs *this)
 {
     return this->cropY1;
 }
@@ -408,7 +408,7 @@ gdouble PageAttrsGetCropY1(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetCropX2(PageAttrs *this)
+static gdouble PageAttrsGetCropX2(PageAttrs *this)
 {
     return this->cropX2;
 }
@@ -432,7 +432,7 @@ gdouble PageAttrsGetCropX2(PageAttrs *this)
  *
  ***********************************************************************/
 
-gdouble PageAttrsGetCropY2(PageAttrs *this)
+static gdouble PageAttrsGetCropY2(PageAttrs *this)
 {
     return this->cropY2;
 }
@@ -456,7 +456,7 @@ gdouble PageAttrsGetCropY2(PageAttrs *this)
  *
  ***********************************************************************/
 
-long PageAttrsGetRotate(PageAttrs *this)
+static sword PageAttrsGetRotate(PageAttrs *this)
 {
     return this->rotate;
 }
@@ -483,7 +483,7 @@ long PageAttrsGetRotate(PageAttrs *this)
  *
  ***********************************************************************/
 
-void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
+static void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
 {
 
     if (isRef(&this->resources))
@@ -522,7 +522,7 @@ void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
  *
  ***********************************************************************/
 
-void PageInit(Page *page, long num1, Dict *pageDict, PageAttrs *attrs1)
+void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
 {
 
     page->ok = gTrue;
@@ -849,7 +849,7 @@ gdouble PageGetHeight(Page *page)
  *
  ***********************************************************************/
 
-long PageGetRotate(Page *page)
+sword PageGetRotate(Page *page)
 {
     return PageAttrsGetRotate(&page->attrs);
 }
