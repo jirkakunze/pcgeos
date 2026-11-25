@@ -65,9 +65,6 @@ extern void DictLookupNF(Dict *dict, char *key, Obj *obj);
 /* Get key. */
 extern char *DictGetKey(Dict *dict, word i);
 
-/* Fetch and dereference the value at a given entry index. */
-extern void DictGetVal(Dict *dict, word i, Obj *obj, XRef *xref);
-
 /* Fetch the value at a given entry index without resolving references. */
 extern void DictGetValNF(Dict *dict, word i, Obj *obj);
 

@@ -79,9 +79,6 @@ PdfError PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut);
  */
 void PdfClose(PdfDocHandle doc);
 
-/* Cheap validity check, e.g. */
-Boolean PdfIsValid(PdfDocHandle doc);
-
 /*
  * Entry of the document information dictionary (/Info), e.g. "Title",
  * converted to the GEOS character set; dates ("CreationDate", "ModDate")
@@ -126,12 +123,6 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum);
  */
 PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
     Boolean printing, const Point *fitArea, Point *pageSizeOut);
-
-/* Explicitly evict one decoded page from the document cache. */
-void PdfDiscardPage(PdfDocHandle doc, word pageNum);
-
-/* Evict every cached page of a document without closing it. */
-void PdfDiscardAllPages(PdfDocHandle doc);
 
 /* D. */
 

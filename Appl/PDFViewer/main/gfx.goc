@@ -4326,8 +4326,6 @@ static void _near opShowSpaceText(Gfx *gfx, Obj args[], int numArgs)
     (void)numArgs;
 }
 
-#define WWFixedToDWord(ww) (((long)ww.WWF_int << 16) | ww.WWF_frac)
-
 /***********************************************************************
  *      setTextTransform
  ***********************************************************************
@@ -4718,67 +4716,6 @@ static void doShowText(Gfx *gfx, GooString *s)
         ((sdword)((dword)(-gfx->state->lineY) << 5)));
 }
 
-#if 0
-/***********************************************************************
- *      getNextChar16
- ***********************************************************************
- * SYNOPSIS:        Get next char16.
- * PARAMETERS:      GfxFontEncoding16 *enc    enc
- *                  Guchar *p    pointer
- *                  long *c16    c16
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-long getNextChar16(GfxFontEncoding16 *enc, Guchar *p, long *c16)
-{
-    int n;
-    int code;
-    int a, b, m;
-
-    n = enc->codeLen[*p];
-    if (n == 1)
-    {
-        *c16 = enc->map1[*p];
-    }
-    else
-    {
-        code = (p[0] << 8) + p[1];
-        a = 0;
-        b = enc->map2Len;
-        /* invariant: map2[2*a] <= code < map2[2*b] */
-        while (b - a > 1)
-        {
-            m = (a + b) >> 1;
-            if (enc->map2[2 * m] <= code)
-            {
-                a = m;
-            }
-            else if (enc->map2[2 * m] > code)
-            {
-                b = m;
-            }
-            else
-            {
-                break;
-            }
-        }
-        *c16 = enc->map2[2 * a + 1] + (code - enc->map2[2 * a]);
-    }
-    return n;
-}
-#endif
-
 /* marked content operators */
 
 /***********************************************************************
@@ -5035,7 +4972,6 @@ static GBool GfxCheckPageResourceBudget(Gfx *gfx, dword bytes)
 
 static void opXObject(Gfx *gfx, Obj args[], int numArgs)
 {
-#if 1
     Obj obj1, obj2;
 
     if (!GfxLookupXObject(gfx, getName(&args[0]), &obj1))
@@ -5070,7 +5006,6 @@ static void opXObject(Gfx *gfx, Obj args[], int numArgs)
 
     ObjFree(&obj2);
     ObjFree(&obj1);
-#endif
     (void)numArgs;
 }
 
@@ -5097,7 +5032,6 @@ static void opXObject(Gfx *gfx, Obj args[], int numArgs)
 
 static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
 {
-#if 1
     Dict *dict;
     Obj obj1, obj2;
     word width, height;
@@ -5352,7 +5286,6 @@ static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg)
     err1:
     EC_WARNING(-1);
 
-#endif
 }
 
 /***********************************************************************
@@ -5625,7 +5558,6 @@ static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref)
 
 static void opBeginImage(Gfx *gfx, Obj args[], int numArgs)
 {
-#if 1
     Stream *str;
     long c1, c2;
 
@@ -5661,7 +5593,6 @@ static void opBeginImage(Gfx *gfx, Obj args[], int numArgs)
         StreamFree(str);
         gfree(str);
     }
-#endif
     (void)args;
     (void)numArgs;
 }
@@ -5688,7 +5619,6 @@ static void opBeginImage(Gfx *gfx, Obj args[], int numArgs)
 
 static void buildImageStream(Gfx *gfx, Stream **str)
 {
-#if 1
     Obj dict;
     Obj obj;
     char *key;
@@ -5745,7 +5675,6 @@ static void buildImageStream(Gfx *gfx, Stream **str)
     ObjFree(&dict);
 
     return;
-#endif
 }
 
 /* SEG-01F: ID/EI are leaf warning handlers. */

@@ -321,33 +321,6 @@ char *DictGetKey(Dict *dict, word i)
 }
 
 /***********************************************************************
- *      DictGetVal
- ***********************************************************************
- * SYNOPSIS:        Get val.
- * PARAMETERS:      Dict *dict    dictionary
- *                  word i    index
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Delegate to ObjFetch() on the stored value.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-void DictGetVal(Dict *dict, word i, Obj *obj, XRef *xref)
-{
-    ObjFetch(obj, &dict->entries[i].val, xref);
-}
-
-/***********************************************************************
  *      DictGetValNF
  ***********************************************************************
  * SYNOPSIS:        Get val nf.

@@ -463,32 +463,6 @@ long PageAttrsGetRotate(PageAttrs *this)
 #endif
 
 /***********************************************************************
- *      PageAttrsGetResourceDict
- ***********************************************************************
- * SYNOPSIS:        Get resource dictionary.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-Dict *PageAttrsGetResourceDict(PageAttrs *this)
-{
-
-    return isDict(&this->resources) ?
-        getDict(&this->resources) : (Dict *)NULL;
-}
-
-/***********************************************************************
  *      PageAttrsCopyResourceDict
  ***********************************************************************
  * SYNOPSIS:        Copy resource dictionary.
@@ -880,30 +854,6 @@ long PageGetRotate(Page *page)
     return PageAttrsGetRotate(&page->attrs);
 }
 #endif
-
-/***********************************************************************
- *      PageGetResourceDict
- ***********************************************************************
- * SYNOPSIS:        Get resource dictionary.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-Dict *PageGetResourceDict(Page *page)
-{
-    return PageAttrsGetResourceDict(&page->attrs);
-}
 
 /***********************************************************************
  *      PageCopyResourceDict

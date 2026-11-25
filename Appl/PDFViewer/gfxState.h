@@ -125,9 +125,6 @@ extern GfxFont *GfxStateGetFont(GfxState *state);
 /* Get font size. */
 extern gdouble GfxStateGetFontSize(GfxState *state);
 
-/* Get text mat. */
-extern gdouble *GfxStateGetTextMat(GfxState *state);
-
 /* Get char space. */
 extern sdword GfxStateGetCharSpace(GfxState *state);
 

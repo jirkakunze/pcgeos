@@ -211,9 +211,6 @@ void StreamFree(Stream *str)
             SubStreamFree(str);
             return;
 
-        case strObjStmCache:
-            ObjStmCacheStreamFree(str);
-            return;
             /*
              * Other streams wrap other streams that must also be freed; use
              * "break" instead of "return".
@@ -289,10 +286,6 @@ FileHandle StreamGetFile(Stream *str)
     {
         return FStreamGetFile(str);
     }
-    if (str->kind == strObjStmCache)
-    {
-        return NullHandle;
-    }
 
     return StreamGetFile(str->str);
 }
@@ -333,9 +326,6 @@ long StreamGetChar(Stream *str)
 
         case strFlate:
             return FlateStreamGetChar(str);
-
-        case strObjStmCache:
-            return ObjStmCacheStreamGetChar(str);
 
         case strDCT:
             return DCTStreamGetChar(str);
@@ -412,20 +402,6 @@ word StreamRead(Stream *str, Guchar *buf, word size)
         return DCTStreamRead(str, buf, size);
     }
 
-    if (str->kind == strObjStmCache)
-    {
-        for (n = 0; n < size; ++n)
-        {
-            c = ObjStmCacheStreamGetChar(str);
-            if (c == EOF)
-            {
-                break;
-            }
-            buf[n] = (Guchar)c;
-        }
-        return n;
-    }
-
     if (str->kind == strSubStream)
     {
         return StreamRead(str->str, buf, size);
@@ -479,9 +455,6 @@ long StreamLookChar(Stream *str)
 
         case strFlate:
             return FlateStreamLookChar(str);
-
-        case strObjStmCache:
-            return ObjStmCacheStreamLookChar(str);
 
         case strDCT:
             return DCTStreamLookChar(str);
@@ -668,10 +641,6 @@ void StreamReset(Stream *str)
             FlateStreamReset(str);
             break;
 
-        case strObjStmCache:
-            ObjStmCacheStreamReset(str);
-            break;
-
         case strDCT:
             DCTStreamReset(str);
             break;
@@ -737,10 +706,6 @@ long StreamGetLength(Stream *str)
     {
         return FStreamGetLength(str);
     }
-    if (str->kind == strObjStmCache)
-    {
-        return ObjStmCacheStreamGetLength(str);
-    }
 
     return StreamGetLength(str->str);
 }
@@ -770,10 +735,6 @@ long StreamGetPos(Stream *str)
     if (str->kind == strFile)
     {
         return FStreamGetPos(str);
-    }
-    if (str->kind == strObjStmCache)
-    {
-        return ObjStmCacheStreamGetPos(str);
     }
 
     return StreamGetPos(str->str);
@@ -808,43 +769,10 @@ void StreamSetPos(Stream *str, long pos1)
     {
         FStreamSetPos(str, pos1);
     }
-    else if (str->kind == strObjStmCache)
-    {
-        ObjStmCacheStreamSetPos(str, pos1);
-    }
     else
     {
         StreamSetPos(str->str, pos1);
     }
-}
-
-/***********************************************************************
- *      StreamIsBinary
- ***********************************************************************
- * SYNOPSIS:        Check binary.
- * PARAMETERS:      Stream *str    string
- *                  GBool last    last
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-GBool StreamIsBinary(Stream *str, GBool last)
-{
-    /* XXX: fill this in, if it matters */
-
-    (void)str;
-    (void)last;
-    return gTrue;
 }
 
 /***********************************************************************
@@ -1774,308 +1702,6 @@ static word PredictorStreamRead(Stream *str, Guchar *buf, word size)
     return done;
 }
 
-/* ObjStmCacheStream */
-
-/***********************************************************************
- *      ObjStmCacheStreamFill
- ***********************************************************************
- * SYNOPSIS:        Fill.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-static GBool ObjStmCacheStreamFill(Stream *str)
-{
-    ObjStmCacheStreamData *d = str->u.objStmCache;
-    Guchar *src;
-    word avail, n;
-
-    if (!d || d->pos >= d->length)
-    {
-        return gFalse;
-    }
-
-    HugeArrayLock(d->vmFile, d->data, d->pos, (void **) & src, &avail);
-    if (!src || avail == 0)
-    {
-        return gFalse;
-    }
-
-    n = avail;
-    if (n > objStmCacheReadBufSize)
-    {
-        n = objStmCacheReadBufSize;
-    }
-    if ((long)n > d->length - d->pos)
-    {
-        n = (word)(d->length - d->pos);
-    }
-    memcpy(d->buf, src, n);
-    HugeArrayUnlock(src);
-    d->bufIndex = 0;
-    d->bufCount = n;
-    return n != 0;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  VMFileHandle vmFile    vm file
- *                  VMBlockHandle data    data
- *                  long start    start
- *                  long length    length
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-GBool ObjStmCacheStreamInit(Stream *str, VMFileHandle vmFile,
-    VMBlockHandle data, long start, long length)
-{
-    ObjStmCacheStreamData *d;
-
-    StreamInit(str);
-    if (!data || start < 0 || length < 0 || start > length)
-    {
-        return gFalse;
-    }
-
-    d = (ObjStmCacheStreamData *)gmalloc(sizeof(ObjStmCacheStreamData));
-    if (!d)
-    {
-        return gFalse;
-    }
-
-    str->kind = strObjStmCache;
-    str->u.objStmCache = d;
-    d->vmFile = vmFile;
-    d->data = data;
-    d->start = start;
-    d->pos = start;
-    d->length = length;
-    d->bufIndex = d->bufCount = 0;
-    return gTrue;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-void ObjStmCacheStreamFree(Stream *str)
-{
-    gfree(str->u.objStmCache);
-    str->u.objStmCache = NULL;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-void ObjStmCacheStreamReset(Stream *str)
-{
-    ObjStmCacheStreamData *d = str->u.objStmCache;
-    d->pos = d->start;
-    d->bufIndex = d->bufCount = 0;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-long ObjStmCacheStreamGetChar(Stream *str)
-{
-    ObjStmCacheStreamData *d = str->u.objStmCache;
-    long c;
-
-    if (d->bufIndex >= d->bufCount && !ObjStmCacheStreamFill(str))
-    {
-        return EOF;
-    }
-    c = d->buf[d->bufIndex++];
-    ++d->pos;
-    return c;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process object stm cache stream look char.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-long ObjStmCacheStreamLookChar(Stream *str)
-{
-    ObjStmCacheStreamData *d = str->u.objStmCache;
-
-    if (d->bufIndex >= d->bufCount && !ObjStmCacheStreamFill(str))
-    {
-        return EOF;
-    }
-    return d->buf[d->bufIndex];
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-long ObjStmCacheStreamGetLength(Stream *str)
-{
-    return str->u.objStmCache->length - str->u.objStmCache->start;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamGetPos
- ***********************************************************************
- * SYNOPSIS:        Get position.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-long ObjStmCacheStreamGetPos(Stream *str)
-{
-    return str->u.objStmCache->pos;
-}
-
-/***********************************************************************
- *      ObjStmCacheStreamSetPos
- ***********************************************************************
- * SYNOPSIS:        Set position.
- * PARAMETERS:      Stream *str    string
- *                  long pos    file position
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-void ObjStmCacheStreamSetPos(Stream *str, long pos)
-{
-    ObjStmCacheStreamData *d = str->u.objStmCache;
-    if (pos < d->start)
-    {
-        pos = d->start;
-    }
-    if (pos > d->length)
-    {
-        pos = d->length;
-    }
-    d->pos = pos;
-    d->bufIndex = d->bufCount = 0;
-}
-
 /* Shared file read cache (OPT-17) */
 
 /*
@@ -2556,31 +2182,6 @@ long FStreamGetPos(Stream *str)
     FStream *this = str->u.fs;
 
     return this->bufPos + (this->bufPtr - this->buf);
-}
-
-/***********************************************************************
- *      FStreamIsBinary
- ***********************************************************************
- * SYNOPSIS:        Check binary.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-GBool FStreamIsBinary(Stream *str)
-{
-    (void)str;
-    return gTrue;
 }
 
 /***********************************************************************

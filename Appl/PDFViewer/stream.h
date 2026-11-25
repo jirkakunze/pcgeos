@@ -87,10 +87,6 @@ void StreamSetPos(Stream *str, long pos1);
 extern
 Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref);
 
-/* Check binary. */
-extern
-GBool StreamIsBinary(Stream *str, GBool last);
-
 /* Get line. */
 extern
 void StreamGetLine(Stream *str, char *buf, long size);
@@ -121,10 +117,6 @@ void FStreamFree(Stream *this);
 /* Reset. */
 void FStreamReset(Stream *str);
 void FStreamSetPos(Stream *str, long pos1);
-
-/* Check for a PDF header on this stream. */
-
-GBool FStreamIsBinary(Stream *str);
 
 /* Get char. */
 long FStreamGetChar(Stream *str);
@@ -212,34 +204,6 @@ word FlateStreamRead(Stream *str, Guchar *buf, word size);
 extern
 /* Handle flate stream look char. */
 long FlateStreamLookChar(Stream *str);
-/* Initialize. */
-extern
-
-/* ObjStmCacheStream */
-
-GBool ObjStmCacheStreamInit(Stream *str, VMFileHandle vmFile,
-    VMBlockHandle data, long start, long length);
-    
-/* Release. */
-void ObjStmCacheStreamFree(Stream *str);
-
-/* Reset. */
-void ObjStmCacheStreamReset(Stream *str);
-
-/* Get char. */
-long ObjStmCacheStreamGetChar(Stream *str);
-
-/* Handle obj stm cache stream look char. */
-long ObjStmCacheStreamLookChar(Stream *str);
-
-/* Get length. */
-long ObjStmCacheStreamGetLength(Stream *str);
-
-/* Get position. */
-long ObjStmCacheStreamGetPos(Stream *str);
-
-/* Set position. */
-void ObjStmCacheStreamSetPos(Stream *str, long pos);
 
 /* RC4Stream */
 

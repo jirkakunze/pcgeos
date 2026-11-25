@@ -198,9 +198,6 @@ Ref getRef(Obj *obj);
 #define ObjDictLookupNF(obj, key, obj2) \
 	DictLookupNF((obj)->u.dict, (key), (obj2))
 
-#define ObjDictGetKey(obj, i) \
-	DictGetKey((obj)->u.dict, (i))
-
 /* Stream accessors. */
 
 #define ObjIsStream(obj, dictType) \

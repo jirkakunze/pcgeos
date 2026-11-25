@@ -810,41 +810,6 @@ void PdfClose(PdfDocHandle doc)
     MemFree((MemHandle)doc);
 }
 
-/***********************************************************************
- *      PdfIsValid
- ***********************************************************************
- * SYNOPSIS:        Check valid.
- * PARAMETERS:      PdfDocHandle doc    doc
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-Boolean PdfIsValid(PdfDocHandle doc)
-{
-    PdfDocInternal *pdoc;
-    Boolean valid;
-
-    pdoc = PdfLockDoc(doc);
-    if (pdoc == NULL)
-    {
-        return FALSE;
-    }
-
-    valid = pdoc->ok;
-
-    PdfUnlockDoc(doc);
-    return valid;
-}
-
 /* B. */
 
 /***********************************************************************
@@ -1494,79 +1459,6 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
     PdfUnlockDoc(doc);
 
     return PDF_OK;
-}
-
-/***********************************************************************
- *      PdfDiscardPage
- ***********************************************************************
- * SYNOPSIS:        Discard page.
- * PARAMETERS:      PdfDocHandle doc    doc
- *                  word pageNum    page number
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Find the cache entry via PdfFindCachedPage() and free it, if
- *      present; a no-op if the page isn't currently cached.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-void PdfDiscardPage(PdfDocHandle doc, word pageNum)
-{
-    PdfDocInternal *pdoc;
-    PdfPageCacheEntry *cacheEntry;
-
-    pdoc = PdfLockDoc(doc);
-    if (pdoc == NULL)
-    {
-        return;
-    }
-
-    cacheEntry = PdfFindCachedPage(pdoc, pageNum);
-    if (cacheEntry != NULL)
-    {
-        PdfFreePageCacheEntry(pdoc, cacheEntry);
-    }
-
-    PdfUnlockDoc(doc);
-}
-
-/***********************************************************************
- *      PdfDiscardAllPages
- ***********************************************************************
- * SYNOPSIS:        Discard all pages.
- * PARAMETERS:      PdfDocHandle doc    doc
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-void PdfDiscardAllPages(PdfDocHandle doc)
-{
-    PdfDocInternal *pdoc;
-
-    pdoc = PdfLockDoc(doc);
-    if (pdoc == NULL)
-    {
-        return;
-    }
-
-    PdfFreeAllPageCacheEntries(pdoc);
-    PdfUnlockDoc(doc);
 }
 
 /* D. */

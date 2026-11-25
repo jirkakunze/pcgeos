@@ -233,11 +233,6 @@ typedef struct XRef
     long objStmCacheN;
     long objStmCacheFirst;
     long *objStmPairOffsets;
-    VMBlockHandle objStmDecoded; /* HugeArray<byte>, complete decoded ObjStm */
-    long objStmDecodedLength;
-
-    struct XRefFetchContext *fetchContexts;
-
 } XRef;
 
 /* Lexer */
@@ -407,9 +402,7 @@ typedef struct GfxFont
     GooString name; /* font name */
     long flags; /* font descriptor flags */
     GfxFontType type; /* type of font */
-    GooString embFontName; /* name of embedded font */
     Ref embFontID; /* ref to embedded font file stream */
-    GooString extFontFile; /* external font file name */
 
     GBool is16; /* set if font uses 16-bit chars */
     GBool hasCharSet; /* true if font descriptor has 'charset' entry */
@@ -440,18 +433,6 @@ typedef struct GfxFont
     /* Widths are computed inline; charNames[256] is no longer needed. */
 
 } GfxFont;
-
-/* GfxFontEncoding */
-
-#define gfxFontEncHashSize 419
-
-typedef struct GfxFontEncoding
-{
-    char **encoding; /* code --> name mapping */
-    GBool freeEnc; /* should we free the encoding array? */
-    short /* name --> code hash table */
-    hashTab[gfxFontEncHashSize];
-} GfxFontEncoding;
 
 typedef struct GfxResources
 {
@@ -501,15 +482,6 @@ typedef struct Gfx
 #define GFX_SEG_CURVE 2
 #define GFX_SEG_CLOSE 3
 
-/* Built-in font table. */
-
-typedef struct BuiltinFont
-{
-    char *name;
-    Gushort *widths;
-    struct GfxFontEncoding *encoding;
-} BuiltinFont;
-
 /* GfxImageColorMap */
 
 typedef struct GfxImageColorMap
@@ -538,7 +510,6 @@ typedef enum StreamKind
         strCCITTFax,
         strDCT,
         strFlate,
-        strObjStmCache, /* VM-backed decoded Object Stream cache */
         strEOF,
         strWeird, /* internal-use stream types */
         strSubStream,
@@ -578,30 +549,12 @@ typedef struct Stream
         struct CCITTFaxData *fax;
         struct DCTData *dct;
         struct RC4Data *rc4;
-        struct ObjStmCacheStreamData *objStmCache;
         struct PredictorData *pred;
     } u;
 
 } Stream;
 
 /* FileStream */
-
-/*
- * Small standalone stream over a byte HugeArray in the XRef scratch VM. Used
- * by the Object Stream decode cache (OPT-16).
- */
-#define objStmCacheReadBufSize 256
-typedef struct ObjStmCacheStreamData
-{
-    VMFileHandle vmFile;
-    VMBlockHandle data;
-    long start;
-    long pos;
-    long length;
-    word bufIndex;
-    word bufCount;
-    Guchar buf[objStmCacheReadBufSize];
-} ObjStmCacheStreamData;
 
 typedef struct FStream
 {

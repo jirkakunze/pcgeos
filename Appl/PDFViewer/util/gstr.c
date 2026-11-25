@@ -43,9 +43,9 @@ static char gEmptyString[] = "";
  */
 
 /***********************************************************************
- *      size
+ *      GStrRoundSize
  ***********************************************************************
- * SYNOPSIS:        Process size.
+ * SYNOPSIS:        Round a string length up to the allocation size.
  * PARAMETERS:      long len    length
  *
  * RETURNS:         result value
@@ -62,7 +62,7 @@ static char gEmptyString[] = "";
  *  JK      08/18/26    Initial Revision
  *
  ***********************************************************************/
-long size(long len)
+static long GStrRoundSize(long len)
 {
     long delta;
 
@@ -96,11 +96,11 @@ static GBool resize(GooString *gstr, long length1)
 
     if (!gstr->s)
     {
-        newString = gmalloc(size(length1));
+        newString = gmalloc(GStrRoundSize(length1));
     }
-    else if (size(length1) != size(gstr->length))
+    else if (GStrRoundSize(length1) != GStrRoundSize(gstr->length))
     {
-        newString = grealloc(gstr->s, size(length1));
+        newString = grealloc(gstr->s, GStrRoundSize(length1));
     }
     else
     {

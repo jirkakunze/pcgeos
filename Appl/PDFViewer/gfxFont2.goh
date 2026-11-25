@@ -1509,7 +1509,6 @@
         "zcaron"
 };
 
-#define macRomanEncodingSize 256
 @chunk char *macRomanEncodingNames[] = {
     	NULL,
         NULL,
@@ -3491,7 +3490,6 @@ word geosCharMap[] =
 
 #define NUM_CHARMAPENTRIES      (sizeof(geosCharMap) / sizeof(word))
 #define MIN_GEOS_CHAR           (C_SPACE)
-#define MAX_GEOS_CHAR           (NUM_CHARMAPENTRIES + MIN_GEOS_CHAR)
 #define GEOS_CHAR_INDEX(i)    	(i - MIN_GEOS_CHAR)
 
 #endif  /* GFXFONT2_GOH */

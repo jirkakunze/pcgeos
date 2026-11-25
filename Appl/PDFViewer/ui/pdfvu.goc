@@ -79,8 +79,6 @@ void PDFUpdateSaveDirText(void);
 #define DOCUMENT_WIDTH		(8.5*72)
 #define DOCUMENT_HEIGHT		(11*72)
 
-#define VIEW_BACKGROUND_COLOR	C_WHITE
-
 #define INIT_FILE_CATEGORY		"pdfvu"
 #define INIT_FILE_KEY_VIEW_COLOR	"viewColor"
 
@@ -169,7 +167,7 @@ Boolean onTV, g_showTools;
  * VM file) now lives behind this one opaque handle in the PDF engine
  * (see pdfEngine.h). PDFDoc_xref/PDFDoc_catalog/PDFDoc_gstringFile/
  * PDFDoc_pageData/PDFDoc_ok used to be separate instance vars here;
- * they're gone, PdfIsValid(PDFDoc_engine) replaces PDFDoc_ok.
+ * they're gone, PDFDoc_engine replaces them.
  */
 @instance  PdfDocHandle	PDFDoc_engine = PDF_NULL_DOC;
 

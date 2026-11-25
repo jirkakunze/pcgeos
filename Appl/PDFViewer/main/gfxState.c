@@ -179,7 +179,7 @@ GfxParseCoordArray(Dict *dict, const char *key, XRef *xref, gdouble coords[4])
     Obj arrObj, elemObj;
     word i, len;
 
-    DictLookup(dict, key, &arrObj, xref);
+    DictLookup(dict, (char *)key, &arrObj, xref);
     if (isArray(&arrObj))
     {
         len = ObjArrayGetLength(&arrObj);
@@ -1398,29 +1398,6 @@ GfxFont *GfxStateGetFont(GfxState *state)
 gdouble GfxStateGetFontSize(GfxState *state)
 {
     return state->fontSize;
-}
-
-/***********************************************************************
- *      GfxStateGetTextMat
- ***********************************************************************
- * SYNOPSIS:        Get text mat.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-gdouble *GfxStateGetTextMat(GfxState *state)
-{
-    return state->textMat;
 }
 
 /***********************************************************************

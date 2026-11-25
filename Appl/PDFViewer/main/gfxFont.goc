@@ -255,10 +255,8 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
     this->cidCount = this->cidRangeCount = 0;
     this->cidDefaultWidth = 1000;
     this->charRise = 0;
-    this->tag.s = this->name.s = this->embFontName.s = this->extFontFile.s =
-        NULL;
-    this->tag.length = this->name.length = this->embFontName.length =
-        this->extFontFile.length = 0;
+    this->tag.s = this->name.s = NULL;
+    this->tag.length = this->name.length = 0;
 
     GStrInitString(&this->tag, tag1);
     if (GMemHadError())
@@ -324,12 +322,6 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
     this->embFontID.gen = -1;
     this->hasCharSet = gFalse;
     this->fontWidthFactor = 0;
-    GStrInit(&this->embFontName);
-    GStrInit(&this->extFontFile);
-    if (GMemHadError())
-    {
-        return;
-    }
 
     DictLookup(fontDict, "FontDescriptor", &obj1, xref);
     if (isDict(&obj1))
@@ -476,22 +468,6 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
 
     GfxFontNameStyle(this);
 
-#if 0
-    if (this->type == fontType0)
-    {
-        getType0EncAndWidths(fontDict);
-    }
-    else if (builtinFont)
-    {
-        makeEncoding(fontDict, builtinFont->encoding);
-        makeWidths(fontDict, builtinFont->encoding, builtinFont->widths);
-    }
-    else
-    {
-        makeEncoding(fontDict, NULL);
-        makeWidths(fontDict, NULL, NULL);
-    }
-#else
     /* Homegrown char encoding merging */
     if (this->type != fontType0)
     {
@@ -513,7 +489,6 @@ void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
         this->flags &= ~fontSymbolic;
     }
 
-#endif
 }
 
 /***********************************************************************
@@ -540,8 +515,6 @@ void GfxFontFree(GfxFont *this)
     GStrFree(&this->tag);
     GStrFree(&this->name);
 
-    GStrFree(&this->embFontName);
-    GStrFree(&this->extFontFile);
     GfxCidFontFree(this);
 
 }
