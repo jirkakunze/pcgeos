@@ -468,9 +468,7 @@ typedef struct Gfx
     word nImages; /* # of images drawn so far on this page */
     GBool resourceLimitExceeded; /* OPT-15: page image guard fired */
 
-    VMBlockHandle pageResourceList;
-    word pageResourceCount;
-    dword pageResourceBytes;
+    dword pageResourceBytes; /* image bytes copied into the page GString */
 
     void(*progressCallback)(dword kind, dword current, dword total,
         void *userData);

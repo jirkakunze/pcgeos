@@ -365,7 +365,11 @@ um volle Kontrolle über Struktur/Colorspace/xref zu haben.
     (BlackIs1 true: schwarze Linien auf weiß) und als ImageMask (rot auf
     gelb); der Inhalt der Seite ist ASCII85 + LZW kodiert (Text unten
     muss lesbar sein). Seite 3: Geschwindigkeit, 600x600 LZW (RGB) und
-    RunLength (grau). Generator mk36.py (nur Scratchpad).
+    RunLength (grau). Seite 4 (Zeilenpfad H3a): Indexed mit 64 Farben,
+    Grau 8 Bit, RGB mit /Decode [1 0 ...] (invertiert, langsamer Pfad als
+    Gegenprobe: gelb/blau/gr�n/rot, Kreis magenta), zwei 3100x120-Bilder
+    (Flate RGB, LZW Grau) mit 10 Farbstreifen und wei�er Mittellinie, die
+    nur jede 3. Spalte zeigen. Generator mk36.py (nur Scratchpad).
 
 Alle Dateien außer 09 (verschlüsselt, by design) und 10 (kaputte xref,
 by design) öffnen mit pypdf ohne Fehler. Rendering-Stichproben (05, 08,

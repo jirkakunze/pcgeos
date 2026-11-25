@@ -540,8 +540,6 @@ void GfxInit(Gfx *this, Handle gstring, Dict *resDict, XRef *xref,
     this->vmFile = vmFile1;
     this->nImages = 0;
     this->resourceLimitExceeded = gFalse;
-    this->pageResourceList = NullHandle;
-    this->pageResourceCount = 0;
     this->pageResourceBytes = 0;
 
     this->progressCallback = NULL;
@@ -5900,6 +5898,9 @@ static void _near opEndIgnoreUndef(Gfx *gfx, Obj args[], int numArgs)
  *                               stored flipped)
  *
  * STRATEGY:
+ *      GrDrawHugeBitmap into a GString copies the whole bitmap into the
+ *      GString (kernel HugeBitmapToString), so the caller frees the
+ *      bitmap after this call.
  *      Image data that ends early (truncated or broken JPEG, short
  *      stream) leaves the remaining bitmap rows unset. Like other
  *      viewers, draw only the rows that were decoded -- nothing at all
@@ -6129,17 +6130,9 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
 
     GrDestroyBitmap(bmState, BMD_LEAVE_DATA);
 
-    /*
-     * OPT-10/19: bind this HugeBitmap to the page cache and account its
-     * pixel payload.
-     */
+    /* account the pixel payload; the GString keeps a copy (see below) */
     if (bitmap)
     {
-        if (gfx->pageResourceList != NullHandle)
-        {
-            HugeArrayAppend(gfx->vmFile, gfx->pageResourceList, 1, &bitmap);
-            ++gfx->pageResourceCount;
-        }
         gfx->pageResourceBytes += bitmapBytes;
     }
     /* Fill the bitmap w/pixel data. */
@@ -6274,12 +6267,89 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
             GrSetAreaMaskSys(gstring, GfxAlphaMask(gfx->state->fillAlpha));
         }
     }
+    if (bitmap)
+    {
+        /* the GString holds a copy now, see GfxDrawImageRows */
+        HugeArrayDestroy(gfx->vmFile, bitmap);
+    }
     /* Restore the transformation matrix */
     GrRestoreTransform(gstring);
     /* Take down the image-decode progress dialog */
     if (!inlineImage && gfx->progressCallback)
     {
         GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
+    }
+}
+
+/***********************************************************************
+ *      GfxImageRowToRGB
+ ***********************************************************************
+ * SYNOPSIS:        Convert one row of 8 bit samples to 24 bit RGB.
+ * PARAMETERS:      GfxImageColorMap *cm    color map (identity Gray or
+ *                                          RGB, or Indexed)
+ *                  Guchar *src             raw row
+ *                  byte *dst               bitmap row, count * 3 bytes
+ *                  word count              pixels to write
+ *                  word xSamp              take every xSamp-th pixel
+ *                  short nComps            samples per pixel
+ *
+ * RETURNS:         void
+ *
+ * STRATEGY:
+ *      Same colors as GfxImageColorMapGetColor for these color maps,
+ *      but one loop per row (H3a).
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/25/26    Initial version (H3a)
+ *
+ ***********************************************************************/
+
+static void GfxImageRowToRGB(GfxImageColorMap *cm, Guchar *src, byte *dst,
+    word count, word xSamp, short nComps)
+{
+    word step = xSamp * nComps;
+    short *p;
+
+    EC(ECCheckBounds(src));
+    EC(ECCheckBounds(dst));
+
+    if (cm->indexed)
+    {
+        while (count--)
+        {
+            p = cm->lookup[*src];
+            dst[0] = (byte)p[0];
+            dst[1] = (byte)p[1];
+            dst[2] = (byte)p[2];
+            dst += 3;
+            src += step;
+        }
+    }
+    else if (nComps == 1)
+    {
+        while (count--)
+        {
+            dst[0] = dst[1] = dst[2] = *src;
+            dst += 3;
+            src += step;
+        }
+    }
+    else if (xSamp == 1)
+    {
+        memcpy(dst, src, count * 3);
+    }
+    else
+    {
+        while (count--)
+        {
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst[2] = src[2];
+            dst += 3;
+            src += step;
+        }
     }
 }
 
@@ -6341,6 +6411,8 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     GBool useLine, useMask;
     GBool dataEnd = gFalse;  /* image data ended early */
     word validRows = 0;      /* complete bitmap rows */
+    GBool fastRows;          /* whole rows through StreamRead (H3a) */
+    word n;
 
     /* Some pdf files have pages that are one big image. */
     xSamp = width / 1500 + 1;
@@ -6383,6 +6455,19 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     }
     useMask = (m->str != NULL || m->nKey > 0 || fillAlpha < 255);
     maskBytes = useMask ? ((sampledWidth + 7) >> 3) : 0;
+
+    /*
+     * Fast path (H3a): 8 bit Gray/RGB with the default /Decode, or 8 bit
+     * Indexed, and no mask. Then a row is read in one StreamRead and
+     * converted with a short loop, instead of two function calls per
+     * pixel.
+     */
+    fastRows = (nBits == 8 && !useMask &&
+        !colorMap->colorSpace->hasFunction &&
+        ((colorMap->indexed && nComps == 1) ||
+         (colorMap->isIdentity &&
+          ((colorMap->mode == colorRGB && nComps == 3) ||
+           (colorMap->mode == colorGray && nComps == 1)))));
 
     /*
      * Mask row buffer: exactly one decoded row at a time, never the whole
@@ -6434,12 +6519,7 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
         if (bitmap)
         {
             GrDestroyBitmap(bmState, BMD_LEAVE_DATA);
-            if (gfx->pageResourceList != NullHandle)
-            {
-                HugeArrayAppend(gfx->vmFile, gfx->pageResourceList, 1,
-                    &bitmap);
-                ++gfx->pageResourceCount;
-            }
+            /* account the pixel payload; the GString keeps a copy */
             gfx->pageResourceBytes += bitmapBytes;
         }
         else
@@ -6534,7 +6614,35 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
             xMod = 0;
             sx = 0;
 
-            for (j = 0; j < width; ++j)
+            if (fastRows)
+            {
+                /* the row buffer of StreamResetImage holds one raw row */
+                n = StreamRead(str, str->rawLine, str->rowBytes);
+                if (n == 0)
+                {
+                    dataEnd = gTrue;
+                }
+                else
+                {
+                    if (n < str->rowBytes)
+                    {
+                        /* truncated image data -- fill the rest of the row */
+                        memset(str->rawLine + n, 0, str->rowBytes - n);
+                    }
+                    if (nElements & 0xffff0000)
+                    {
+                        GfxImageRowToRGB(colorMap, str->rawLine, line,
+                            sampledWidth, xSamp, nComps);
+                    }
+                }
+                j = width;          /* skip the per pixel loop */
+            }
+            else
+            {
+                j = 0;
+            }
+
+            for (; j < width; ++j)
             {
 
                 /*
@@ -6655,6 +6763,11 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
     if (!inlineImage && gfx->progressCallback)
     {
         GfxReportProgress(gfx, PDF_PROGRESS_IMAGE_END, height, height);
+    }
+    if (bitmap)
+    {
+        /* the GString holds a copy now, see GfxDrawImageRows */
+        HugeArrayDestroy(gfx->vmFile, bitmap);
     }
     if (maskRowBuf)
     {

@@ -60,8 +60,6 @@
 typedef struct {
     word pageNum;
     VMBlockHandle gstringBlock;
-    VMBlockHandle resourceList; /* HugeArray of page-owned VM blocks */
-    word resourceCount;
     dword estimatedBytes; /* OPT-19: GString + bitmap VM estimate */
     dword lastUse; /* monotonically increasing LRU stamp */
 } PdfPageCacheEntry;
@@ -367,13 +365,11 @@ static void PdfUnlockDoc(PdfDocHandle doc)
 static void
 PdfFreePageCacheEntry(PdfDocInternal *pdoc, PdfPageCacheEntry *entry)
 {
-    word i;
-
     EC(ECCheckBounds(pdoc));
     EC(ECCheckBounds(entry));
     EC(ECVMCheckVMFile(pdoc->gstringFile));
 
-    /* A recorded GString may reference HugeBitmaps. */
+    /* The GString holds copies of its images (no separate bitmaps). */
     if (entry->gstringBlock != NullHandle)
     {
         EC(ECVMCheckVMBlockHandle(pdoc->gstringFile, entry->gstringBlock));
@@ -381,39 +377,11 @@ PdfFreePageCacheEntry(PdfDocInternal *pdoc, PdfPageCacheEntry *entry)
             VMCHAIN_MAKE_FROM_VM_BLOCK(entry->gstringBlock));
     }
 
-    if (entry->resourceList != NullHandle)
-    {
-        EC(ECVMCheckVMBlockHandle(pdoc->gstringFile, entry->resourceList));
-        for (i = 0; i < entry->resourceCount; ++i)
-        {
-            VMBlockHandle *resource;
-            VMBlockHandle block;
-            word elemSize;
-
-            HugeArrayLock(pdoc->gstringFile, entry->resourceList, i,
-                (void **) & resource, &elemSize);
-            block = *resource;
-            HugeArrayUnlock(resource);
-
-            EC_ERROR_IF(block == NullHandle, -1);
-            EC(ECVMCheckVMBlockHandle(pdoc->gstringFile, block));
-            /*
-             * BMT_COMPLEX bitmap data is a HugeArray. Gfx used BMD_LEAVE_DATA
-             * after constructing it, transferring lifetime ownership to the
-             * page cache.
-             */
-            HugeArrayDestroy(pdoc->gstringFile, block);
-        }
-        HugeArrayDestroy(pdoc->gstringFile, entry->resourceList);
-    }
-
     EC_ERROR_IF(entry->estimatedBytes > pdoc->cachedVmBytes, -1);
     pdoc->cachedVmBytes -= entry->estimatedBytes;
 
     entry->pageNum = 0;
     entry->gstringBlock = NullHandle;
-    entry->resourceList = NullHandle;
-    entry->resourceCount = 0;
     entry->estimatedBytes = 0;
     entry->lastUse = 0;
 }
@@ -430,8 +398,7 @@ static void PdfFreeAllPageCacheEntries(PdfDocInternal *pdoc)
 
     for (i = 0; i < PDF_MAX_CACHED_PAGES; ++i)
     {
-        if (pdoc->pageCache[i].gstringBlock != NullHandle ||
-            pdoc->pageCache[i].resourceList != NullHandle)
+        if (pdoc->pageCache[i].gstringBlock != NullHandle)
         {
             PdfFreePageCacheEntry(pdoc, &pdoc->pageCache[i]);
         }
@@ -1123,15 +1090,7 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
         PdfFreePageCacheEntry(pdoc, cacheEntry);
     }
 
-    /* OPT-10: reserve a VM-backed resource list before decoding. */
-    cacheEntry->resourceList = HugeArrayCreate(pdoc->gstringFile,
-        sizeof(VMBlockHandle), 0);
-    cacheEntry->resourceCount = 0;
     cacheEntry->estimatedBytes = 0;
-    if (cacheEntry->resourceList == NullHandle)
-    {
-        return PDF_ERR_OUT_OF_MEMORY;
-    }
 
     /* ----- lazily materialize this page and decode its content stream ----- */
     if (!CatalogGetPage(&pdoc->catalog, pageNum, &pdoc->xref, &page))
@@ -1186,8 +1145,6 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
             }
             else
             {
-                gfx.pageResourceList = cacheEntry->resourceList;
-                gfx.pageResourceCount = 0;
                 gfx.pageResourceBytes = 0;
 
                 /*
@@ -1212,7 +1169,6 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
                  * (git history before I1: GfxDrawAnnotations).
                  */
 
-                cacheEntry->resourceCount = gfx.pageResourceCount;
                 resourceBytes = gfx.pageResourceBytes;
                 GfxFree(&gfx);
                 ObjFree(&resDictObj);

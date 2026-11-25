@@ -83,6 +83,12 @@ static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
 
 static word FlateStreamReadRaw(Stream *str, Guchar *buf, word size);
 static void FlateStreamEndZlib(FlateData *fd);
+
+static word StreamReadFromBuf(Stream *str, Guchar *buf, word size,
+    char **bufPtr, char **bufEnd);
+static GBool FStreamFillBuf(Stream *str);
+static GBool LZWStreamFillBuf(Stream *str);
+static word RC4StreamRead(Stream *str, Guchar *buf, word size);
 static void FStreamFree(Stream *this);
 static void FStreamReset(Stream *str);
 static void FStreamSetPos(Stream *str, long pos1);
@@ -426,6 +432,33 @@ word StreamRead(Stream *str, Guchar *buf, word size)
         return DCTStreamRead(str, buf, size);
     }
 
+    /*
+     * Buffered streams: copy blocks from their buffer instead of one
+     * StreamGetChar per byte (H3a). Flate reads its input this way.
+     */
+    if (str->kind == strFile)
+    {
+        return StreamReadFromBuf(str, buf, size, &str->u.fs->bufPtr,
+            &str->u.fs->bufEnd);
+    }
+
+    if (str->kind == strLZW)
+    {
+        return StreamReadFromBuf(str, buf, size, &str->u.lzw->bufPtr,
+            &str->u.lzw->bufEnd);
+    }
+
+    if (str->kind == strRunLength)
+    {
+        return StreamReadFromBuf(str, buf, size, &str->u.runLength->bufPtr,
+            &str->u.runLength->bufEnd);
+    }
+
+    if (str->kind == strRC4)
+    {
+        return RC4StreamRead(str, buf, size);
+    }
+
     if (str->kind == strSubStream)
     {
         return StreamRead(str->str, buf, size);
@@ -439,6 +472,78 @@ word StreamRead(Stream *str, Guchar *buf, word size)
             break;
         }
         buf[n] = (Guchar)c;
+    }
+    return n;
+}
+
+/***********************************************************************
+ *      StreamReadFromBuf
+ ***********************************************************************
+ * SYNOPSIS:        Read a block from a stream that keeps its data in a
+ *                  private buffer (file, LZW, RunLength).
+ * PARAMETERS:      Stream *str             the stream
+ *                  Guchar *buf             destination
+ *                  word size               bytes wanted
+ *                  char **bufPtr, **bufEnd the stream's buffer pointers
+ *
+ * RETURNS:         bytes read, less than size only at the end of data
+ *
+ * STRATEGY:
+ *      Copy what is in the buffer with memcpy, refill, repeat. Gives the
+ *      same bytes as calling the stream's GetChar size times.
+ *      The fill function is called directly, not through a function
+ *      pointer: a pointer to code in a movable resource is a virtual far
+ *      pointer and can not be called directly (only with
+ *      ProcCallFixedOrMovable).
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/25/26    Initial version (H3a)
+ *
+ ***********************************************************************/
+
+static word StreamReadFromBuf(Stream *str, Guchar *buf, word size,
+    char **bufPtr, char **bufEnd)
+{
+    word n = 0, avail;
+    GBool more;
+
+    EC(ECCheckBounds(buf));
+
+    while (n < size)
+    {
+        if (*bufPtr >= *bufEnd)
+        {
+            switch (str->kind)
+            {
+                case strFile:
+                    more = FStreamFillBuf(str);
+                    break;
+                case strLZW:
+                    more = LZWStreamFillBuf(str);
+                    break;
+                case strRunLength:
+                    more = RunLengthStreamFillBuf(str);
+                    break;
+                default:
+                    EC_ERROR(-1);
+                    more = gFalse;
+                    break;
+            }
+            if (!more)
+            {
+                break;
+            }
+        }
+        avail = (word)(*bufEnd - *bufPtr);
+        if (avail > size - n)
+        {
+            avail = size - n;
+        }
+        memcpy(buf + n, *bufPtr, avail);
+        *bufPtr += avail;
+        n += avail;
     }
     return n;
 }
@@ -4331,8 +4436,52 @@ static short RC4StreamAdvance(Stream *str)
     {
         return EOF;
     }
-    return(long)((Guchar)c ^ RC4NextByte(prc4->sBox, &prc4->rc4i,
+    return(short)((Guchar)c ^ RC4NextByte(prc4->sBox, &prc4->rc4i,
         &prc4->rc4j));
+}
+
+/***********************************************************************
+ *      RC4StreamRead
+ ***********************************************************************
+ * SYNOPSIS:        Read and decrypt a block.
+ * PARAMETERS:      Stream *str    RC4 stream
+ *                  Guchar *buf    destination
+ *                  word size      bytes wanted
+ *
+ * RETURNS:         bytes read
+ *
+ * STRATEGY:
+ *      Hand out a peeked byte first, then read the rest of the block
+ *      from the source stream in one call and decrypt it in place (H3a).
+ *
+ * REVISION HISTORY:
+ *  Name    Date        Description
+ *  ----    ----        -----------
+ *  JK      11/25/26    Initial version (H3a)
+ *
+ ***********************************************************************/
+
+static word RC4StreamRead(Stream *str, Guchar *buf, word size)
+{
+    RC4Data *prc4 = str->u.rc4;
+    word n = 0, i;
+
+    if (prc4->peeked)
+    {
+        prc4->peeked = gFalse;
+        if (prc4->peekedChar == EOF)
+        {
+            return 0;
+        }
+        buf[n++] = (Guchar)prc4->peekedChar;
+    }
+    i = n;
+    n += StreamRead(str->str, buf + n, size - n);
+    for (; i < n; ++i)
+    {
+        buf[i] ^= RC4NextByte(prc4->sBox, &prc4->rc4i, &prc4->rc4j);
+    }
+    return n;
 }
 
 /***********************************************************************
