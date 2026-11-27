@@ -1,0 +1,138 @@
+%PDF-1.5
+%‚„œ”
+1 0 obj
+<< /Type /Pages /Kids [2 0 R] /Count 1 >>
+endobj
+2 0 obj
+<< /Type /Page /Parent 1 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FH << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /FB << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> /C1 << /Type /Font /Subtype /Type0 /BaseFont /ArialMT /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 3 0 R >> /C2 << /Type /Font /Subtype /Type0 /BaseFont /TimesNewRomanPSMT /Encoding /Identity-H /DescendantFonts [7 0 R] /ToUnicode 3 0 R >> /C3 << /Type /Font /Subtype /Type0 /BaseFont /ArialMT /Encoding /Identity-H /DescendantFonts [9 0 R] /ToUnicode 3 0 R >> /C4 << /Type /Font /Subtype /Type0 /BaseFont /ArialMT /Encoding /Identity-H /DescendantFonts [11 0 R]  >> /C5 << /Type /Font /Subtype /Type0 /BaseFont /ArialMT /Encoding /Identity-V /DescendantFonts [13 0 R] /ToUnicode 3 0 R >> >> >> /Contents 14 0 R   >>
+endobj
+3 0 obj
+<<  /Length 608 >>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def
+/CMapName /Adobe-Identity-UCS def
+/CMapType 2 def
+1 begincodespacerange
+<0000> <FFFF>
+endcodespacerange
+9 beginbfchar
+<0003> <0020>
+<000B> <0028>
+<000C> <0029>
+<000F> <002C>
+<0010> <002D>
+<0011> <002E>
+<0012> <002F>
+<001D> <003A>
+<0100> <00660069>
+endbfchar
+3 beginbfrange
+<0024> <003D> <0041>
+<0044> <005D> <0061>
+<0013> <001C> [<0030> <0031> <0032> <0033> <0034> <0035> <0036> <0037> <0038> <0039>]
+endbfrange
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+
+endstream
+endobj
+4 0 obj
+<< /Type /FontDescriptor /FontName /ArialMT /Flags 32 /FontBBox [-200 -300 1000 1000] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ArialMT /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 4 0 R /DW 1000 /W [3 [278] 11 [333] 12 [333] 15 [278] 16 [333] 17 [278] 18 [278] 29 [278] 36 [667] 37 [667] 38 [722] 39 [722] 40 [667] 41 [611] 42 [778] 43 [722] 44 [278] 45 [500] 46 [667] 47 [556] 48 [833] 49 [722] 50 [778] 51 [667] 52 [778] 53 [722] 54 [667] 55 [611] 56 [722] 57 [667] 58 [944] 59 [667] 60 [667] 61 [611] 68 [556] 69 [556] 70 [500] 71 [556] 72 [556] 73 [278] 74 [556] 75 [556] 76 [222] 77 [222] 78 [500] 79 [222] 80 [833] 81 [556] 82 [556] 83 [556] 84 [556] 85 [333] 86 [500] 87 [278] 88 [556] 89 [500] 90 [722] 91 [500] 92 [500] 93 [500] 256 [500] 19 28 556] /CIDToGIDMap /Identity >>
+endobj
+6 0 obj
+<< /Type /FontDescriptor /FontName /TimesNewRomanPSMT /Flags 32 /FontBBox [-200 -300 1000 1000] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+7 0 obj
+<< /Type /Font /Subtype /CIDFontType0 /BaseFont /TimesNewRomanPSMT /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 6 0 R /DW 1000 /W [3 [278] 11 [333] 12 [333] 15 [278] 16 [333] 17 [278] 18 [278] 29 [278] 36 [667] 37 [667] 38 [722] 39 [722] 40 [667] 41 [611] 42 [778] 43 [722] 44 [278] 45 [500] 46 [667] 47 [556] 48 [833] 49 [722] 50 [778] 51 [667] 52 [778] 53 [722] 54 [667] 55 [611] 56 [722] 57 [667] 58 [944] 59 [667] 60 [667] 61 [611] 68 [556] 69 [556] 70 [500] 71 [556] 72 [556] 73 [278] 74 [556] 75 [556] 76 [222] 77 [222] 78 [500] 79 [222] 80 [833] 81 [556] 82 [556] 83 [556] 84 [556] 85 [333] 86 [500] 87 [278] 88 [556] 89 [500] 90 [722] 91 [500] 92 [500] 93 [500] 256 [500] 19 28 556]  >>
+endobj
+8 0 obj
+<< /Type /FontDescriptor /FontName /ArialMT /Flags 32 /FontBBox [-200 -300 1000 1000] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ArialMT /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 8 0 R /DW 1000 /W [3 [278] 11 [333] 12 [333] 15 [278] 16 [333] 17 [278] 18 [278] 29 [278] 36 [2001] 37 [667] 38 [722] 39 [722] 40 [667] 41 [611] 42 [778] 43 [722] 44 [278] 45 [500] 46 [667] 47 [556] 48 [833] 49 [722] 50 [778] 51 [667] 52 [778] 53 [722] 54 [667] 55 [611] 56 [722] 57 [667] 58 [944] 59 [667] 60 [667] 61 [611] 68 [556] 69 [556] 70 [500] 71 [556] 72 [556] 73 [278] 74 [556] 75 [556] 76 [222] 77 [222] 78 [500] 79 [222] 80 [833] 81 [556] 82 [556] 83 [556] 84 [556] 85 [333] 86 [500] 87 [278] 88 [556] 89 [500] 90 [722] 91 [500] 92 [500] 93 [500] 256 [500] 19 28 556] /CIDToGIDMap /Identity >>
+endobj
+10 0 obj
+<< /Type /FontDescriptor /FontName /ArialMT /Flags 32 /FontBBox [-200 -300 1000 1000] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+11 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ArialMT /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 10 0 R /DW 1000 /W [3 [278] 11 [333] 12 [333] 15 [278] 16 [333] 17 [278] 18 [278] 29 [278] 36 [667] 37 [667] 38 [722] 39 [722] 40 [667] 41 [611] 42 [778] 43 [722] 44 [278] 45 [500] 46 [667] 47 [556] 48 [833] 49 [722] 50 [778] 51 [667] 52 [778] 53 [722] 54 [667] 55 [611] 56 [722] 57 [667] 58 [944] 59 [667] 60 [667] 61 [611] 68 [556] 69 [556] 70 [500] 71 [556] 72 [556] 73 [278] 74 [556] 75 [556] 76 [222] 77 [222] 78 [500] 79 [222] 80 [833] 81 [556] 82 [556] 83 [556] 84 [556] 85 [333] 86 [500] 87 [278] 88 [556] 89 [500] 90 [722] 91 [500] 92 [500] 93 [500] 256 [500] 19 28 556] /CIDToGIDMap /Identity >>
+endobj
+12 0 obj
+<< /Type /FontDescriptor /FontName /ArialMT /Flags 32 /FontBBox [-200 -300 1000 1000] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+13 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ArialMT /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 12 0 R /DW 1000 /W [3 [278] 11 [333] 12 [333] 15 [278] 16 [333] 17 [278] 18 [278] 29 [278] 36 [667] 37 [667] 38 [722] 39 [722] 40 [667] 41 [611] 42 [778] 43 [722] 44 [278] 45 [500] 46 [667] 47 [556] 48 [833] 49 [722] 50 [778] 51 [667] 52 [778] 53 [722] 54 [667] 55 [611] 56 [722] 57 [667] 58 [944] 59 [667] 60 [667] 61 [611] 68 [556] 69 [556] 70 [500] 71 [556] 72 [556] 73 [278] 74 [556] 75 [556] 76 [222] 77 [222] 78 [500] 79 [222] 80 [833] 81 [556] 82 [556] 83 [556] 84 [556] 85 [333] 86 [500] 87 [278] 88 [556] 89 [500] 90 [722] 91 [500] 92 [500] 93 [500] 256 [500] 19 28 556] /CIDToGIDMap /Identity >>
+endobj
+14 0 obj
+<<  /Length 2012 >>
+stream
+0 g
+BT /FB 14 Tf 40 802 Td (02 CID fonts \(Type0, Identity-H\)) Tj ET
+BT /FH 9 Tf 40 784 Td (Features: Type0 fonts with /Encoding /Identity-H and a CIDFontType2 or CIDFontType0 descendant) Tj ET
+BT /FH 9 Tf 40 773 Td (\(not embedded\), /W widths in both forms, /DW, and /ToUnicode with bfchar, bfrange \(also the) Tj ET
+BT /FH 9 Tf 40 762 Td (array form\) and a ligature target \(fi = two characters\).) Tj ET
+BT /FH 9 Tf 40 748 Td (Expected: lines 1-3 show the text in brackets with sans or serif substitute fonts. Line 3 has a) Tj ET
+BT /FH 9 Tf 40 737 Td (very wide "A" \(/W 2000\). Line 4 has no /ToUnicode: the viewer draws nothing there. Line 5 uses) Tj ET
+BT /FH 9 Tf 40 726 Td (/Identity-V: not supported, nothing is drawn. Reference renderers can show other glyphs, because) Tj ET
+BT /FH 9 Tf 40 715 Td (the codes are glyph IDs of a font that is not embedded.) Tj ET
+BT /C1 16 Tf 50 695 Td <003600440051005600030026002C0027000300570048005B0057001D0003010000590048000301000056004B000F00030013001400150016001700180019001A001B001C0011> Tj ET
+q 0 g
+BT /FH 8 Tf 50 683 Td ([Sans CID text: five fish, 0123456789.]) Tj ET
+Q
+BT /C2 16 Tf 50 655 Td <003600480055004C004900030026002C0027000300570048005B00570003000B0026002C002700290052005100570037005C005300480013000C000F0003002C0047004800510057004C0057005C0010002B0011> Tj ET
+q 0 g
+BT /FH 8 Tf 50 643 Td ([Serif CID text \(CIDFontType0\), Identity-H.]) Tj ET
+Q
+BT /C3 16 Tf 50 615 Td <00240003005A004C0047004800030024001D0003002400240024000F00030057004B00480051000300510052005500500044004F000300570048005B00570011> Tj ET
+q 0 g
+BT /FH 8 Tf 50 603 Td ([A wide A: AAA ... with wide gaps after each A]) Tj ET
+Q
+BT /C4 16 Tf 50 575 Td <0031005200030037005200380051004C0046005200470048001D00030057004B004C00560003004F004C005100480003004C005600030051005200570003004700550044005A00510011> Tj ET
+q 0 g
+BT /FH 8 Tf 50 563 Td ([nothing]) Tj ET
+Q
+BT /C5 16 Tf 50 535 Td <0039004800550057004C00460044004F> Tj ET
+q 0 g
+BT /FH 8 Tf 50 523 Td ([nothing \(Identity-V\)]) Tj ET
+Q
+
+endstream
+endobj
+15 0 obj
+<< /Type /Catalog /Pages 1 0 R  >>
+endobj
+16 0 obj
+<< /Title <FEFF00300032002000430049004400200066006F006E00740073> /Author (PC/GEOS PDF viewer test suite) /Subject (02 CID fonts) /Creator (mktestdocs.py) /Producer (pdfwriter.py) /CreationDate (D:20261127120000+01'00') /ModDate (D:20261127130000+01'00')  >>
+endobj
+xref
+0 17
+0000000000 65535 f 
+0000000015 00000 n 
+0000000072 00000 n 
+0000000969 00000 n 
+0000001629 00000 n 
+0000001799 00000 n 
+0000002566 00000 n 
+0000002746 00000 n 
+0000003501 00000 n 
+0000003671 00000 n 
+0000004439 00000 n 
+0000004610 00000 n 
+0000005379 00000 n 
+0000005550 00000 n 
+0000006319 00000 n 
+0000008385 00000 n 
+0000008436 00000 n 
+trailer
+<< /Size 17 /Root 15 0 R /Info 16 0 R >>
+startxref
+8710
+%%EOF

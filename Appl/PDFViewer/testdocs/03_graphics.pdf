@@ -1,0 +1,192 @@
+%PDF-1.5
+%‚„œ”
+1 0 obj
+<< /Type /Pages /Kids [2 0 R 4 0 R] /Count 2 >>
+endobj
+2 0 obj
+<< /Type /Page /Parent 1 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FH << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /FB << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >> >> /Contents 3 0 R   >>
+endobj
+3 0 obj
+<<  /Length 2396 >>
+stream
+0 g
+BT /FB 14 Tf 40 802 Td (03 Graphics - paths, fills and clipping) Tj ET
+BT /FH 9 Tf 40 784 Td (Features: lines, rectangles \(re\), Bezier curves \(c, v, y\), closepath, fill with the nonzero and) Tj ET
+BT /FH 9 Tf 40 773 Td (the even-odd rule, fill and stroke \(B, B*\), clipping paths \(W n and W* n\) and nested clipping) Tj ET
+BT /FH 9 Tf 40 762 Td (with q/Q.) Tj ET
+BT /FH 9 Tf 40 748 Td (Expected: row 1: an open zigzag line, a stroked rectangle, three curves \(an S curve, a v curve,) Tj ET
+BT /FH 9 Tf 40 737 Td (a y curve\). Row 2: two stars - the left star is filled completely \(nonzero\), the right star has) Tj ET
+BT /FH 9 Tf 40 726 Td (an empty center \(even-odd\); a circle drawn with four curves, filled and stroked. Row 3: blue) Tj ET
+BT /FH 9 Tf 40 715 Td (stripes clipped to a circle, red stripes clipped to a star with an even-odd hole, and a green) Tj ET
+BT /FH 9 Tf 40 704 Td (square clipped by two nested clip paths to their intersection.) Tj ET
+0 0 0 RG 2 w 50 614 m 80 674 l 110 614 l 140 674 l 170 614 l S
+0 0 1 RG 3 w 200 614 90 60 re S
+1 0 0 RG 2 w 320 614 m 340 694 380 594 400 674 c S
+0 0.5 0 RG 420 614 m 450 674 480 614 v S
+0.5 0 0.5 RG 490 614 m 500 674 540 614 y S
+1 0.6 0 rg 0 0 0 RG 1 w 110 589 m 77.6718 489.504 l 162.308 550.996 l 57.6919 550.996 l 142.328 489.504 l h B
+1 0.6 0 rg 260 589 m 227.672 489.504 l 312.308 550.996 l 207.692 550.996 l 292.328 489.504 l h B*
+0.4 0.7 1 rg 0 0 0.5 RG 2 w 480 534 m 480 561.615 457.615 584 430 584 c 402.385 584 380 561.615 380 534 c 380 506.385 402.385 484 430 484 c 457.615 484 480 506.385 480 534 c B
+q 160 394 m 160 421.615 137.615 444 110 444 c 82.385 444 60 421.615 60 394 c 60 366.385 82.385 344 110 344 c 137.615 344 160 366.385 160 394 c W n 0 0 1 rg
+50 344 120 5 re f
+50 354 120 5 re f
+50 364 120 5 re f
+50 374 120 5 re f
+50 384 120 5 re f
+50 394 120 5 re f
+50 404 120 5 re f
+50 414 120 5 re f
+50 424 120 5 re f
+50 434 120 5 re f
+Q
+q 260 449 m 227.672 349.504 l 312.308 410.996 l 207.692 410.996 l 292.328 349.504 l h W* n 1 0 0 rg
+200 334 120 5 re f
+200 344 120 5 re f
+200 354 120 5 re f
+200 364 120 5 re f
+200 374 120 5 re f
+200 384 120 5 re f
+200 394 120 5 re f
+200 404 120 5 re f
+200 414 120 5 re f
+200 424 120 5 re f
+200 434 120 5 re f
+200 444 120 5 re f
+Q
+q 360 334 100 100 re W n q 400 364 100 100 re W n 0 0.6 0 rg 340 314 200 140 re f Q Q
+0 0 0 RG 0.5 w 360 334 100 100 re S 400 364 100 100 re S
+
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 1 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FH << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /FB << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> /TR 5 0 R >> /ExtGState << /GL << /Type /ExtGState /LW 6 /LC 1 /LJ 1 /D [[14 10] 0] /Font [5 0 R 22] >> >> >> /Contents 6 0 R   >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<<  /Length 4559 >>
+stream
+0 g
+BT /FB 14 Tf 40 802 Td (03 Graphics - line parameters, ExtGState, transforms and q/Q depth) Tj ET
+BT /FH 9 Tf 40 784 Td (Features: line widths, line caps \(butt, round, square\), line joins \(miter, round, bevel\) with a) Tj ET
+BT /FH 9 Tf 40 773 Td (miter limit, dash patterns with a phase, an ExtGState with /LW /LC /LJ /D /Font, the cm operator) Tj ET
+BT /FH 9 Tf 40 762 Td (\(scale, rotate, skew\) and q/Q nested 40 levels deep \(the viewer keeps 32 levels and ignores) Tj ET
+BT /FH 9 Tf 40 751 Td (deeper ones\).) Tj ET
+BT /FH 9 Tf 40 737 Td (Expected: the line rows look as labeled. The ExtGState line is a thick round dashed line) Tj ET
+BT /FH 9 Tf 40 726 Td (followed by large Times text. The transformed squares are scaled, rotated and skewed. The q/Q) Tj ET
+BT /FH 9 Tf 40 715 Td (row shows 40 small squares from left to right, then one black square at the start of the next) Tj ET
+BT /FH 9 Tf 40 704 Td (row \(state restored\).) Tj ET
+0 0 0 RG 0.5 w 50 684 m 250 684 l S
+0 0 0 RG 1 w 50 670 m 250 670 l S
+0 0 0 RG 2 w 50 656 m 250 656 l S
+0 0 0 RG 4 w 50 642 m 250 642 l S
+0 0 0 RG 8 w 50 628 m 250 628 l S
+q 0 g
+BT /FH 8 Tf 50 614 Td (widths 0.5, 1, 2, 4, 8) Tj ET
+Q
+0 0 0.6 RG 12 w 0 J 330 684 m 480 684 l S
+1 1 1 RG 0.5 w 330 684 m 480 684 l S
+0 0 0.6 RG 12 w 1 J 330 662 m 480 662 l S
+1 1 1 RG 0.5 w 330 662 m 480 662 l S
+0 0 0.6 RG 12 w 2 J 330 640 m 480 640 l S
+1 1 1 RG 0.5 w 330 640 m 480 640 l S
+q 0 g
+BT /FH 8 Tf 490 662 Td (caps 0, 1, 2) Tj ET
+Q
+0 0.5 0 RG 14 w 0 j 0 J 60 524 m 110 584 l 160 524 l S
+0 0.5 0 RG 14 w 1 j 0 J 200 524 m 250 584 l 300 524 l S
+0 0.5 0 RG 14 w 2 j 0 J 340 524 m 390 584 l 440 524 l S
+q 0 g
+BT /FH 8 Tf 480 554 Td (joins 0, 1, 2) Tj ET
+Q
+0.6 0 0 RG 6 w 0 j 1.5 M 60 474 m 110 504 l 160 474 l S
+q 0 g
+BT /FH 8 Tf 170 484 Td (miter limit 1.5: bevel at the sharp corner) Tj ET
+Q
+0 0 0 RG 2 w 0 J [6 3] 0 d 50 444 m 300 444 l S
+0 0 0 RG 2 w 0 J [6 3] 3 d 50 432 m 300 432 l S
+0 0 0 RG 2 w 0 J [12 3 3 3] 0 d 50 420 m 300 420 l S
+0 0 0 RG 2 w 0 J [2] 1 d 50 408 m 300 408 l S
+[] 0 d
+q 0 g
+BT /FH 8 Tf 310 426 Td (dash [6 3] 0, [6 3] 3, [12 3 3 3] 0, [2] 1) Tj ET
+Q
+q /GL gs 0.7 0 0.7 RG 50 374 m 250 374 l S BT 270 367 Td (Times 22 from ExtGState) Tj ET Q
+q 0.2 0.4 0.9 rg 1 0 0 1 80 284 cm 2 0 0 0.5 0 0 cm 0 0 30 30 re f Q
+q 0.9 0.4 0.2 rg 1 0 0 1 220 274 cm 0.7071 0.7071 -0.7071 0.7071 0 0 cm 0 0 40 40 re f Q
+q 0.2 0.7 0.2 rg 1 0 0 1 320 274 cm 1 0 0.5 1 0 0 cm 0 0 40 40 re f Q
+q 0 g
+BT /FH 8 Tf 400 294 Td (scaled, rotated 45, skewed) Tj ET
+Q
+q 1 0 0 1 50 234 cm
+q 0 0.3 1 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.025 0.3 0.975 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.05 0.3 0.95 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.075 0.3 0.925 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.1 0.3 0.9 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.125 0.3 0.875 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.15 0.3 0.85 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.175 0.3 0.825 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.2 0.3 0.8 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.225 0.3 0.775 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.25 0.3 0.75 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.275 0.3 0.725 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.3 0.3 0.7 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.325 0.3 0.675 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.35 0.3 0.65 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.375 0.3 0.625 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.4 0.3 0.6 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.425 0.3 0.575 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.45 0.3 0.55 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.475 0.3 0.525 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.5 0.3 0.5 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.525 0.3 0.475 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.55 0.3 0.45 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.575 0.3 0.425 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.6 0.3 0.4 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.625 0.3 0.375 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.65 0.3 0.35 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.675 0.3 0.325 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.7 0.3 0.3 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.725 0.3 0.275 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.75 0.3 0.25 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.775 0.3 0.225 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.8 0.3 0.2 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.825 0.3 0.175 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.85 0.3 0.15 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.875 0.3 0.125 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.9 0.3 0.1 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.925 0.3 0.075 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.95 0.3 0.05 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+q 0.975 0.3 0.025 rg 0 0 8 8 re f 1 0 0 1 12 0 cm
+Q
+Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q Q
+Q
+Q
+0 g 50 214 8 8 re f
+
+endstream
+endobj
+7 0 obj
+<< /Type /Catalog /Pages 1 0 R  >>
+endobj
+8 0 obj
+<< /Title <FEFF0030003300200056006500630074006F0072002000670072006100700068006900630073> /Author (PC/GEOS PDF viewer test suite) /Subject (03 Vector graphics) /Creator (mktestdocs.py) /Producer (pdfwriter.py) /CreationDate (D:20261127120000+01'00') /ModDate (D:20261127130000+01'00')  >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000078 00000 n 
+0000000373 00000 n 
+0000002822 00000 n 
+0000003221 00000 n 
+0000003320 00000 n 
+0000007932 00000 n 
+0000007982 00000 n 
+trailer
+<< /Size 9 /Root 7 0 R /Info 8 0 R >>
+startxref
+8285
+%%EOF
