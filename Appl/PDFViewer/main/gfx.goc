@@ -3213,9 +3213,13 @@ static GBool GfxShadingMidColor(Gfx *gfx, Obj *shading, GfxColor *col)
     else if (isDict(&fnObj) || isStream(&fnObj))
     {
         ok = GfxParseType2Function(&fnObj, gfx->xref, c0, c1, &n);
-        if (!ok)
+        if (!ok && isDict(&fnObj))
         {
-            /* type 3 (stitching): its middle type 2 function */
+            /*
+             * type 3 (stitching): its middle type 2 function. A type 3
+             * function is always a dictionary; types 0 and 4 are streams,
+             * and ObjDictLookup must not get a stream.
+             */
             ObjDictLookup(&fnObj, "Functions", &arr, gfx->xref);
             if (isArray(&arr) && ObjArrayGetLength(&arr) > 0)
             {
