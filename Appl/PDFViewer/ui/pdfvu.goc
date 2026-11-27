@@ -1069,7 +1069,10 @@ Boolean onTV, g_showTools;
 
 @chunk TCHAR SaveFileExistsStr[] = "The file already exists - please choose another name.";
 
-@chunk TCHAR SaveFileErrorStr[] = "Unkown error in saving file - try again possibly with a different file name.";
+@chunk TCHAR SaveFileErrorStr[] = "Unknown error in saving file - try again possibly with a different file name.";
+
+/* Name of the clipboard item made by Copy (max. CLIPBOARD_ITEM_NAME_LENGTH) */
+@chunk TCHAR PDFClipboardItemName[] = "PDFViewer Page";
 
 @end StringResource;
 
@@ -3009,7 +3012,11 @@ EC( ECCheckEventHandle( notifyEvent ); )
 							&headerMemHandle);
     headerMem->CIH_owner = (optr) (((dword)GeodeGetProcessHandle()<<16) | 0);
     headerMem->CIH_flags = 0;           /* Normal transfer; no flags. */
-    strcpy(headerMem->CIH_name, "PDFViewer Page");
+    MemLock(OptrToHandle(@PDFClipboardItemName));
+    strncpy(headerMem->CIH_name, LMemDeref(@PDFClipboardItemName),
+        CLIPBOARD_ITEM_NAME_LENGTH);
+    headerMem->CIH_name[CLIPBOARD_ITEM_NAME_LENGTH] = 0;
+    MemUnlock(OptrToHandle(@PDFClipboardItemName));
     headerMem->CIH_sourceID = 0;
 
     headerMem->CIH_formatCount = 1;     /* only one format */
