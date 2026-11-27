@@ -3138,6 +3138,12 @@ static void GfxFillPath(Gfx *gfx, RegionFillRule rule)
     GrFillPath(gfx->state->gstring, rule);
 }
 
+/*
+ * Shading replacement colors in their own segment (I3: GFXCore split).
+ * Called directly, never through opTab, and call no _near function.
+ */
+#pragma code_seg("GFXShade")
+
 /***********************************************************************
  *      GfxShadingMidColor
  ***********************************************************************
@@ -3295,6 +3301,8 @@ static void GfxShFillMidColor(Gfx *gfx, Obj *shading)
     GrFillPolygon(state->gstring, ODD_EVEN, pts, 4);
     GrRestoreState(state->gstring);
 }
+
+#pragma code_seg("GFXCore")
 
 /***********************************************************************
  *      opShFill
@@ -4330,6 +4338,12 @@ static void _near opShowSpaceText(Gfx *gfx, Obj args[], int numArgs)
     (void)numArgs;
 }
 
+/*
+ * Text helpers in their own segment (I3: GFXCore was over 16 KB). They
+ * are called directly, never through opTab, and call no _near function.
+ */
+#pragma code_seg("GFXText")
+
 /***********************************************************************
  *      setTextTransform
  ***********************************************************************
@@ -4720,6 +4734,8 @@ static void doShowText(Gfx *gfx, GooString *s)
         ((sdword)((dword)(-gfx->state->lineY) << 5)));
 }
 
+#pragma code_seg("GFXCore")
+
 /* marked content operators */
 
 /***********************************************************************
@@ -4805,6 +4821,9 @@ static void _near opMarkPoint(Gfx *gfx, Obj args[], int numArgs)
     (void)args;
     (void)numArgs;
 }
+
+/* Text helpers (I3: GFXCore split; called directly, not through opTab) */
+#pragma code_seg("GFXText")
 
 /***********************************************************************
  *      GfxUpdateFont
