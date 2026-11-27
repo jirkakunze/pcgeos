@@ -79,7 +79,7 @@ static long GStrRoundSize(long len)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 static GBool resize(GooString *gstr, long length1)
 {

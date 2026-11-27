@@ -67,7 +67,7 @@ long Object::numAlloc[numObjTypes] =
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void initArray(Obj *obj)
 {
@@ -95,7 +95,7 @@ void initArray(Obj *obj)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void initDict(Obj *obj)
 {
@@ -124,7 +124,7 @@ void initDict(Obj *obj)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void initStream(Obj *obj, Stream *stream1)
 {
@@ -147,7 +147,7 @@ void initStream(Obj *obj, Stream *stream1)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void ObjMove(Obj *dest, Obj *src)
 {
@@ -177,7 +177,7 @@ void ObjMove(Obj *dest, Obj *src)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void ObjCopy(Obj *obj, Obj *obj2)
 {
@@ -248,7 +248,7 @@ void ObjFetch(Obj *dest, Obj *obj, XRef *xref)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void ObjFree(Obj *obj)
 {

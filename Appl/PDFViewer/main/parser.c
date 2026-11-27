@@ -62,7 +62,7 @@ static void ParserShift(Parser *parser);
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void ParserInit(Parser *parser, Lexer *lexer1)
 {
@@ -89,7 +89,7 @@ void ParserInit(Parser *parser, Lexer *lexer1)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void ParserFree(Parser *parser)
 {
@@ -121,7 +121,7 @@ void ParserFree(Parser *parser)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 static void ParserSkipValue(Parser *parser)
 {
@@ -429,7 +429,7 @@ void ParserGetObj(Parser *parser, Obj *obj)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
 {
@@ -543,7 +543,7 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 static void ParserShift(Parser *parser)
 {

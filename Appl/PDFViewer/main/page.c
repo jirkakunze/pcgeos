@@ -58,7 +58,7 @@
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
 {
@@ -262,7 +262,7 @@ static sword PageAttrsGetRotate(PageAttrs *this)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 static void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
 {
@@ -299,7 +299,7 @@ static void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
 {
@@ -354,7 +354,7 @@ void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
- *      08/22/26  JK        Style cleanup
+ *      08/22/26  JK        Initial Revision
  *******************************************************************/
 void PageFree(Page *page)
 {

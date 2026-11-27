@@ -36,14 +36,7 @@
 #include "gmem.h"
 #include "crypt.h"
 
-/*
- * MD5 Standard RFC 1321 MD5, one-shot .
- */
-
-/*
- * Constant tables of MD5 and the security handler, in a data resource and
- * not in dgroup (H3e). Lock the resource only while they are used.
- */
+/* MD5 and security handler tables: in a data resource, not in dgroup */
 @start CRYPTDATA, data;
 
 @chunk dword md5K[] = {
@@ -82,52 +75,31 @@
 
 @end CRYPTDATA;
 
-/***********************************************************************
- *      md5RotL
- ***********************************************************************
- * SYNOPSIS:        Process md5 rot l.
- * PARAMETERS:      dword x    x
- *                  short c    c
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static dword md5RotL(dword x, short c)
 {
     return(x << c) | (x >> (32 - c));
 }
 
-/***********************************************************************
- *      MD5Compute
- ***********************************************************************
- * SYNOPSIS:        Compute.
- * PARAMETERS:      Guchar *data    data
- *                  word len    length
- *                  Guchar digest[16]    digest
+/********************************************************************
+ *                      MD5Compute
+ ********************************************************************
+ * SYNOPSIS:      Compute the MD5 digest of a byte block (RFC 1321).
  *
- * RETURNS:         void
+ * PARAMETERS:    *data                 Ptr to the data.
+ *                len                   Number of bytes.
+ *                *digest               Ptr to the 16-byte digest (out). May be
+ *                                      the same as data.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      One-shot: copy the data into a padded buffer, then process the
+ *                64-byte chunks. Out of memory: the digest is all 0.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void MD5Compute(Guchar *data, word len, Guchar digest[16])
 {
     dword a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
@@ -139,10 +111,7 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
     dword *kP;
     byte *sP;
 
-    /*
-     * pad: 0x80, then zeros, until length % 64 == 56, then original bit-length
-     * as a little-endian 8-byte value
-     */
+    /* Padding: 0x80, zeros up to 56 mod 64, then the bit length */
     paddedLen = (word)((len + 72) & 0xffc0);
     msg = gmalloc(paddedLen);
     if (!msg)
@@ -166,6 +135,7 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
         msg[paddedLen - 8 + i] = 0;
     }
 
+    /* Lock the MD5 tables only while the chunks are processed */
     MemLock(OptrToHandle(@md5K));
     kP = LMemDeref(@md5K);
     sP = LMemDeref(@md5S);
@@ -180,6 +150,7 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
             ((dword)msg[chunkStart + (i << 2) + 3] << 24);
         }
 
+        /* 64 steps: four rounds of 16 */
         a = a0; b = b0; c = c0; d = d0;
 
         for (j = 0; j < 64; ++j)
@@ -227,29 +198,24 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
     gfree(msg);
 }
 
-/* RC4 ********************************************************************* */
-
-/***********************************************************************
- *      RC4KeySchedule
- ***********************************************************************
- * SYNOPSIS:        Process rc4 key schedule.
- * PARAMETERS:      Guchar *key    key
- *                  short keyLen    key len
- *                  Guchar sBox[256]    s box
+/********************************************************************
+ *                      RC4KeySchedule
+ ********************************************************************
+ * SYNOPSIS:      Initialize an RC4 state with a key.
  *
- * RETURNS:         void
+ * PARAMETERS:    *key                  Ptr to the key.
+ *                keyLen                Key length in bytes.
+ *                *sBox                 Ptr to the 256-byte RC4 state (out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void RC4KeySchedule(Guchar *key, short keyLen, Guchar sBox[256])
 {
     short i, j;
@@ -269,27 +235,24 @@ void RC4KeySchedule(Guchar *key, short keyLen, Guchar sBox[256])
     }
 }
 
-/***********************************************************************
- *      RC4NextByte
- ***********************************************************************
- * SYNOPSIS:        Process rc4 next byte.
- * PARAMETERS:      Guchar sBox[256]    s box
- *                  Guchar *rc4i    rc4i
- *                  Guchar *rc4j    rc4j
+/********************************************************************
+ *                      RC4NextByte
+ ********************************************************************
+ * SYNOPSIS:      Return the next RC4 key stream byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *sBox                 Ptr to the RC4 state.
+ *                *rc4i                 Ptr to the index i (in/out).
+ *                *rc4j                 Ptr to the index j (in/out).
  *
- * CONTEXT:
+ * RETURNS:       Guchar                Key stream byte.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Guchar RC4NextByte(Guchar sBox[256], Guchar *rc4i, Guchar *rc4j)
 {
     Guchar i, j, tmp;
@@ -304,28 +267,26 @@ Guchar RC4NextByte(Guchar sBox[256], Guchar *rc4i, Guchar *rc4j)
     return sBox[(sBox[i] + sBox[j]) & 0xff];
 }
 
-/***********************************************************************
- *      RC4Apply
- ***********************************************************************
- * SYNOPSIS:        Apply.
- * PARAMETERS:      Guchar *key    key
- *                  short keyLen    key len
- *                  Guchar *data    data
- *                  long len    length
+/********************************************************************
+ *                      RC4Apply
+ ********************************************************************
+ * SYNOPSIS:      Encrypt or decrypt a byte block in place with RC4.
  *
- * RETURNS:         void
+ * PARAMETERS:    *key                  Ptr to the key.
+ *                keyLen                Key length in bytes.
+ *                *data                 Ptr to the data.
+ *                len                   Number of bytes.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      The 256-byte state is on the stack; use it only for short
+ *                blocks (passwords, keys, strings).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void RC4Apply(Guchar *key, short keyLen, Guchar *data, long len)
 {
     Guchar sBox[256];
@@ -340,18 +301,24 @@ void RC4Apply(Guchar *key, short keyLen, Guchar *data, long len)
     }
 }
 
-/*
- * PDF Standard Security Handler
- * *********************************************************************
- */
-
-/***********************************************************************
- *      XRefCopyPadding
- ***********************************************************************
- * SYNOPSIS:        Copy the first n bytes of the padding string.
- * PARAMETERS:      Guchar *dst    destination
- *                  word n         number of bytes, max. 32
- ***********************************************************************/
+/********************************************************************
+ *                      XRefCopyPadding
+ ********************************************************************
+ * SYNOPSIS:      Copy the start of the padding string of the standard security
+ *                handler.
+ *
+ * PARAMETERS:    *dst                  Ptr to the destination.
+ *                n                     Number of bytes, max. 32.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void XRefCopyPadding(Guchar *dst, word n)
 {
     EC_ERROR_IF(n > 32, -1);
@@ -360,33 +327,31 @@ static void XRefCopyPadding(Guchar *dst, word n)
     MemUnlock(OptrToHandle(@pdfPadding));
 }
 
-/***********************************************************************
- *      XRefDeriveFileKey
- ***********************************************************************
- * SYNOPSIS:        Compute the file key from a padded user password
- *                  (PDF spec Algorithm 2).
- * PARAMETERS:      Guchar *paddedPw    password, padded to 32 bytes
- *                  Guchar *ownerHash    owner hash
- *                  dword perms    perms
- *                  Guchar *id0    id0
- *                  word id0Len    id0 len
- *                  short revision    revision
- *                  short keyLenBytes    key len bytes
- *                  GBool encryptMetadata    encrypt metadata
- *                  Guchar outKey[16]    out key
+/********************************************************************
+ *                      XRefDeriveFileKey
+ ********************************************************************
+ * SYNOPSIS:      Compute the file key from a padded password (PDF spec
+ *                Algorithm 2).
  *
- * RETURNS:         void
+ * PARAMETERS:    *paddedPw             Ptr to the password padded to 32 bytes.
+ *                *ownerHash            Ptr to the /O value.
+ *                perms                 /P value.
+ *                *id0                  Ptr to the first /ID string.
+ *                id0Len                Length of id0.
+ *                revision              /R value.
+ *                keyLenBytes           Key length in bytes.
+ *                encryptMetadata       /EncryptMetadata value.
+ *                *outKey               Ptr to the file key (out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Revision 3 hashes the digest 50 more times.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void XRefDeriveFileKey(Guchar *paddedPw, Guchar *ownerHash, dword perms,
     Guchar *id0, word id0Len,
     short revision, short keyLenBytes, GBool encryptMetadata, Guchar outKey[16])
@@ -432,31 +397,27 @@ static void XRefDeriveFileKey(Guchar *paddedPw, Guchar *ownerHash, dword perms,
     memcpy(outKey, digest, keyLenBytes);
 }
 
-/***********************************************************************
- *      XRefCheckUValue
- ***********************************************************************
- * SYNOPSIS:        Check a file key against /U (PDF spec Algorithm 4/5;
- *                  /U is computed from the padding string, not from
- *                  the password).
- * PARAMETERS:      Guchar *fileKey    file key
- *                  short keyLenBytes    key len bytes
- *                  short revision    revision
- *                  Guchar *id0    id0
- *                  word id0Len    id0 len
- *                  Guchar *uValue    u value
+/********************************************************************
+ *                      XRefCheckUValue
+ ********************************************************************
+ * SYNOPSIS:      Check a file key against the /U value (Algorithms 4 and 5).
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *fileKey              Ptr to the file key.
+ *                keyLenBytes           Key length in bytes.
+ *                revision              /R value.
+ *                *id0                  Ptr to the first /ID string.
+ *                id0Len                Length of id0.
+ *                *uValue               Ptr to the /U value.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gTrue if the key is correct.
  *
- * STRATEGY:
+ * STRATEGY:      Revision 3 compares only the first 16 bytes.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool XRefCheckUValue(Guchar *fileKey, short keyLenBytes, 
     short revision, Guchar *id0, word id0Len, Guchar *uValue)
 {
@@ -473,7 +434,7 @@ static GBool XRefCheckUValue(Guchar *fileKey, short keyLenBytes,
         return memcmp(result, uValue, 32) == 0;
     }
 
-    /* R >= 3 */
+    /* Revision 3 */
     if (id0Len > 64)
     {
         id0Len = 64;
@@ -485,6 +446,7 @@ static GBool XRefCheckUValue(Guchar *fileKey, short keyLenBytes,
     memcpy(result, digest, 16);
     RC4Apply(fileKey, keyLenBytes, result, 16);
 
+    /* 19 more RC4 passes with key XOR round */
     for (round = 1; round <= 19; ++round)
     {
         for (i = 0; i < keyLenBytes; ++i)
@@ -513,13 +475,24 @@ typedef struct CryptParams
     GBool encryptMetadata;
 } CryptParams;
 
-/***********************************************************************
- *      XRefPadPassword
- ***********************************************************************
- * SYNOPSIS:        Pad/truncate a password to 32 bytes with the
- *                  standard padding string (PDF spec Algorithm 2 a).
- ***********************************************************************/
-
+/********************************************************************
+ *                      XRefPadPassword
+ ********************************************************************
+ * SYNOPSIS:      Pad or cut a password to 32 bytes (Algorithm 2, step a).
+ *
+ * PARAMETERS:    *password             Ptr to the password, NULL for the empty
+ *                                      password.
+ *                *out                  Ptr to the 32-byte result (out).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void XRefPadPassword(const char *password, Guchar out[32])
 {
     word len = 0;
@@ -535,13 +508,24 @@ static void XRefPadPassword(const char *password, Guchar out[32])
     XRefCopyPadding(out + len, 32 - len);
 }
 
-/***********************************************************************
- *      XRefTryUserPassword
- ***********************************************************************
- * SYNOPSIS:        Authenticate a padded user password (Algorithm 6).
- * RETURNS:         gTrue and the file key in outKey if it matches
- ***********************************************************************/
-
+/********************************************************************
+ *                      XRefTryUserPassword
+ ********************************************************************
+ * SYNOPSIS:      Check a padded password as the user password (Algorithm 6).
+ *
+ * PARAMETERS:    *cp                   Ptr to the encryption parameters.
+ *                *padded               Ptr to the padded password.
+ *                *outKey               Ptr to the file key (out).
+ *
+ * RETURNS:       GBool                 gTrue if the password is correct.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool XRefTryUserPassword(CryptParams *cp, Guchar padded[32],
     Guchar outKey[16])
 {
@@ -551,18 +535,25 @@ static GBool XRefTryUserPassword(CryptParams *cp, Guchar padded[32],
         cp->id0, cp->id0Len, cp->uValue);
 }
 
-/***********************************************************************
- *      XRefTryOwnerPassword
- ***********************************************************************
- * SYNOPSIS:        Authenticate a padded owner password (Algorithm 7).
- * RETURNS:         gTrue and the file key in outKey if it matches
+/********************************************************************
+ *                      XRefTryOwnerPassword
+ ********************************************************************
+ * SYNOPSIS:      Check a padded password as the owner password (Algorithm 7).
  *
- * STRATEGY:
- *      The RC4 key derived from the owner password (Algorithm 3 a-d)
- *      decrypts /O back to the padded user password, which is then
- *      checked like a typed-in user password.
- ***********************************************************************/
-
+ * PARAMETERS:    *cp                   Ptr to the encryption parameters.
+ *                *padded               Ptr to the padded password.
+ *                *outKey               Ptr to the file key (out).
+ *
+ * RETURNS:       GBool                 gTrue if the password is correct.
+ *
+ * STRATEGY:      Decrypt /O with a key from the owner password; the result is
+ *                the user password, which is then checked.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool XRefTryOwnerPassword(CryptParams *cp, Guchar padded[32],
     Guchar outKey[16])
 {
@@ -587,7 +578,7 @@ static GBool XRefTryOwnerPassword(CryptParams *cp, Guchar padded[32],
     }
     else
     {
-        /* reverse of Algorithm 3 f: keys XORed with 19 down to 0 */
+        /* Algorithm 3 f in reverse: keys XORed with 19 down to 0 */
         for (round = 19; round >= 0; --round)
         {
             for (i = 0; i < cp->keyLenBytes; ++i)
@@ -601,31 +592,28 @@ static GBool XRefTryOwnerPassword(CryptParams *cp, Guchar padded[32],
     return XRefTryUserPassword(cp, userPw, outKey);
 }
 
-/***********************************************************************
- *      XRefSetupEncryption
- ***********************************************************************
- * SYNOPSIS:        Set up decryption for the Standard security handler
- *                  (RC4, /V 1-2, /R 2-3).
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  const char *password    user or owner password,
- *                                  "" for none (bytes as in the PDF:
- *                                  PDFDocEncoding / Latin-1)
+/********************************************************************
+ *                      XRefSetupEncryption
+ ********************************************************************
+ * SYNOPSIS:      Read /Encrypt and authenticate a password.
  *
- * RETURNS:         CRYPT_OK, CRYPT_BAD_PASSWORD (supported, but the
- *                  password does not open the file) or
- *                  CRYPT_UNSUPPORTED (other handler, AES, damaged)
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *password             Ptr to the password, NULL or "" for
+ *                                      none.
  *
- * CONTEXT:
+ * RETURNS:       XRefCryptStatus       CRYPT_OK, CRYPT_BAD_PASSWORD or
+ *                                      CRYPT_UNSUPPORTED.
  *
- * STRATEGY:
+ * STRATEGY:      Only the standard security handler with RC4 (V 1/2, R 2/3) is
+ *                supported. The password is tried as user password, then as
+ *                owner password; only the owner password lifts the /P
+ *                restrictions (xref->ownerAccess).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
 {
     Obj encryptObj, fieldObj, idObj, id0Obj;
@@ -633,10 +621,7 @@ XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
     long v, r, p;
     short keyLenBits, keyLenBytes;
     Guchar oValue[32], uValue[32];
-    /*
-     * PDF doesn't cap /ID[0]'s length; 16 bytes (an MD5 hash) is the near-
-     * universal convention.
-     */
+    /* Only 16 bytes (an MD5 hash) are usual; longer IDs are cut */
     Guchar id0[64];
     long id0Len;
     GBool encryptMetadata;
@@ -742,6 +727,7 @@ XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
     memcpy(id0, GStrGetCString(getString(&id0Obj)), id0Len);
     ObjFree(&id0Obj);
 
+    /* The parameters are too large for the stack */
     cp = gmalloc(sizeof(CryptParams));
     if (!cp)
     {
@@ -756,10 +742,7 @@ XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
     cp->keyLenBytes = keyLenBytes;
     cp->encryptMetadata = encryptMetadata;
 
-    /*
-     * The password may be the user password (Algorithm 6) or the owner
-     * password (Algorithm 7); the empty password is tried the same way.
-     */
+    /* The password can be the user or the owner password */
     XRefPadPassword(password, padded);
     xref->ownerAccess = gFalse;
     ok = XRefTryUserPassword(cp, padded, xref->fileKey);
@@ -782,29 +765,26 @@ XRefCryptStatus XRefSetupEncryption(XRef *xref, const char *password)
     return CRYPT_OK;
 }
 
-/***********************************************************************
- *      XRefDeriveObjectKey
- ***********************************************************************
- * SYNOPSIS:        Process cross-reference table derive object key.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  long num    number
- *                  long gen    gen
- *                  Guchar outKey[16]    out key
- *                  short *outKeyLen    out key len
+/********************************************************************
+ *                      XRefDeriveObjectKey
+ ********************************************************************
+ * SYNOPSIS:      Compute the RC4 key of one object (Algorithm 1).
  *
- * RETURNS:         void
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                num                   Object number.
+ *                gen                   Generation number.
+ *                *outKey               Ptr to the key (out).
+ *                *outKeyLen            Ptr to the key length (out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void XRefDeriveObjectKey(XRef *xref, long num, long gen,
     Guchar outKey[16], short *outKeyLen)
 {

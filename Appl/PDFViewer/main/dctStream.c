@@ -66,7 +66,7 @@
  * "out of memory" in the middle of the page.
  *
  * Large images are decoded at 1/2, 1/4 or 1/8 size (libjpeg scaled IDCT,
- * H2, see DCTStreamScaleFor): the stream then delivers the smaller image,
+ * see DCTStreamScaleFor): the stream then delivers the smaller image,
  * GfxDrawImage reads it with the same reduced width and height.
  * DCT_MAX_ROW_BYTES applies to the scaled row.
  * ATTENTION: The coefficient limit of progressive JPEGs does not change
@@ -110,15 +110,29 @@ static GBool DCTStreamSizeOk(struct jpeg_decompress_struct *cinfo);
 static GBool DCTStreamFill(DCTDecoder *dec);
 static void DCTStreamFailed(DCTDecoder *dec);
 
-/* ----------------------------------------------------------------------
- *      libjpeg callbacks
- * -------------------------------------------------------------------- */
-
 static void _pascal _export DCTSrcInit(j_decompress_ptr cinfo)
 {
     (void)cinfo;
 }
 
+/********************************************************************
+ *                      DCTSrcFill
+ ********************************************************************
+ * SYNOPSIS:      libjpeg source callback: read the next block of compressed
+ *                data.
+ *
+ * PARAMETERS:    cinfo                 Ptr to the decompressor (first member of
+ *                                      DCTDecoder).
+ *
+ * RETURNS:       boolean               Always TRUE.
+ *
+ * STRATEGY:      At the end of the data insert a fake EOI marker.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static boolean _pascal _export DCTSrcFill(j_decompress_ptr cinfo)
 {
     DCTDecoder *dec = (DCTDecoder *)cinfo;
@@ -127,11 +141,7 @@ static boolean _pascal _export DCTSrcFill(j_decompress_ptr cinfo)
     n = StreamRead(dec->in, dec->inBuf, DCT_IN_BUF_SIZE);
     if (n == 0)
     {
-        /*
-         * end of data: insert a fake EOI. libjpeg warns and would go on
-         * producing rows from zero coefficients; DCTStreamFill stops
-         * after the rows in progress instead (truncated image).
-         */
+        /* End of data: fake EOI; DCTStreamFill stops after these rows */
         dec->inputEnded = gTrue;
         dec->inBuf[0] = 0xFF;
         dec->inBuf[1] = JPEG_EOI;
@@ -142,6 +152,23 @@ static boolean _pascal _export DCTSrcFill(j_decompress_ptr cinfo)
     return TRUE;
 }
 
+/********************************************************************
+ *                      DCTSrcSkip
+ ********************************************************************
+ * SYNOPSIS:      libjpeg source callback: skip compressed data.
+ *
+ * PARAMETERS:    cinfo                 Ptr to the decompressor.
+ *                numBytes              Number of bytes to skip.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void _pascal _export DCTSrcSkip(j_decompress_ptr cinfo, long numBytes)
 {
     DCTDecoder *dec = (DCTDecoder *)cinfo;
@@ -164,27 +191,31 @@ static void _pascal _export DCTSrcTerm(j_decompress_ptr cinfo)
     (void)cinfo;
 }
 
-/*
- * The library's output_message puts up a modal dialog for the first
- * warning of every image -- not wanted while drawing a page.
- */
 static void _pascal _export DCTOutputMessage(j_common_ptr cinfo)
 {
     (void)cinfo;
 }
 
-/* ----------------------------------------------------------------------
- *      Stream interface
- * -------------------------------------------------------------------- */
-
-/***********************************************************************
- *      DCTStreamInit
- ***********************************************************************
- * SYNOPSIS:        Set up a DCTDecode filter on str1.
- * STRATEGY:        No libjpeg work and no StreamReset here (the parser
- *                  builds filters before it has read "endstream").
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a DCT (JPEG) filter stream.
+ *
+ * PARAMETERS:    *str                  Ptr to the DCT stream.
+ *                *str1                 Ptr to the stream with the compressed
+ *                                      data.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The decoder is made in the first reset: the parser makes the
+ *                filters of every stream object, also of streams that are never
+ *                read.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void DCTStreamInit(Stream *str, Stream *str1)
 {
     DCTData *d;
@@ -204,10 +235,22 @@ void DCTStreamInit(Stream *str, Stream *str1)
     str->u.dct = d;
 }
 
-/***********************************************************************
- *      DCTStreamFree
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free a DCT stream and its decoder.
+ *
+ * PARAMETERS:    *str                  Ptr to the DCT stream.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void DCTStreamFree(Stream *str)
 {
     if (str->u.dct)
@@ -218,13 +261,23 @@ void DCTStreamFree(Stream *str)
     }
 }
 
-/***********************************************************************
- *      DCTStreamReset
- ***********************************************************************
- * SYNOPSIS:        Start decoding from the beginning: read the JPEG
- *                  header and set up libjpeg.
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start decoding from the beginning.
+ *
+ * PARAMETERS:    *str                  Ptr to the DCT stream.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Free an old decoder, make a new one and read the JPEG header.
+ *                On error the stream stays at EOF.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void DCTStreamReset(Stream *str)
 {
     DCTData *d = str->u.dct;
@@ -250,10 +303,24 @@ void DCTStreamReset(Stream *str)
     d->eof = gFalse;
 }
 
-/***********************************************************************
- *      DCTStreamGetChar / DCTStreamLookChar / DCTStreamRead
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamHaveData
+ ********************************************************************
+ * SYNOPSIS:      Make sure that decoded bytes are available.
+ *
+ * PARAMETERS:    *d                    Ptr to the DCT data.
+ *
+ * RETURNS:       GBool                 gFalse at the end of the image or on
+ *                                      error.
+ *
+ * STRATEGY:      Decode the next rows when the buffer is empty. After the last
+ *                row the decoder is freed at once.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool DCTStreamHaveData(DCTData *d)
 {
     if (d->eof)
@@ -273,6 +340,22 @@ static GBool DCTStreamHaveData(DCTData *d)
     return gTrue;
 }
 
+/********************************************************************
+ *                      DCTStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
+ *
+ * PARAMETERS:    *str                  Ptr to the DCT stream.
+ *
+ * RETURNS:       short                 Byte, EOF at the end.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 short DCTStreamGetChar(Stream *str)
 {
     DCTData *d = str->u.dct;
@@ -284,6 +367,22 @@ short DCTStreamGetChar(Stream *str)
     return d->dec->buf[d->dec->bufIdx++];
 }
 
+/********************************************************************
+ *                      DCTStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next decoded byte but do not read it.
+ *
+ * PARAMETERS:    *str                  Ptr to the DCT stream.
+ *
+ * RETURNS:       short                 Byte, EOF at the end.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 short DCTStreamLookChar(Stream *str)
 {
     DCTData *d = str->u.dct;
@@ -295,6 +394,24 @@ short DCTStreamLookChar(Stream *str)
     return d->dec->buf[d->dec->bufIdx];
 }
 
+/********************************************************************
+ *                      DCTStreamRead
+ ********************************************************************
+ * SYNOPSIS:      Read a block of decoded bytes.
+ *
+ * PARAMETERS:    *str                  Ptr to the DCT stream.
+ *                *buf                  Ptr to the destination.
+ *                size                  Number of bytes.
+ *
+ * RETURNS:       word                  Number of bytes read, less at the end.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 word DCTStreamRead(Stream *str, Guchar *buf, word size)
 {
     DCTData *d = str->u.dct;
@@ -314,16 +431,22 @@ word DCTStreamRead(Stream *str, Guchar *buf, word size)
     return done;
 }
 
-/* ----------------------------------------------------------------------
- *      Internals
- * -------------------------------------------------------------------- */
-
-/***********************************************************************
- *      DCTStreamEnd
- ***********************************************************************
- * SYNOPSIS:        Destroy the decoder (if any) and mark end of data.
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamEnd
+ ********************************************************************
+ * SYNOPSIS:      Free the decoder; the stream is at EOF.
+ *
+ * PARAMETERS:    *d                    Ptr to the DCT data.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void DCTStreamEnd(DCTData *d)
 {
     DCTDecoder *dec = d->dec;
@@ -347,15 +470,22 @@ static void DCTStreamEnd(DCTData *d)
     d->dec = NULL;
 }
 
-/***********************************************************************
- *      DCTStreamFailed
- ***********************************************************************
- * SYNOPSIS:        Clean-up after libjpeg jumped back to
- *                  set_error_handler. error_exit has already destroyed
- *                  the libjpeg object; free the handler context and
- *                  report a memory shortage.
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamFailed
+ ********************************************************************
+ * SYNOPSIS:      Clean up after a libjpeg error exit.
+ *
+ * PARAMETERS:    *dec                  Ptr to the decoder.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      A libjpeg out-of-memory error sets the out-of-memory flag.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void DCTStreamFailed(DCTDecoder *dec)
 {
     jpeg_set_error_handler_context((j_common_ptr)&dec->cinfo, 0);
@@ -366,13 +496,26 @@ static void DCTStreamFailed(DCTDecoder *dec)
     EC_WARNING(-1);
 }
 
-/***********************************************************************
- *      DCTStreamSizeOk
- ***********************************************************************
- * SYNOPSIS:        Check the image size against the DCT_MAX_* limits.
- * RETURNS:         gFalse if the image should not be decoded
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamSizeOk
+ ********************************************************************
+ * SYNOPSIS:      Check the image size and set the scaling.
+ *
+ * PARAMETERS:    *cinfo                Ptr to the decompressor after
+ *                                      jpeg_read_header.
+ *
+ * RETURNS:       GBool                 gFalse if the image is too large for
+ *                                      real mode.
+ *
+ * STRATEGY:      Large images are decoded at 1/2, 1/4 or 1/8 size. The row size
+ *                and, for progressive JPEGs, the coefficient memory are
+ *                limited.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool DCTStreamSizeOk(struct jpeg_decompress_struct *cinfo)
 {
     long w = (long)cinfo->image_width;
@@ -392,10 +535,7 @@ static GBool DCTStreamSizeOk(struct jpeg_decompress_struct *cinfo)
     {
         return gFalse;
     }
-    /*
-     * full size coefficients; w, h <= 65535 and nc <= 4: compare by
-     * division so that nothing overflows a long
-     */
+    /* Full-size coefficients: compare by division, no long overflow */
     if (cinfo->progressive_mode &&
         w * nc * 2 > DCT_MAX_PROGRESSIVE_COEF / h)
     {
@@ -404,17 +544,24 @@ static GBool DCTStreamSizeOk(struct jpeg_decompress_struct *cinfo)
     return gTrue;
 }
 
-/***********************************************************************
- *      DCTStreamScaleFor
- ***********************************************************************
- * SYNOPSIS:        Decode scale of a JPEG: 1, 2, 4 or 8.
- * PARAMETERS:      w, h    image size in pixels
- * RETURNS:         smallest scale that brings both axes to at most
- *                  DCT_TARGET_DIMENSION (8 at most)
- * STRATEGY:        Used by the decoder (scale_denom) and by GfxDrawImage
- *                  (reduced width and height of the image it reads), so
- *                  both sides agree. Output size = ceil(size / scale).
- ***********************************************************************/
+/********************************************************************
+ *                      DCTStreamScaleFor
+ ********************************************************************
+ * SYNOPSIS:      Return the scale divisor for an image size.
+ *
+ * PARAMETERS:    w                     Image width.
+ *                h                     Image height.
+ *
+ * RETURNS:       word                  1, 2, 4 or 8: both sides at most
+ *                                      DCT_TARGET_DIMENSION, if possible.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 word DCTStreamScaleFor(long w, long h)
 {
     word d;
@@ -430,20 +577,31 @@ word DCTStreamScaleFor(long w, long h)
     return d;
 }
 
-/***********************************************************************
- *      DCTStreamStart
- ***********************************************************************
- * SYNOPSIS:        Create the libjpeg object, read the header, start
- *                  decompression and allocate the row buffer.
- * RETURNS:         gFalse on any error (dec must then be ended)
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamStart
+ ********************************************************************
+ * SYNOPSIS:      Set up libjpeg and start decompressing.
+ *
+ * PARAMETERS:    *dec                  Ptr to the decoder.
+ *
+ * RETURNS:       GBool                 gFalse on error.
+ *
+ * STRATEGY:      Install the error handler (set_error_handler) before every
+ *                libjpeg call. After an error exit only the parameter dec is
+ *                valid.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool DCTStreamStart(DCTDecoder *dec)
 {
     word ctx;
     long rowBytes;
 
     dec->cinfo.err = jpeg_std_error(&dec->jerr);
+    /* No dialog for libjpeg warnings while a page is drawn */
     dec->jerr.output_message = (void *)DCTOutputMessage;
 
     if (set_error_handler(&ctx))
@@ -479,10 +637,7 @@ static GBool DCTStreamStart(DCTDecoder *dec)
         EC_WARNING(-1);
         return gFalse;
     }
-    /*
-     * Default output color spaces match the old decoder: gray -> gray,
-     * YCbCr -> RGB, RGB -> RGB, CMYK/YCCK -> CMYK.
-     */
+    /* Default output: gray to gray, YCbCr/RGB to RGB, CMYK/YCCK to CMYK */
     dec->cinfo.dct_method = JDCT_IFAST;
     jpeg_start_decompress(&dec->cinfo);
 
@@ -506,6 +661,7 @@ static GBool DCTStreamStart(DCTDecoder *dec)
         dec->linesPerFill = DCT_MAX_LINES_PER_FILL;
     }
 
+    /* Row buffer in a movable block, locked while decoding */
     dec->bufHan = MemAlloc((word)dec->rowBytes * dec->linesPerFill,
         HF_SWAPABLE, HAF_NO_ERR);
     if (!dec->bufHan)
@@ -518,13 +674,23 @@ static GBool DCTStreamStart(DCTDecoder *dec)
     return gTrue;
 }
 
-/***********************************************************************
- *      DCTStreamFill
- ***********************************************************************
- * SYNOPSIS:        Decode the next few rows into the row buffer.
- * RETURNS:         gFalse at the end of the image or on an error
- ***********************************************************************/
-
+/********************************************************************
+ *                      DCTStreamFill
+ ********************************************************************
+ * SYNOPSIS:      Decode the next rows into the row buffer.
+ *
+ * PARAMETERS:    *dec                  Ptr to the decoder.
+ *
+ * RETURNS:       GBool                 gFalse at the end of the image or on
+ *                                      error.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool DCTStreamFill(DCTDecoder *dec)
 {
     word ctx, i, lines;
@@ -533,12 +699,7 @@ static GBool DCTStreamFill(DCTDecoder *dec)
     {
         return gFalse;
     }
-    /*
-     * Truncated baseline JPEG: the rows decoded while the data ran out
-     * have been delivered, everything after would only be filler.
-     * (A progressive JPEG reads all its data in jpeg_start_decompress
-     * and still gives a complete, if blurry, image.)
-     */
+    /* Truncated baseline JPEG: stop after the delivered rows */
     if (dec->inputEnded && !dec->cinfo.progressive_mode)
     {
         return gFalse;

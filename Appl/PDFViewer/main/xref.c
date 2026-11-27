@@ -23,8 +23,8 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
- *      Port of Derek Noonburg's "XRef" class from xpdf 0.8.
- *      Simple variable-length string type.
+ *      Port of Derek Noonburg's "XRef" class from xpdf 0.8:
+ *      the cross-reference table of a PDF file.
  ***********************************************************************/
 
 #ifdef __GNUC__
@@ -51,11 +51,6 @@
 
 #define xrefSearchSize 1024  /* Bytes scanned for startxref near EOF. */
 
-/*
- * XRefEntry.gen is a word. A generation above 65535 is not valid PDF;
- * store 65535 (the value of a free entry) so that it can not match a
- * truncated reference.
- */
 static word XRefClampGen(long v)
 {
     return (v > 0xFFFFL) ? (word)0xFFFF : (word)v;
@@ -66,7 +61,6 @@ static long XRefParseVarDigits(const char *p);
 static long XRefReadTrailer(XRef *xref, Stream *fs);
 static void XRefSetStart(XRef *xref, Stream *fs);
 
-/* PDF 1.5+ cross-reference streams. */
 static GBool XRefSectionIsStream(XRef *xref, Stream *fs, long pos);
 static long XRefStreamReadField(Obj *streamObj, long width, long defaultVal);
 static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos);
@@ -76,25 +70,22 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos,
 static void XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm,
     Obj *obj);
 
-/***********************************************************************
- *      XRefInitNull
- ***********************************************************************
- * SYNOPSIS:        Initialize an empty cross-reference table.
- * PARAMETERS:      XRef *xref    cross-reference table
+/********************************************************************
+ *                      XRefInitNull
+ ********************************************************************
+ * SYNOPSIS:      Initialize an empty cross-reference table.
  *
- * RETURNS:         void
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void XRefInitNull(XRef *xref)
 {
     xref->size = 0;
@@ -110,26 +101,28 @@ void XRefInitNull(XRef *xref)
     xref->objStmPairOffsetsH = NullHandle;
 }
 
-/***********************************************************************
- *      XRefInit
- ***********************************************************************
- * SYNOPSIS:        Initialize a cross-reference table from a PDF.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  FileHandle fileHan    file handle
+/********************************************************************
+ *                      XRefInit
+ ********************************************************************
+ * SYNOPSIS:      Read the cross-reference table of a PDF file.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                fileHan               Handle of the open PDF file.
+ *                *password             Ptr to the password, NULL for none.
  *
- * CONTEXT:
+ * RETURNS:       Boolean               TRUE if the table is valid. FALSE with
+ *                                      xref->needPassword set if the password
+ *                                      is wrong.
  *
- * STRATEGY:
+ * STRATEGY:      Find the header and the last trailer, make the entry table (a
+ *                HugeArray in a temporary VM file), read all sections of the
+ *                /Prev chain (tables and streams), then set up the decryption.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
 {
     XRefEntry entryTemplate;
@@ -155,11 +148,7 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
     /* GEOS reuses file handles: drop data cached for an earlier file. */
     FStreamInvalidateReadCache(fileHan);
 
-    /*
-     * Own scratch VM file for `entries`, separate from PdfDocInternal's
-     * gstringFile (decoded pages): that one doesn't exist yet at this point in
-     * PdfOpen's sequence .
-     */
+    /* Own scratch VM file: the page VM file of PdfOpen does not exist yet */
     p = xref->vmFileName;
     FileConstructFullPath(&p, sizeof(xref->vmFileName), SP_WASTE_BASKET, "",
         TRUE);
@@ -183,17 +172,14 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
     }
     else
     {
-        /*
-         * One HugeArray element per XRefEntry, pre-filled to "free/ unused"
-         * via a template.
-         */
+        /* One HugeArray element per entry, all free at first */
         entryTemplate.offset = -1;
         entryTemplate.gen = 0;
         entryTemplate.used = gFalse;
         entryTemplate.type = xrefEntryFree;
         xref->entries = HugeArrayCreate(xref->vmFile, sizeof(XRefEntry), 0);
 
-        /* Fill explicitly because HugeArray template replication is unclear. */
+        /* Write the free entries in batches */
         batchMax = HUGEARRAY_BATCH_MAX_BYTES / sizeof(XRefEntry);
         if (batchMax < 1)
         {
@@ -278,25 +264,22 @@ Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password)
 
 }
 
-/***********************************************************************
- *      XRefFree
- ***********************************************************************
- * SYNOPSIS:        Release a cross-reference table.
- * PARAMETERS:      XRef *xref    cross-reference table
+/********************************************************************
+ *                      XRefFree
+ ********************************************************************
+ * SYNOPSIS:      Free the cross-reference table and its VM file.
  *
- * RETURNS:         void
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void XRefFree(XRef *xref)
 {
     FStreamInvalidateReadCache(xref->fHan);
@@ -321,42 +304,33 @@ void XRefFree(XRef *xref)
     xref->objStmCacheNum = -1;
 }
 
-/*
- * Largest Object Stream (objects) whose offset table is cached: 4 bytes
- * per object, at most 4 KB while the document is open. The table is a
- * swapable block, locked only while it is filled or read (H3c).
- */
+/* Largest object stream with a cached offset table (4 bytes each) */
 #define XREF_OBJSTM_CACHE_MAX 1024
 
-/* Find garbage bytes at start of file */
+/* Bytes searched for "%PDF-" (garbage before the header) */
 #define headerSearchSize 512
 
-/***********************************************************************
- *      XRefSetStart
- ***********************************************************************
- * SYNOPSIS:        Locate the startxref offset.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Stream *fs    input stream
+/********************************************************************
+ *                      XRefSetStart
+ ********************************************************************
+ * SYNOPSIS:      Find the "%PDF-" header and set xref->start.
  *
- * RETURNS:         void
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *fs                   Ptr to the file stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Garbage bytes before the header are allowed (up to
+ *                headerSearchSize); all offsets are relative to the header.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void XRefSetStart(XRef *xref, Stream *fs)
 {
-    /*
-     * Streaming character-by-character match against "%PDF-" instead of
-     * reading a 512-byte buffer and then searching it.
-     */
+    /* Match "%PDF-" char by char (no buffer) */
     static const char pattern[] = "%PDF-";
     short matchLen = 0;
     short i;
@@ -389,27 +363,25 @@ static void XRefSetStart(XRef *xref, Stream *fs)
     xref->start = 0;
 }
 
-/***********************************************************************
- *      XRefSectionIsStream
- ***********************************************************************
- * SYNOPSIS:        Check whether an xref section is a stream.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Stream *fs    input stream
- *                  long pos    file position
+/********************************************************************
+ *                      XRefSectionIsStream
+ ********************************************************************
+ * SYNOPSIS:      Check if a section is a cross-reference stream.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *fs                   Ptr to the file stream.
+ *                pos                   Offset of the section.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gTrue if the section does not start with
+ *                                      "xref".
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool XRefSectionIsStream(XRef *xref, Stream *fs, long pos)
 {
     short c;
@@ -426,27 +398,24 @@ static GBool XRefSectionIsStream(XRef *xref, Stream *fs, long pos)
     return !(s[0] == 'x' && s[1] == 'r' && s[2] == 'e' && s[3] == 'f');
 }
 
-/***********************************************************************
- *      XRefStreamReadField
- ***********************************************************************
- * SYNOPSIS:        Read one cross-reference stream field.
- * PARAMETERS:      Obj *streamObj    stream obj
- *                  long width    width
- *                  long defaultVal    default val
+/********************************************************************
+ *                      XRefStreamReadField
+ ********************************************************************
+ * SYNOPSIS:      Read one field of a cross-reference stream entry.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *streamObj            Ptr to the decoded stream object.
+ *                width                 Field width in bytes (/W).
+ *                defaultVal            Value for width 0.
  *
- * CONTEXT:
+ * RETURNS:       long                  Field value (big-endian).
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static long XRefStreamReadField(Obj *streamObj, long width, long defaultVal)
 {
     long val;
@@ -470,27 +439,24 @@ static long XRefStreamReadField(Obj *streamObj, long width, long defaultVal)
     return val;
 }
 
-/***********************************************************************
- *      XRefReadTrailerFromStream
- ***********************************************************************
- * SYNOPSIS:        Read trailer data from an xref stream.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Stream *fs    input stream
- *                  long pos    file position
+/********************************************************************
+ *                      XRefReadTrailerFromStream
+ ********************************************************************
+ * SYNOPSIS:      Read /Size, /Root and the trailer of a cross-reference stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *fs                   Ptr to the file stream (not used).
+ *                pos                   Offset of the stream object.
  *
- * CONTEXT:
+ * RETURNS:       long                  pos, 0 on error.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
 {
     Parser parser;
@@ -566,10 +532,7 @@ static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
     }
     ObjFree(&fieldObj);
 
-    /*
-     * But xref->trailerDict must end up objDict-typed, NOT a copy of the
-     * stream object itself.
-     */
+    /* The trailer is the stream dictionary, not the stream */
     dict = ObjStreamGetDict(&streamObj);
     ObjFree(&xref->trailerDict);
     initDictData(&xref->trailerDict, dict);
@@ -579,32 +542,32 @@ static long XRefReadTrailerFromStream(XRef *xref, Stream *fs, long pos)
     return pos;
 }
 
-/***********************************************************************
- *      XRefReadXRefStream
- ***********************************************************************
- * SYNOPSIS:        Read a cross-reference stream section.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Stream *fs    input stream
- *                  long *pos    file position
- *                  GBool isFirstSection    is first section
- *                  GBool hybrid    stream named by a table trailer's
- *                                  /XRefStm: may also fill entries the
- *                                  table marked free
+/********************************************************************
+ *                      XRefReadXRefStream
+ ********************************************************************
+ * SYNOPSIS:      Read one cross-reference stream section.
  *
- * RETURNS:         gTrue if a /Prev section follows (*pos updated)
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *fs                   Ptr to the file stream (not used).
+ *                *pos                  Ptr to the offset of the section; set to
+ *                                      /Prev (in/out).
+ *                isFirstSection        gTrue for the newest section (written in
+ *                                      batches).
+ *                hybrid                gTrue for the /XRefStm of a table: it
+ *                                      may also fill entries that the table
+ *                                      marks as free, and its /Prev is ignored.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gTrue if a /Prev section follows.
  *
- * STRATEGY:
+ * STRATEGY:      Entries are read with the /W field widths for each /Index
+ *                range. Type 1 is an offset, type 2 an object in an object
+ *                stream. Older sections do not overwrite newer entries.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *  JK      11/23/26    Hybrid files (/XRefStm)
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/23/26  JK        Hybrid files (/XRefStm)
+ *******************************************************************/
 static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirstSection,
     GBool hybrid)
 {
@@ -761,16 +724,12 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
                     case 2:
                         newEntry.type = xrefEntryCompressed;
                         newEntry.used = gTrue;
-                        /* containing ObjStm's object number */
+                        /* Object number of the object stream */
                         newEntry.offset = f2;
-                        newEntry.gen = XRefClampGen(f3); /* index within that ObjStm */
+                        newEntry.gen = XRefClampGen(f3); /* index in it */
                         break;
                     default:
-                        /*
-                         * type 0 (free) or anything unrecognized -- same
-                         * "leave free" value the array was already batch-
-                         * initialized with further up this file.
-                         */
+                        /* Type 0 (free) or unknown: the entry stays free */
                         newEntry.type = xrefEntryFree;
                         newEntry.used = gFalse;
                         newEntry.offset = -1;
@@ -778,11 +737,7 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
                         break;
                 }
 
-                /*
-                 * Same contiguity check as XRefReadXRef's own isFirstSection
-                 * path (see its comment) -- /Index can (and often does) list
-                 * non-contiguous sections.
-                 */
+                /* /Index ranges are not always contiguous */
                 if (batchCount > 0 && (dword)objNum != batchStart + batchCount)
                 {
                     HugeArrayReplace(xref->vmFile, xref->entries, batchCount,
@@ -806,11 +761,7 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
             {
                 HugeArrayLock(xref->vmFile, xref->entries, objNum,
                     (void **) & pEntry, &entrySize);
-                /*
-                 * Newer sections win. A hybrid file's table lists objects
-                 * that live in object streams as free ('f') entries of the
-                 * same section; its /XRefStm supplies them.
-                 */
+                /* Newer sections win; hybrid: "f" entries from /XRefStm */
                 if (pEntry->type != xrefEntryFree &&
                     (!hybrid || pEntry->used))
                 {
@@ -830,16 +781,13 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
                     case 2:
                         pEntry->type = xrefEntryCompressed;
                         pEntry->used = gTrue;
-                        /* containing ObjStm's object number */
+                        /* Object number of the object stream */
                         pEntry->offset = f2;
-                        pEntry->gen = XRefClampGen(f3); /* index within that ObjStm */
+                        pEntry->gen = XRefClampGen(f3); /* index in it */
                         HugeArrayDirty(pEntry);
                         break;
                     default:
-                        /*
-                         * type 0 (free) or anything unrecognized -- leave as
-                         * xrefEntryFree, nothing to fetch either way
-                         */
+                        /* Type 0 (free) or unknown: the entry stays free */
                         break;
                 }
                 HugeArrayUnlock(pEntry);
@@ -847,7 +795,7 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
         }
     }
 
-    /* flush any final partial batch left over after the last section */
+    /* Write the last partial batch */
     if (batchBuf && batchCount > 0)
     {
         HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart,
@@ -862,7 +810,7 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
 
     ObjFree(&indexObj);
 
-    /* /Prev chases the same way XRefReadXRef's does */
+    /* Follow /Prev */
     DictLookupNF(dict, "Prev", &prevObj);
     if (isInt(&prevObj))
     {
@@ -879,10 +827,7 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
     return more;
 
     err:
-    /*
-     * NULL-guarded, matching XRefReadXRef's own err2 cleanup -- all four goto
-     * err sites above happen before the batching loop runs.
-     */
+    /* batchBuf is NULL if the error came before the batch loop */
     if (batchBuf)
     {
         if (batchCount > 0)
@@ -897,35 +842,30 @@ static GBool XRefReadXRefStream(XRef *xref, Stream *fs, long *pos, GBool isFirst
     return gFalse;
 }
 
-/***********************************************************************
- *      XRefReadTrailer
- ***********************************************************************
- * SYNOPSIS:        Locate and read the trailer section.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Stream *fs    input stream
+/********************************************************************
+ *                      XRefReadTrailer
+ ********************************************************************
+ * SYNOPSIS:      Find "startxref" and read the last trailer.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *fs                   Ptr to the file stream.
  *
- * CONTEXT:
+ * RETURNS:       long                  Offset of the last section, 0 on error.
  *
- * STRATEGY:
+ * STRATEGY:      Search "startxref" in the last xrefSearchSize bytes. A cross-
+ *                reference stream is read by XRefReadTrailerFromStream.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static long XRefReadTrailer(XRef *xref, Stream *fs)
 {
 
     Parser parser;
     Obj obj;
-    /*
-     * 40 bytes covers this function's two remaining small, bounded reads --
-     * see project optimization analysis S2.
-     */
+    /* 40 bytes are enough for the two short reads below */
     char buf[40];
     long n, pos, pos1;
     char *p;
@@ -936,10 +876,7 @@ static long XRefReadTrailer(XRef *xref, Stream *fs)
 
     Lexer *lexer;
 
-    /*
-     * Find the LAST occurrence of "startxref" within the last xrefSearchSize
-     * bytes of the file.
-     */
+    /* Find the last "startxref" in the last xrefSearchSize bytes */
     {
         static const char startxrefPattern[] = "startxref";
         short matchLen = 0;
@@ -1099,26 +1036,23 @@ static long XRefReadTrailer(XRef *xref, Stream *fs)
 
 }
 
-/***********************************************************************
- *      XRefParseDigits
- ***********************************************************************
- * SYNOPSIS:        Parse a fixed number of decimal digits.
- * PARAMETERS:      const char *p    pointer
- *                  int count    count
+/********************************************************************
+ *                      XRefParseDigits
+ ********************************************************************
+ * SYNOPSIS:      Parse a fixed number of decimal digits.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *p                    Ptr to the digits.
+ *                count                 Number of digits.
  *
- * CONTEXT:
+ * RETURNS:       long                  Value.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static long XRefParseDigits(const char *p, int count)
 {
     long value = 0;
@@ -1130,25 +1064,22 @@ static long XRefParseDigits(const char *p, int count)
     return value;
 }
 
-/***********************************************************************
- *      XRefParseVarDigits
- ***********************************************************************
- * SYNOPSIS:        Parse decimal digits up to a delimiter.
- * PARAMETERS:      const char *p    pointer
+/********************************************************************
+ *                      XRefParseVarDigits
+ ********************************************************************
+ * SYNOPSIS:      Parse decimal digits up to the first other char.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *p                    Ptr to the digits.
  *
- * CONTEXT:
+ * RETURNS:       long                  Value.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static long XRefParseVarDigits(const char *p)
 {
     long value = 0;
@@ -1161,28 +1092,28 @@ static long XRefParseVarDigits(const char *p)
     return value;
 }
 
-/***********************************************************************
- *      XRefReadXRef
- ***********************************************************************
- * SYNOPSIS:        Read a classic cross-reference section.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Stream *fs    input stream
- *                  long *pos    file position
- *                  GBool isFirstSection    is first section
+/********************************************************************
+ *                      XRefReadXRef
+ ********************************************************************
+ * SYNOPSIS:      Read one classic cross-reference table section.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                *fs                   Ptr to the file stream.
+ *                *pos                  Ptr to the offset of the section; set to
+ *                                      /Prev (in/out).
+ *                isFirstSection        gTrue for the newest section (written in
+ *                                      batches).
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gTrue if a /Prev section follows.
  *
- * STRATEGY:
+ * STRATEGY:      Read the 20-byte entries of each subsection. A /XRefStm of a
+ *                hybrid file is read before /Prev.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSection)
 {
     Parser parser;
@@ -1198,11 +1129,7 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
     XRefEntry *pEntry;
     word entrySize;
 
-    /*
-     * Batch-write support for the isFirstSection fast path -- batchBuf
-     * accumulates real, filled-in XRefEntry copies for a contiguous run of
-     * entries.
-     */
+    /* Batch buffer for a contiguous run of entries (first section) */
     word batchMax, batchCount;
     dword batchStart;
     XRefEntry *batchBuf = NULL;
@@ -1223,10 +1150,8 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
         }
     }
 
-    /* seek to xref in stream */
     StreamSetPos(fs, xref->start + *pos);
 
-    /* make sure it is an xref table */
     while ((c = StreamGetChar(fs)) != EOF && isspace(c))
     ;
     s[0] = (char)c;
@@ -1315,10 +1240,7 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
                 }
                 else
                 {
-                    /*
-                     * Flush valid batch entries before aborting malformed
-                     * data.
-                     */
+                    /* Malformed data: write the valid entries first */
                     if (batchCount > 0)
                     {
                         HugeArrayReplace(xref->vmFile, xref->entries,
@@ -1366,7 +1288,7 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
         }
     }
 
-    /* flush any final partial batch left over after the last subsection */
+    /* Write the last partial batch */
     if (batchBuf && batchCount > 0)
     {
         HugeArrayReplace(xref->vmFile, xref->entries, batchCount, batchStart,
@@ -1418,12 +1340,7 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
     }
     ObjFree(&obj2);
 
-    /*
-     * Hybrid file: the cross-reference stream named by /XRefStm belongs to
-     * this section and is read before /Prev. Its own /Prev is ignored. A
-     * broken stream leaves the table usable (readers without stream support
-     * see the same).
-     */
+    /* Hybrid file: read /XRefStm before /Prev; an error keeps the table */
     DictLookupNF(getDict(&obj), "XRefStm", &obj2);
     stmPos = isInt(&obj2) ? getInt(&obj2) : -1;
     ObjFree(&obj2);
@@ -1441,7 +1358,6 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
     err1:
     ObjFree(&obj);
     err2:
-    /* The NULL guard makes shared err2 cleanup safe. */
     if (batchBuf)
     {
         if (batchCount > 0)
@@ -1457,25 +1373,22 @@ static GBool XRefReadXRef(XRef *xref, Stream *fs, long *pos, GBool isFirstSectio
 
 }
 
-/***********************************************************************
- *      XRefCheckEncrypted
- ***********************************************************************
- * SYNOPSIS:        Check whether the trailer declares encryption.
- * PARAMETERS:      XRef *xref    cross-reference table
+/********************************************************************
+ *                      XRefCheckEncrypted
+ ********************************************************************
+ * SYNOPSIS:      Check if the trailer has /Encrypt.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gTrue if the file is encrypted.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GBool XRefCheckEncrypted(XRef *xref)
 {
     Obj obj;
@@ -1488,26 +1401,23 @@ GBool XRefCheckEncrypted(XRef *xref)
     return encrypted;
 }
 
-/***********************************************************************
- *      ObjStreamGetCharCounted
- ***********************************************************************
- * SYNOPSIS:        Read a byte and update the consumed count.
- * PARAMETERS:      Obj *objP    obj p
- *                  long *consumed    consumed
+/********************************************************************
+ *                      ObjStreamGetCharCounted
+ ********************************************************************
+ * SYNOPSIS:      Read a byte from a stream object and count it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *objP                 Ptr to the stream object.
+ *                *consumed             Ptr to the byte count (in/out).
  *
- * CONTEXT:
+ * RETURNS:       int                   Byte, EOF at the end.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static int ObjStreamGetCharCounted(Obj *objP, long *consumed)
 {
     int c;
@@ -1520,30 +1430,29 @@ static int ObjStreamGetCharCounted(Obj *objP, long *consumed)
     return c;
 }
 
-/***********************************************************************
- *      XRefFetchFromObjStm
- ***********************************************************************
- * SYNOPSIS:        Fetch an object from an Object Stream.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  long objStmNum    obj stm num
- *                  long idxInStm    idx in stm
- *                  Obj *obj    object
+/********************************************************************
+ *                      XRefFetchFromObjStm
+ ********************************************************************
+ * SYNOPSIS:      Fetch an object from an object stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                objStmNum             Object number of the object stream.
+ *                idxInStm              Index of the object in the object
+ *                                      stream.
+ *                *obj                  Ptr to the object to fill; null on
+ *                                      error.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
-
- *      Read forward through decoded ObjStm data; compressed offsets
- *      cannot be used as raw file seeks. *
+ * STRATEGY:      The data is compressed: read forward through the decoded
+ *                stream. The offset table of the last object stream is cached
+ *                in a movable block.
+ *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
 {
@@ -1560,11 +1469,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     Stream *subStr;
     GBool cacheHit;
 
-    /*
-     * The last ObjStm header is cached in the XRef (its objects share one
-     * offset table): freed with the document, never valid for another one.
-     * Large tables are not cached (heap budget, H1).
-     */
+    /* One cached object stream header per document; large ones are not */
 
     XRefFetch(xref, objStmNum, 0, &objStmObj);
     if (!isStream(&objStmObj))
@@ -1601,10 +1506,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
 
     if (cacheHit)
     {
-        /*
-         * Same ObjStm as last time, with a matching element count -- already
-         * know every pair's offset from the cache.
-         */
+        /* Same object stream as last time: offsets from the cache */
         offsetsP = MemLock(xref->objStmPairOffsetsH);
         EC_ERROR_IF(offsetsP == NULL, -1);
         targetOffset = offsetsP[idxInStm];
@@ -1612,10 +1514,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     }
     else
     {
-        /*
-         * Cache miss : scan the header for real, same as always -- but also
-         * record every pair's offset into a freshly (re)allocated cache array.
-         */
+        /* Cache miss: scan the header and fill the cache */
         if (xref->objStmPairOffsetsH)
         {
             MemFree(xref->objStmPairOffsetsH);
@@ -1638,11 +1537,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
 
         for (i = 0; i < n; ++i)
         {
-            /*
-             * objNum of this pair -- not needed, we already know which object
-             * we want by its position (idxInStm), not by matching numbers, so
-             * just skip past it
-             */
+            /* Skip the object number: the index selects the object */
             c = ObjStreamGetCharCounted(&objStmObj, &consumed);
             while (c != EOF && isspace(c))
             {
@@ -1720,28 +1615,6 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     ObjFree(&objStmObj);
 }
 
-/***********************************************************************
- *      XRefFetch
- ***********************************************************************
- * SYNOPSIS:        Fetch an object by number and generation.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  long num    number
- *                  long gen    gen
- *                  Obj *obj    object
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 /*
  * Parser and scratch objects of XRefFetch. Kept on the heap: XRefFetch runs
  * at the deepest point of every object lookup, also inside nested Form
@@ -1753,6 +1626,28 @@ typedef struct XRefFetchFrame
     Obj obj1, obj2, obj3;
 } XRefFetchFrame;
 
+/********************************************************************
+ *                      XRefFetch
+ ********************************************************************
+ * SYNOPSIS:      Fetch an object by its number and generation.
+ *
+ * PARAMETERS:    *xref                 Ptr to the cross-reference table.
+ *                num                   Object number.
+ *                gen                   Generation number.
+ *                *obj                  Ptr to the object to fill; null if the
+ *                                      object is not found.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Parser and scratch objects are on the heap (XRefFetchFrame):
+ *                XRefFetch runs at the deepest point of every lookup. Objects
+ *                of encrypted files are decrypted by their parser.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
 {
     XRefEntry *e;
@@ -1773,10 +1668,7 @@ void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
         return ;
     }
 
-    /*
-     * lock down just this one entry -- XRefFetchFromObjStm below recurses back
-     * into XRefFetch , which locks its own entry independently.
-     */
+    /* Lock only this entry: XRefFetchFromObjStm calls XRefFetch again */
 
     HugeArrayLock(xref->vmFile, xref->entries, num, (void **) & e, &entrySize);
     entryType = e->type;
@@ -1813,10 +1705,7 @@ void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
         FStreamInit(fs2, xref->fHan, xref->start + entryOffset, -1, &f->obj1);
         LexerInitFromStream(lexer, fs2, xref);
         ParserInit(&f->parser, lexer);
-        /*
-         * See crypt.goh/ParserInit's comment for why every other Parser must
-         * stay noCrypt.
-         */
+        /* Only this parser decrypts (see ParserInit) */
         f->parser.cryptNum = num;
         f->parser.cryptGen = gen;
         f->parser.noCrypt = !xref->encrypted;
@@ -1847,75 +1736,16 @@ void XRefFetch(XRef *xref, long num, long gen, Obj *obj)
     }
 }
 
-/***********************************************************************
- *      XRefGetDocInfo
- ***********************************************************************
- * SYNOPSIS:        Fetch the trailer Info dictionary.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Obj *obj    object
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 void XRefGetDocInfo(XRef *xref, Obj *obj)
 {
 
     ObjDictLookup(&xref->trailerDict, "Info", obj, xref);
 }
 
-/***********************************************************************
- *      XRefIsOk
- ***********************************************************************
- * SYNOPSIS:        Return the cross-reference validity flag.
- * PARAMETERS:      XRef *xref    cross-reference table
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 GBool XRefIsOk(XRef *xref)
 {
     return xref->ok;
 }
-
-/***********************************************************************
- *      XRefGetCatalog
- ***********************************************************************
- * SYNOPSIS:        Fetch the root catalog object.
- * PARAMETERS:      XRef *xref    cross-reference table
- *                  Obj *obj    object
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 void XRefGetCatalog(XRef *xref, Obj *obj)
 {
@@ -1923,45 +1753,11 @@ void XRefGetCatalog(XRef *xref, Obj *obj)
     XRefFetch(xref, xref->rootNum, xref->rootGen, obj);
 }
 
-/***********************************************************************
- *      XRefOkToPrint
- ***********************************************************************
- * SYNOPSIS:        Check whether printing is allowed.
- * PARAMETERS:      XRef *xref    cross-reference table
- *
- * RETURNS:         gTrue unless /P of an encrypted file clears bit 3
- *                  and the owner password was not given
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *  JK      11/23/26    Evaluate /P
- *
- ***********************************************************************/
-
 GBool XRefOkToPrint(XRef *xref)
 {
     return !xref->encrypted || xref->ownerAccess ||
         (xref->permissions & 0x0004L) != 0;
 }
-
-/***********************************************************************
- *      XRefOkToCopy
- ***********************************************************************
- * SYNOPSIS:        Check whether copying is allowed.
- * PARAMETERS:      XRef *xref    cross-reference table
- *
- * RETURNS:         gTrue unless /P of an encrypted file clears bit 5
- *                  and the owner password was not given
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *  JK      11/23/26    Evaluate /P
- *
- ***********************************************************************/
 
 GBool XRefOkToCopy(XRef *xref)
 {

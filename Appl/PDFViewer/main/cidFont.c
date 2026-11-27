@@ -62,7 +62,6 @@
 #pragma code_seg("CIDFont")
 #endif
 
-
 /* Upper limits of the tables (both fit into one 64 KB block). */
 #define CID_MAX_ENTRIES 10000
 #define CID_MAX_RANGES  10000
@@ -78,9 +77,7 @@
 #define UNI_FFI 0xFB03
 #define UNI_FFL 0xFB04
 
-/***********************************************************************
- *      Growable record vector (movable block, locked while building)
- ***********************************************************************/
+/* Growable record vector in a movable block, locked while it is built */
 
 typedef struct
 {
@@ -92,6 +89,24 @@ typedef struct
     word maxCount;
 } CidVec;
 
+/********************************************************************
+ *                      CidVecInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an empty record vector.
+ *
+ * PARAMETERS:    *v                    Ptr to the vector.
+ *                recSize               Record size in bytes.
+ *                maxCount              Maximum number of records.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidVecInit(CidVec *v, word recSize, word maxCount)
 {
     v->han = NullHandle;
@@ -101,7 +116,25 @@ static void CidVecInit(CidVec *v, word recSize, word maxCount)
     v->maxCount = maxCount;
 }
 
-/* RETURNS: pointer to the new (uninitialized) record, NULL if full/OOM */
+/********************************************************************
+ *                      CidVecAppend
+ ********************************************************************
+ * SYNOPSIS:      Append a record to the vector.
+ *
+ * PARAMETERS:    *v                    Ptr to the vector.
+ *
+ * RETURNS:       void *                Ptr to the new record (not initialized),
+ *                                      NULL if the vector is full or there is
+ *                                      no memory.
+ *
+ * STRATEGY:      The block grows by CID_GROW_STEP records and stays locked
+ *                while the tables are built.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void *CidVecAppend(CidVec *v)
 {
     word newAlloc;
@@ -144,7 +177,23 @@ static void *CidVecAppend(CidVec *v)
     return v->data + (v->count++) * v->recSize;
 }
 
-/* Unlock and shrink to the used size; returns the handle (0 if empty). */
+/********************************************************************
+ *                      CidVecFinish
+ ********************************************************************
+ * SYNOPSIS:      Unlock the vector and shrink it to the used size.
+ *
+ * PARAMETERS:    *v                    Ptr to the vector.
+ *
+ * RETURNS:       MemHandle             Handle of the block, 0 if the vector is
+ *                                      empty.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static MemHandle CidVecFinish(CidVec *v)
 {
     if (v->han == NullHandle)
@@ -165,6 +214,22 @@ static MemHandle CidVecFinish(CidVec *v)
     return v->han;
 }
 
+/********************************************************************
+ *                      CidVecFree
+ ********************************************************************
+ * SYNOPSIS:      Free the block of the vector.
+ *
+ * PARAMETERS:    *v                    Ptr to the vector.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidVecFree(CidVec *v)
 {
     if (v->han != NullHandle)
@@ -177,9 +242,7 @@ static void CidVecFree(CidVec *v)
     v->count = 0;
 }
 
-/***********************************************************************
- *      Builder state
- ***********************************************************************/
+/* State while the CID tables are built */
 
 typedef struct
 {
@@ -187,6 +250,24 @@ typedef struct
     CidVec ranges;              /* GfxCidRange */
 } CidBuilder;
 
+/********************************************************************
+ *                      CidAddWidth
+ ********************************************************************
+ * SYNOPSIS:      Add a width record for a CID.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                cid                   CID.
+ *                width                 Width (1/1000 em).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidAddWidth(CidBuilder *b, word cid, word width)
 {
     GfxCidEntry *e = CidVecAppend(&b->entries);
@@ -200,6 +281,24 @@ static void CidAddWidth(CidBuilder *b, word cid, word width)
     }
 }
 
+/********************************************************************
+ *                      CidAddChar
+ ********************************************************************
+ * SYNOPSIS:      Add a char record for a CID.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                cid                   CID.
+ *                ch                    GEOS char; 0 adds nothing.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidAddChar(CidBuilder *b, word cid, byte ch)
 {
     GfxCidEntry *e;
@@ -218,6 +317,25 @@ static void CidAddChar(CidBuilder *b, word cid, byte ch)
     }
 }
 
+/********************************************************************
+ *                      CidAddRange
+ ********************************************************************
+ * SYNOPSIS:      Add a "cFirst cLast w" width range.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                first                 First CID.
+ *                last                  Last CID.
+ *                width                 Width (1/1000 em).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidAddRange(CidBuilder *b, word first, word last, word width)
 {
     GfxCidRange *r = CidVecAppend(&b->ranges);
@@ -230,10 +348,22 @@ static void CidAddRange(CidBuilder *b, word first, word last, word width)
     }
 }
 
-/***********************************************************************
- *      Unicode -> GEOS char
- ***********************************************************************/
-
+/********************************************************************
+ *                      CidLigatureFromUnicode
+ ********************************************************************
+ * SYNOPSIS:      Return the GEOS ligature char of a Unicode ligature.
+ *
+ * PARAMETERS:    u                     Unicode value.
+ *
+ * RETURNS:       byte                  C_xx_LIGATURE, 0 if u is not a ligature.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static byte CidLigatureFromUnicode(word u)
 {
     switch (u)
@@ -247,6 +377,23 @@ static byte CidLigatureFromUnicode(word u)
     return 0;
 }
 
+/********************************************************************
+ *                      CidUnicodeToChar
+ ********************************************************************
+ * SYNOPSIS:      Return the GEOS char of a Unicode value.
+ *
+ * PARAMETERS:    u                     Unicode value.
+ *
+ * RETURNS:       byte                  GEOS char or ligature, 0 if there is
+ *                                      none.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static byte CidUnicodeToChar(word u)
 {
     byte ch = CidLigatureFromUnicode(u);
@@ -258,11 +405,24 @@ static byte CidUnicodeToChar(word u)
     return ch;
 }
 
-/*
- * A ToUnicode destination: UTF-16BE, one or more chars. Single chars
- * map directly; "ff", "fi", "fl", "ffi", "ffl" become ligature codes;
- * other sequences use their first char.
- */
+/********************************************************************
+ *                      CidSeqToChar
+ ********************************************************************
+ * SYNOPSIS:      Return the GEOS char of a /ToUnicode destination.
+ *
+ * PARAMETERS:    *p                    Ptr to the UTF-16BE destination.
+ *                len                   Length in bytes.
+ *
+ * RETURNS:       byte                  GEOS char, 0 if there is none.
+ *
+ * STRATEGY:      "ff", "fi", "fl", "ffi", "ffl" become ligature chars; other
+ *                sequences use their first char.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static byte CidSeqToChar(const Guchar *p, word len)
 {
     word u[3];
@@ -295,8 +455,25 @@ static byte CidSeqToChar(const Guchar *p, word len)
     return CidUnicodeToChar(u[0]);
 }
 
-/* GEOS char (or ligature) for index i, 0 <= i < CID_ALL_CHARS */
 #define CID_ALL_CHARS (256 + 5)
+/********************************************************************
+ *                      CidIndexToUnicode
+ ********************************************************************
+ * SYNOPSIS:      Return the Unicode value of GEOS char index i.
+ *
+ * PARAMETERS:    i                     Index: 0-255 GEOS chars, 256-260
+ *                                      ligatures (CID_ALL_CHARS).
+ *                *ch                   Ptr to the GEOS char (out).
+ *
+ * RETURNS:       word                  Unicode value, 0 for control codes.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static word CidIndexToUnicode(word i, byte *ch)
 {
     static const word ligUni[5] = {UNI_FF, UNI_FI, UNI_FL, UNI_FFI, UNI_FFL};
@@ -310,10 +487,25 @@ static word CidIndexToUnicode(word i, byte *ch)
     return ligUni[i - 256];
 }
 
-/***********************************************************************
- *      /W
- ***********************************************************************/
-
+/********************************************************************
+ *                      CidReadWidths
+ ********************************************************************
+ * SYNOPSIS:      Read the /W widths of a CID font.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                *desc                 Ptr to the descendant font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Both forms: "c [w1 w2 ...]" gives width records, "cFirst cLast
+ *                w" gives a range.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidReadWidths(CidBuilder *b, Dict *desc, XRef *xref)
 {
     Obj wObj, aObj, bObj, cObj;
@@ -380,11 +572,22 @@ static void CidReadWidths(CidBuilder *b, Dict *desc, XRef *xref)
     ObjFree(&wObj);
 }
 
-/***********************************************************************
- *      /ToUnicode
- ***********************************************************************/
-
-/* 1 or 2 byte source code of a 2 byte (Identity) codespace -> CID */
+/********************************************************************
+ *                      CidStringToCode
+ ********************************************************************
+ * SYNOPSIS:      Return the code of a CMap source string.
+ *
+ * PARAMETERS:    *obj                  Ptr to the string object (1 or 2 bytes).
+ *
+ * RETURNS:       long                  Code, -1 for other lengths.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static long CidStringToCode(Obj *obj)
 {
     GooString *str = getString(obj);
@@ -402,6 +605,24 @@ static long CidStringToCode(Obj *obj)
     return -1;
 }
 
+/********************************************************************
+ *                      CidParseBfChar
+ ********************************************************************
+ * SYNOPSIS:      Read the entries of a bfchar section.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                *parser               Ptr to the parser after "beginbfchar".
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The destination is a UTF-16BE string or, in old CMaps, a glyph
+ *                name.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidParseBfChar(CidBuilder *b, Parser *parser)
 {
     Obj codeObj, dstObj;
@@ -437,12 +658,30 @@ static void CidParseBfChar(CidBuilder *b, Parser *parser)
     ObjFree(&codeObj);
 }
 
-/*
- * <lo> <hi> <dst>: dst is the first destination, the last char is
- * incremented per code. For a single char only the codes whose value
- * is a GEOS char matter, so walk the GEOS chars instead of the range
- * (an <0000> <FFFF> <0000> range would be 64K lookups otherwise).
- */
+/********************************************************************
+ *                      CidMapContiguous
+ ********************************************************************
+ * SYNOPSIS:      Map a bfrange with one destination string.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                lo                    First code.
+ *                hi                    Last code.
+ *                *dst                  Ptr to the destination of the first
+ *                                      code.
+ *                dstLen                Length of dst in bytes.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The last char of dst counts up per code. For one char only
+ *                codes whose value is a GEOS char matter: walk the GEOS chars,
+ *                not the range (<0000> <FFFF> would be 64K steps). Multi-char
+ *                ranges are cut at CID_MAX_SEQ_RANGE.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidMapContiguous(CidBuilder *b, word lo, word hi, Guchar *dst,
     word dstLen)
 {
@@ -453,6 +692,7 @@ static void CidMapContiguous(CidBuilder *b, word lo, word hi, Guchar *dst,
     if (dstLen == 2)
     {
         base = ((word)dst[0] << 8) | dst[1];
+        /* Walk the GEOS chars, not the range */
         for (i = 0; i < CID_ALL_CHARS; ++i)
         {
             u = CidIndexToUnicode(i, &ch);
@@ -465,6 +705,7 @@ static void CidMapContiguous(CidBuilder *b, word lo, word hi, Guchar *dst,
     else if (dstLen >= 4 && dstLen <= 6)
     {
         memcpy(seq, dst, dstLen);
+        /* Multi-char destination: the last byte counts up */
         for (k = 0; k <= hi - lo && k < CID_MAX_SEQ_RANGE; ++k)
         {
             CidAddChar(b, lo + k, CidSeqToChar(seq, dstLen));
@@ -476,6 +717,25 @@ static void CidMapContiguous(CidBuilder *b, word lo, word hi, Guchar *dst,
     }
 }
 
+/********************************************************************
+ *                      CidParseBfRange
+ ********************************************************************
+ * SYNOPSIS:      Read the entries of a bfrange section.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                *parser               Ptr to the parser after "beginbfrange".
+ *                *xref                 Ptr to the cross-reference table.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The destination is one string (counts up) or an array of
+ *                strings.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidParseBfRange(CidBuilder *b, Parser *parser, XRef *xref)
 {
     Obj loObj, hiObj, dstObj, elemObj;
@@ -535,6 +795,25 @@ static void CidParseBfRange(CidBuilder *b, Parser *parser, XRef *xref)
     ObjFree(&loObj);
 }
 
+/********************************************************************
+ *                      CidReadToUnicode
+ ********************************************************************
+ * SYNOPSIS:      Read the /ToUnicode CMap of a CID font.
+ *
+ * PARAMETERS:    *b                    Ptr to the table builder.
+ *                *fontDict             Ptr to the Type0 font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Parse the CMap with the normal PDF parser and read only the
+ *                bfchar and bfrange sections.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidReadToUnicode(CidBuilder *b, Dict *fontDict, XRef *xref)
 {
     Obj streamObj, tokObj;
@@ -589,11 +868,24 @@ static void CidReadToUnicode(CidBuilder *b, Dict *fontDict, XRef *xref)
     ParserFree(&parser);
 }
 
-/***********************************************************************
- *      Sorting / merging
- ***********************************************************************/
-
-/* Shell sort by first word (cid / first); records of recSize bytes. */
+/********************************************************************
+ *                      CidSortByFirstWord
+ ********************************************************************
+ * SYNOPSIS:      Sort records by their first word (CID or first CID).
+ *
+ * PARAMETERS:    *data                 Ptr to the records.
+ *                count                 Number of records.
+ *                recSize               Record size in bytes.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Shell sort: small code, no recursion.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidSortByFirstWord(byte *data, word count, word recSize)
 {
     word gap, i, j;
@@ -617,10 +909,22 @@ static void CidSortByFirstWord(byte *data, word count, word recSize)
     }
 }
 
-/*
- * Sort the entries by CID and merge the width and char records of a
- * CID into one (the first width and the first char win).
- */
+/********************************************************************
+ *                      CidMergeEntries
+ ********************************************************************
+ * SYNOPSIS:      Sort the CID entries and merge the records of each CID.
+ *
+ * PARAMETERS:    *v                    Ptr to the entry vector.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The first width and the first char of a CID win.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CidMergeEntries(CidVec *v)
 {
     GfxCidEntry *e = (GfxCidEntry *)v->data;
@@ -657,14 +961,26 @@ static void CidMergeEntries(CidVec *v)
     v->count = out + 1;
 }
 
-/***********************************************************************
- *      GfxCidFontInit
- ***********************************************************************
- * SYNOPSIS:        Set up a Type0 font.
- * PARAMETERS:      GfxFont *this    font (strings, flags initialized)
- *                  Dict *fontDict   the Type0 font dictionary
- *                  XRef *xref
- ***********************************************************************/
+/********************************************************************
+ *                      GfxCidFontInit
+ ********************************************************************
+ * SYNOPSIS:      Set up a Type0 font (Identity-H only).
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *fontDict             Ptr to the Type0 font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Read /DW, the flags of the descendant font descriptor, /W and
+ *                /ToUnicode into the CID tables. Other encodings are not
+ *                supported: the text is not drawn.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxCidFontInit(GfxFont *this, Dict *fontDict, XRef *xref)
 {
     Obj encObj, descArr, descObj, fdObj, obj;
@@ -707,10 +1023,7 @@ void GfxCidFontInit(GfxFont *this, Dict *fontDict, XRef *xref)
     }
     ObjFree(&obj);
 
-    /*
-     * Substitute font: the descendant's FontDescriptor holds the flags,
-     * the name mapping (same as for simple fonts) has the last word.
-     */
+    /* Substitute font: flags of the descendant, then the name mapping */
     DictLookup(desc, "FontDescriptor", &fdObj, xref);
     if (isDict(&fdObj))
     {
@@ -751,9 +1064,22 @@ void GfxCidFontInit(GfxFont *this, Dict *fontDict, XRef *xref)
     ObjFree(&descObj);
 }
 
-/***********************************************************************
- *      GfxCidFontFree
- ***********************************************************************/
+/********************************************************************
+ *                      GfxCidFontFree
+ ********************************************************************
+ * SYNOPSIS:      Free the CID tables of a font.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxCidFontFree(GfxFont *this)
 {
     if (this->cidMap)
@@ -769,9 +1095,23 @@ void GfxCidFontFree(GfxFont *this)
     this->cidCount = this->cidRangeCount = 0;
 }
 
-/***********************************************************************
- *      GfxCidFontLock / GfxCidFontUnlock
- ***********************************************************************/
+/********************************************************************
+ *                      GfxCidFontLock
+ ********************************************************************
+ * SYNOPSIS:      Lock the CID tables for drawing a string.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *lock                 Ptr to the lock data (out).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxCidFontLock(GfxFont *this, GfxCidLock *lock)
 {
     lock->entries = this->cidMap ? MemLock(this->cidMap) : NULL;
@@ -781,6 +1121,22 @@ void GfxCidFontLock(GfxFont *this, GfxCidLock *lock)
     lock->defaultWidth = this->cidDefaultWidth;
 }
 
+/********************************************************************
+ *                      GfxCidFontUnlock
+ ********************************************************************
+ * SYNOPSIS:      Unlock the CID tables.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxCidFontUnlock(GfxFont *this)
 {
     if (this->cidMap)
@@ -793,20 +1149,33 @@ void GfxCidFontUnlock(GfxFont *this)
     }
 }
 
-/***********************************************************************
- *      GfxCidFontLookup
- ***********************************************************************
- * SYNOPSIS:        Width and GEOS char of a CID.
- * STRATEGY:        Binary search in the entries; a width not given per
- *                  CID comes from the last range containing the CID
- *                  (ranges sorted by first CID), else /DW.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxCidFontLookup
+ ********************************************************************
+ * SYNOPSIS:      Return the width and the GEOS char of a CID.
+ *
+ * PARAMETERS:    *lock                 Ptr to the locked tables.
+ *                cid                   CID.
+ *                *width                Ptr to the width (out).
+ *                *ch                   Ptr to the GEOS char (out), 0 if there
+ *                                      is none.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Binary search in the entries, then in the ranges, else /DW.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxCidFontLookup(GfxCidLock *lock, word cid, word *width, byte *ch)
 {
     word lo, hi, mid;
     GfxCidEntry *e = NULL;
 
     *ch = 0;
+    /* Binary search for the CID in the entries */
     lo = 0;
     hi = lock->entryCount;
     while (lo < hi)
