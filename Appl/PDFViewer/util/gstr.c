@@ -23,8 +23,8 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
- *      Port of Derek Noonburg's "GString" class from xpdf 0.8.
- *      Simple variable-length string type.
+ *      Port of Derek Noonburg's "GString" class from xpdf 0.8:
+ *      a simple variable-length string.
  ***********************************************************************/
 
 #ifdef __GNUC__
@@ -38,30 +38,23 @@
 
 static char gEmptyString[] = "";
 
-/*
- * GooString
- */
-
-/***********************************************************************
- *      GStrRoundSize
- ***********************************************************************
- * SYNOPSIS:        Round a string length up to the allocation size.
- * PARAMETERS:      long len    length
+/********************************************************************
+ *                      GStrRoundSize
+ ********************************************************************
+ * SYNOPSIS:      Return the buffer size for a string length.
  *
- * RETURNS:         result value
+ * PARAMETERS:    len                   String length without the NUL.
  *
- * CONTEXT:
+ * RETURNS:       long                  len + 1, rounded up to 8 bytes (short
+ *                                      strings) or 256 bytes.
  *
- * STRATEGY:
- *      Round len+1 up to the next multiple of 8 for short strings
- *      (<256), or 256 for longer ones, via a bitmask on the...
+ * STRATEGY:      Rounding avoids a grealloc() for each appended character.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static long GStrRoundSize(long len)
 {
     long delta;
@@ -70,26 +63,24 @@ static long GStrRoundSize(long len)
     return((len + 1) + delta) & ~delta;
 }
 
-/***********************************************************************
- *      resize
- ***********************************************************************
- * SYNOPSIS:        Process resize.
- * PARAMETERS:      GooString *gstr    string
- *                  long length1    length1
+/********************************************************************
+ *                      resize
+ ********************************************************************
+ * SYNOPSIS:      Make the buffer large enough for a new length.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *gstr                 Ptr to the string.
+ *                length1               New string length.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if there is no memory; the old
+ *                                      buffer stays.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 static GBool resize(GooString *gstr, long length1)
 {
     char *newString;
@@ -114,26 +105,22 @@ static GBool resize(GooString *gstr, long length1)
     return gTrue;
 }
 
-/***********************************************************************
- *      GStrInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      GooString *gstr    string
+/********************************************************************
+ *                      GStrInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an empty string.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Allocate the minimum block via resize() and write a leading NUL.
- *      On allocation failure, gstr is left with s == NULL...
+ * STRATEGY:      Out of memory: s stays NULL; GStrGetCString() then returns "".
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrInit(GooString *gstr)
 {
     gstr->s = NULL;
@@ -144,27 +131,23 @@ void GStrInit(GooString *gstr)
     gstr->s[0] = '\0';
 }
 
-/***********************************************************************
- *      GStrInitString
- ***********************************************************************
- * SYNOPSIS:        Initialize string.
- * PARAMETERS:      GooString *gstr    string
- *                  char *s1    s1
+/********************************************************************
+ *                      GStrInitString
+ ********************************************************************
+ * SYNOPSIS:      Initialize a string with a copy of a C string.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
+ *                *s1                   Ptr to the C string.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Measure s1, allocate via resize(), then copy including the NUL.
- *      On allocation failure, gstr->length is reset to 0.
+ * STRATEGY:      Out of memory: the length is 0.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrInitString(GooString *gstr, char *s1)
 {
     long n = strlen(s1);
@@ -178,27 +161,23 @@ void GStrInitString(GooString *gstr, char *s1)
     memcpy(gstr->s, s1, n + 1);
 }
 
-/***********************************************************************
- *      GStrInitGS
- ***********************************************************************
- * SYNOPSIS:        Initialize gs.
- * PARAMETERS:      GooString *gstr    string
- *                  GooString *str    string
+/********************************************************************
+ *                      GStrInitGS
+ ********************************************************************
+ * SYNOPSIS:      Initialize a string with a copy of a string.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
+ *                *str                  Ptr to the string to copy.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Allocate via resize() to str's length, then copy including the
- *      NUL. On allocation failure, gstr->length is reset to 0.
+ * STRATEGY:      Out of memory: the length is 0.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrInitGS(GooString *gstr, GooString *str)
 {
     gstr->s = NULL;
@@ -210,24 +189,22 @@ void GStrInitGS(GooString *gstr, GooString *str)
     memcpy(gstr->s, GStrGetCString(str), gstr->length + 1);
 }
 
-/***********************************************************************
- *      GStrFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      GooString *gstr    string
+/********************************************************************
+ *                      GStrFree
+ ********************************************************************
+ * SYNOPSIS:      Free the buffer of a string.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrFree(GooString *gstr)
 {
     gfree(gstr->s);
@@ -235,27 +212,23 @@ void GStrFree(GooString *gstr)
     gstr->length = 0;
 }
 
-/***********************************************************************
- *      GStrAppendChar
- ***********************************************************************
- * SYNOPSIS:        Append char.
- * PARAMETERS:      GooString *gstr    string
- *                  char c    c
+/********************************************************************
+ *                      GStrAppendChar
+ ********************************************************************
+ * SYNOPSIS:      Append one character.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
+ *                c                     Character.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Grow via resize() if needed, then write c and a new terminating
- *      NUL.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrAppendChar(GooString *gstr, char c)
 {
     if (!resize(gstr, gstr->length + 1))
@@ -266,26 +239,23 @@ void GStrAppendChar(GooString *gstr, char c)
     gstr->s[gstr->length] = '\0';
 }
 
-/***********************************************************************
- *      GStrAppendString
- ***********************************************************************
- * SYNOPSIS:        Append string.
- * PARAMETERS:      GooString *gstr    string
- *                  char *str    string
+/********************************************************************
+ *                      GStrAppendString
+ ********************************************************************
+ * SYNOPSIS:      Append a C string.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
+ *                *str                  Ptr to the C string.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Grow via resize() if needed, then copy str including its NUL.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrAppendString(GooString *gstr, char *str)
 {
     long n = strlen(str);
@@ -298,28 +268,24 @@ void GStrAppendString(GooString *gstr, char *str)
     gstr->length += n;
 }
 
-/***********************************************************************
- *      GStrAppendStringN
- ***********************************************************************
- * SYNOPSIS:        Append string n.
- * PARAMETERS:      GooString *gstr    string
- *                  char *str    string
- *                  long length1    length1
+/********************************************************************
+ *                      GStrAppendStringN
+ ********************************************************************
+ * SYNOPSIS:      Append bytes that need not end with NUL.
  *
- * RETURNS:         void
+ * PARAMETERS:    *gstr                 Ptr to the string.
+ *                *str                  Ptr to the bytes.
+ *                length1               Number of bytes.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Grow via resize() if needed, copy exactly length1 bytes, then
- *      write a terminating NUL after them.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GStrAppendStringN(GooString *gstr, char *str, long length1)
 {
     if (!resize(gstr, gstr->length + length1))
@@ -331,47 +297,11 @@ void GStrAppendStringN(GooString *gstr, char *str, long length1)
     gstr->s[gstr->length] = '\0';
 }
 
-/***********************************************************************
- *      GStrGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      GooString *gstr    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 long GStrGetLength(GooString *gstr)
 {
     return gstr->length;
 }
 
-/***********************************************************************
- *      GStrGetCString
- ***********************************************************************
- * SYNOPSIS:        Get cstring.
- * PARAMETERS:      GooString *gstr    string
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 char *GStrGetCString(GooString *gstr)
 {
     return gstr->s ? gstr->s : gEmptyString;

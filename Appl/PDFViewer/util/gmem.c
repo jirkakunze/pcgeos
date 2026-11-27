@@ -57,75 +57,16 @@ static long gMemAlloc = 0;
 
 static GBool gMemOutOfMemory = gFalse;
 
-/*
- * GMem 
- */
-
-/***********************************************************************
- *      GMemClearError
- ***********************************************************************
- * SYNOPSIS:        Clear error.
- * PARAMETERS:      none
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Clear the flag directly.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GMemClearError(void)
 {
     gMemOutOfMemory = gFalse;
 }
 
-/***********************************************************************
- *      GMemHadError
- ***********************************************************************
- * SYNOPSIS:        Process gmem had error.
- * PARAMETERS:      none
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 GBool GMemHadError(void)
 {
     return gMemOutOfMemory;
 }
 
-/***********************************************************************
- *      GMemSetError
- ***********************************************************************
- * SYNOPSIS:        Set error.
- * PARAMETERS:      none
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GMemSetError(void)
 {
     gMemOutOfMemory = gTrue;
@@ -133,28 +74,25 @@ void GMemSetError(void)
 
 #define PDF_SIGNED_LONG_MAX 0x7fffffffL
 
-/***********************************************************************
- *      PdfCheckedAdd
- ***********************************************************************
- * SYNOPSIS:        Add.
- * PARAMETERS:      long a    a
- *                  long b    b
- *                  long *result    result
+/********************************************************************
+ *                      PdfCheckedAdd
+ ********************************************************************
+ * SYNOPSIS:      Add two non-negative longs with an overflow check.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    a                     First value.
+ *                b                     Second value.
+ *                *result               Ptr to the sum (out).
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if a value is negative or the sum
+ *                                      overflows.
  *
  * STRATEGY:
- *      Reject negatives, then check a > MAX - b before adding, which is
- *      overflow-safe since b is already known non-negative.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 GBool PdfCheckedAdd(long a, long b, long *result)
 {
     EC(ECCheckBounds(result));
@@ -168,28 +106,25 @@ GBool PdfCheckedAdd(long a, long b, long *result)
     return gTrue;
 }
 
-/***********************************************************************
- *      PdfCheckedMul
- ***********************************************************************
- * SYNOPSIS:        Process pdf checked mul.
- * PARAMETERS:      long a    a
- *                  long b    b
- *                  long *result    result
+/********************************************************************
+ *                      PdfCheckedMul
+ ********************************************************************
+ * SYNOPSIS:      Multiply two non-negative longs with an overflow check.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    a                     First value.
+ *                b                     Second value.
+ *                *result               Ptr to the product (out).
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if a value is negative or the
+ *                                      product overflows.
  *
  * STRATEGY:
- *      Reject negatives, then check b > MAX / a before multiplying (a
- *      == 0 skips the check since 0 * b never overflows);...
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 GBool PdfCheckedMul(long a, long b, long *result)
 {
     EC(ECCheckBounds(result));
@@ -203,26 +138,26 @@ GBool PdfCheckedMul(long a, long b, long *result)
     return gTrue;
 }
 
-/***********************************************************************
- *      gmalloc
- ***********************************************************************
- * SYNOPSIS:        Process gmalloc.
- * PARAMETERS:      long size    size
+/********************************************************************
+ *                      gmalloc
+ ********************************************************************
+ * SYNOPSIS:      Allocate fixed memory and set the out-of-memory flag on
+ *                failure.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    size                  Size in bytes.
  *
- * CONTEXT:
+ * RETURNS:       void *                Ptr to the block, NULL on failure or for
+ *                                      size 0.
  *
- * STRATEGY:
- *      Plain build: malloc() directly, setting the sticky error flag on
- *      failure. DEBUG_MEM build: wraps the block in a...
+ * STRATEGY:      malloc() memory is fixed in the GEOS heap: use it only for
+ *                small or short-lived data. DEBUG_MEM: header and trailer for
+ *                checks.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void *gmalloc(long size)
 {
 #ifdef DEBUG_MEM
@@ -251,6 +186,7 @@ void *gmalloc(long size)
     hdr->next = gMemList;
     gMemList = hdr;
     ++gMemAlloc;
+    /* Fill data and trailer with a pattern to find overruns */
     for (p = (long *)data; p <= trl; ++p)
     {
         *p = gMemDeadVal;
@@ -273,27 +209,24 @@ void *gmalloc(long size)
 #endif
 }
 
-/***********************************************************************
- *      grealloc
- ***********************************************************************
- * SYNOPSIS:        Process grealloc.
- * PARAMETERS:      void *p    pointer
- *                  long size    size
+/********************************************************************
+ *                      grealloc
+ ********************************************************************
+ * SYNOPSIS:      Resize a block and set the out-of-memory flag on failure.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *p                    Ptr to the block, NULL for a new block.
+ *                size                  New size in bytes; 0 frees the block.
  *
- * CONTEXT:
+ * RETURNS:       void *                Ptr to the block, NULL on failure (the
+ *                                      old block stays valid).
  *
  * STRATEGY:
- *      Plain build: realloc() directly (malloc() if p is NULL), setting
- *      the sticky error flag on failure. DEBUG_MEM build:...
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void *grealloc(void *p, long size)
 {
 #ifdef DEBUG_MEM
@@ -347,26 +280,22 @@ void *grealloc(void *p, long size)
 #endif
 }
 
-/***********************************************************************
- *      gfree
- ***********************************************************************
- * SYNOPSIS:        Process gfree.
- * PARAMETERS:      void *p    pointer
+/********************************************************************
+ *                      gfree
+ ********************************************************************
+ * SYNOPSIS:      Free a block of gmalloc() or grealloc().
  *
- * RETURNS:         void
+ * PARAMETERS:    *p                    Ptr to the block or NULL.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Plain build: free() directly, NULL-tolerant. DEBUG_MEM build:
- *      unlinks the block from gMemList, checks its trailer...
+ * STRATEGY:      DEBUG_MEM: check the trailer and the block list.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void gfree(void *p)
 {
 #ifdef DEBUG_MEM
@@ -400,9 +329,10 @@ void gfree(void *p)
             trl = (long *)((char *)hdr + gMemHdrSize + size);
             if (*trl != gMemDeadVal)
             {
-                /* overwrite past end of block */
+                /* Block overrun: the trailer is changed */
                 EC_WARNING(-1);
             }
+            /* Destroy the block to find use after free */
             for (clr = (long *)hdr; clr <= trl; ++clr)
             {
                 *clr = gMemDeadVal;
@@ -411,7 +341,7 @@ void gfree(void *p)
         }
         else
         {
-            /* attempted to free a bad address */
+            /* Not a gmalloc() block */
             EC_WARNING(-1);
         }
     }
@@ -423,25 +353,23 @@ void gfree(void *p)
 #endif
 }
 
-/***********************************************************************
- *      copyString
- ***********************************************************************
- * SYNOPSIS:        Copy string.
- * PARAMETERS:      char *s    s
+/********************************************************************
+ *                      copyString
+ ********************************************************************
+ * SYNOPSIS:      Copy a string into gmalloc() memory.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *s                    Ptr to the string.
  *
- * CONTEXT:
+ * RETURNS:       char *                Ptr to the copy, NULL if there is no
+ *                                      memory.
  *
  * STRATEGY:
- *      gmalloc() strlen(s)+1 bytes, then strcpy().
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 char *copyString(char *s)
 {
     char *s1;

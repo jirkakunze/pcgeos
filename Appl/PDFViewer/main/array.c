@@ -36,32 +36,24 @@
 #include "gmem.h"
 #include "obj.h"
 
-/*
- * Array
- */
-
 #define ARRAY_MAX_ELEMS ((word)(65535L / (long)sizeof(Obj)))
 
-/***********************************************************************
- *      ArrayInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Array *arr    array
+/********************************************************************
+ *                      ArrayInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an empty array with reference count 1.
  *
- * RETURNS:         void
+ * PARAMETERS:    *arr                  Ptr to the array.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Clear the element pointer and size/length counters, and set the
- *      reference count to 1.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void ArrayInit(Array *arr)
 {
     arr->elems = NULL;
@@ -69,24 +61,22 @@ void ArrayInit(Array *arr)
     arr->ref = 1;
 }
 
-/***********************************************************************
- *      ArrayFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Array *arr    array
+/********************************************************************
+ *                      ArrayFree
+ ********************************************************************
+ * SYNOPSIS:      Free all elements and the element storage.
  *
- * RETURNS:         void
+ * PARAMETERS:    *arr                  Ptr to the array.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void ArrayFree(Array *arr)
 {
     word i;
@@ -98,27 +88,25 @@ void ArrayFree(Array *arr)
     gfree(arr->elems);
 }
 
-/***********************************************************************
- *      ArrayAdd
- ***********************************************************************
- * SYNOPSIS:        Add.
- * PARAMETERS:      Array *arr    array
- *                  Obj *elem    elem
+/********************************************************************
+ *                      ArrayAdd
+ ********************************************************************
+ * SYNOPSIS:      Append a copy of an object to the array.
  *
- * RETURNS:         void
+ * PARAMETERS:    *arr                  Ptr to the array.
+ *                *elem                 Ptr to the object to copy.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Grow the backing storage by 50% (minimum 8, capped at
- *      ARRAY_MAX_ELEMS) via grealloc() if the array is full, then...
+ * STRATEGY:      Grow the storage by 50 %, at least 8 and at most
+ *                ARRAY_MAX_ELEMS elements. Out of memory: the array does not
+ *                change and GMemHadError() is set.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void ArrayAdd(Array *arr, Obj *elem)
 {
     word growBy;
@@ -127,12 +115,14 @@ void ArrayAdd(Array *arr, Obj *elem)
 
     if (arr->length >= arr->size)
     {
+        /* All elements must fit into one 64 KB block */
         if (arr->size >= ARRAY_MAX_ELEMS)
         {
             GMemSetError();
             return;
         }
 
+        /* Grow by 50 %, but at least by 8 elements */
         growBy = arr->size >> 1;
         if (growBy < 8)
         {
@@ -155,6 +145,7 @@ void ArrayAdd(Array *arr, Obj *elem)
         arr->size = newSize;
     }
 
+    /* Count the element only if its copy is complete */
     ObjCopy(&arr->elems[arr->length], elem);
     if (GMemHadError())
     {
@@ -164,76 +155,16 @@ void ArrayAdd(Array *arr, Obj *elem)
     ++arr->length;
 }
 
-/***********************************************************************
- *      ArrayGet
- ***********************************************************************
- * SYNOPSIS:        Get.
- * PARAMETERS:      Array *arr    array
- *                  word i    index
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Delegate to ObjFetch() on the stored element.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void ArrayGet(Array *arr, word i, Obj *obj, XRef *xref)
 {
     ObjFetch(obj, &arr->elems[i], xref);
 }
 
-/***********************************************************************
- *      ArrayGetNF
- ***********************************************************************
- * SYNOPSIS:        Get nf.
- * PARAMETERS:      Array *arr    array
- *                  word i    index
- *                  Obj *obj    object
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void ArrayGetNF(Array *arr, word i, Obj *obj)
 {
     ObjCopy(obj, &arr->elems[i]);
 }
 
-/***********************************************************************
- *      ArrayGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      Array *arr    array
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 word ArrayGetLength(Array *arr)
 {
     return arr->length;

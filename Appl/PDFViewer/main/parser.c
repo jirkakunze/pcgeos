@@ -46,59 +46,51 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict);
 static void ParserShift(Parser *parser);
 
 
-/***********************************************************************
- *      ParserInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Parser *parser    parser
- *                  Lexer *lexer1    lexer1
+/********************************************************************
+ *                      ParserInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a parser on a lexer and read the first two tokens.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser.
+ *                *lexer1               Ptr to the lexer. The parser owns it.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Decryption is off (noCrypt). XRefFetch turns it on for one
+ *                object of an encrypted file.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void ParserInit(Parser *parser, Lexer *lexer1)
 {
     parser->lexer = lexer1;
     parser->inlineImg = 0;
-    /*
-     * Only XRefFetch's classic path overrides this, right after ParserInit,
-     * once it knows that object's num/gen.
-     */
+    /* XRefFetch turns decryption on for one object */
     parser->noCrypt = gTrue;
     parser->cryptNum = parser->cryptGen = -1;
     LexerGetObj(parser->lexer, &parser->buf1);
     LexerGetObj(parser->lexer, &parser->buf2);
 }
 
-/***********************************************************************
- *      ParserFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Parser *parser    parser
+/********************************************************************
+ *                      ParserFree
+ ********************************************************************
+ * SYNOPSIS:      Free the lexer and the two token buffers.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void ParserFree(Parser *parser)
 {
 
@@ -115,24 +107,22 @@ void ParserFree(Parser *parser)
  */
 #define parserGetObjMaxDepth 20
 
-/***********************************************************************
- *      ParserSkipValue
- ***********************************************************************
- * SYNOPSIS:        Skip value.
- * PARAMETERS:      Parser *parser    parser
+/********************************************************************
+ *                      ParserSkipValue
+ ********************************************************************
+ * SYNOPSIS:      Skip one value, also a complete nested array or dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Count the brackets without making objects (no memory).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 static void ParserSkipValue(Parser *parser)
 {
     Obj *pbuf1 = &parser->buf1;
@@ -161,45 +151,25 @@ static void ParserSkipValue(Parser *parser)
     }
 }
 
-/***********************************************************************
- *      ParserGetObj
- ***********************************************************************
- * SYNOPSIS:        Get object.
- * PARAMETERS:      Parser *parser    parser
- *                  Obj *obj    object
+/********************************************************************
+ *                      ParserDecryptString
+ ********************************************************************
+ * SYNOPSIS:      Decrypt a string object in place with RC4.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser of an encrypted
+ *                                      object.
+ *                *obj                  Ptr to the string object.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
-/***********************************************************************
- *      ParserDecryptString
- ***********************************************************************
- * SYNOPSIS:        Decrypt a string of an encrypted file in place (RC4).
- * PARAMETERS:      Parser *parser    parser of an object XRefFetch
- *                                    flagged via cryptNum/cryptGen
- *                  Obj *obj    string object
- *
- * STRATEGY:        Strings use the same per-object key as streams
- *                  (ISO 32000 7.6.2). Objects inside object streams are
- *                  never decrypted separately (their parser is noCrypt).
+ * STRATEGY:      Strings use the same object key as streams (ISO 32000 7.6.2).
+ *                Objects in object streams are not decrypted again.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      11/23/26    Initial version (strings were left encrypted)
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/23/26  JK        Initial version (strings were left encrypted)
+ *******************************************************************/
 static void ParserDecryptString(Parser *parser, Obj *obj)
 {
     XRef *xref = LexerGetXRef(parser->lexer);
@@ -222,8 +192,31 @@ static void ParserDecryptString(Parser *parser, Obj *obj)
         len);
 }
 
+/********************************************************************
+ *                      ParserGetObj
+ ********************************************************************
+ * SYNOPSIS:      Read the next object: array, dictionary, stream, reference or
+ *                simple object.
+ *
+ * PARAMETERS:    *parser               Ptr to the parser.
+ *                *obj                  Ptr to the object to fill. An error
+ *                                      object on error.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Arrays and dictionaries are read recursively up to
+ *                parserGetObjMaxDepth levels; deeper values are skipped. Out of
+ *                memory: the rest of the array or dictionary is skipped, so
+ *                that the token stream stays in sync.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void ParserGetObj(Parser *parser, Obj *obj)
 {
+    /* Nesting depth of the current top-level parse */
     static short depth = 0;
     static GBool alreadyWarned = gFalse;
     char *key;
@@ -235,10 +228,7 @@ void ParserGetObj(Parser *parser, Obj *obj)
 
     if (++depth > parserGetObjMaxDepth)
     {
-        /*
-         * Only the FIRST time the limit is hit within a given top-level parse
-         * gets an actual EC_WARNING.
-         */
+        /* EC_WARNING only once per top-level parse */
         if (!alreadyWarned)
         {
             EC_WARNING(-1);
@@ -255,7 +245,7 @@ void ParserGetObj(Parser *parser, Obj *obj)
         return;
     }
 
-    /* refill buffer after inline image data */
+    /* Inline image data was skipped: refill both token buffers */
     if (parser->inlineImg == 2)
     {
         ObjFree(pbuf1);
@@ -265,11 +255,11 @@ void ParserGetObj(Parser *parser, Obj *obj)
         parser->inlineImg = 0;
     }
 
-    /* array */
     if (isCmdSame(pbuf1, "["))
     {
         ParserShift(parser);
         initArray(obj);
+        /* Out of memory: skip the array */
         if (GMemHadError())
         {
             while (!isCmdSame(pbuf1, "]") && !isEOF(pbuf1))
@@ -303,12 +293,12 @@ void ParserGetObj(Parser *parser, Obj *obj)
 
         ParserShift(parser);
 
-        /* dictionary or stream */
     }
     else if (isCmdSame(pbuf1, "<<"))
     {
         ParserShift(parser);
         initDict(obj);
+        /* Out of memory: skip the dictionary */
         if (GMemHadError())
         {
             while (!isCmdSame(pbuf1, ">>") && !isEOF(pbuf1))
@@ -326,7 +316,6 @@ void ParserGetObj(Parser *parser, Obj *obj)
             if (!isName(pbuf1))
             {
                 EC_WARNING(-1);
-                /* error(getPos(), "Dictionary key must be a name object"); */
                 ParserShift(parser);
             }
             else
@@ -364,6 +353,7 @@ void ParserGetObj(Parser *parser, Obj *obj)
             EC_WARNING(-1);
         }
 
+        /* A dictionary followed by "stream" is a stream object */
         if (isCmdSame(pbuf2, "stream"))
         {
             if (ParserMakeStream(parser, &str, obj))
@@ -382,8 +372,8 @@ void ParserGetObj(Parser *parser, Obj *obj)
             ParserShift(parser);
         }
 
-        /* indirect reference or integer */
     }
+    /* An integer can be the start of "num gen R" */
     else if (isInt(pbuf1))
     {
         num = getInt(pbuf1);
@@ -399,12 +389,12 @@ void ParserGetObj(Parser *parser, Obj *obj)
             initInt(obj, num);
         }
 
-        /* simple object */
     }
     else
     {
         ObjMove(obj, pbuf1);
         ParserShift(parser);
+        /* Strings of encrypted files are decrypted here */
         if (isString(obj) && !parser->noCrypt)
         {
             ParserDecryptString(parser, obj);
@@ -418,27 +408,29 @@ void ParserGetObj(Parser *parser, Obj *obj)
     }
 }
 
-/***********************************************************************
- *      ParserMakeStream
- ***********************************************************************
- * SYNOPSIS:        Create stream.
- * PARAMETERS:      Parser *parser    parser
- *                  Stream **str    string
- *                  Obj *dict    dictionary
+/********************************************************************
+ *                      ParserMakeStream
+ ********************************************************************
+ * SYNOPSIS:      Make the stream of a stream object.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *parser               Ptr to the parser; the next token is
+ *                                      "stream".
+ *                *str                  Ptr to the new stream (out).
+ *                *dict                 Ptr to the stream dictionary.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if /Length is bad or there is no
+ *                                      memory.
  *
- * STRATEGY:
+ * STRATEGY:      A substream of the file with /Length bytes, then RC4
+ *                decryption (encrypted files) and the filters of the
+ *                dictionary. The filters are not reset here (see
+ *                StreamAddFilters).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
 {
     Obj obj, obj2;
@@ -465,7 +457,7 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
         }
         else
         {
-            EC_WARNING(-1); /* bad length attr */
+            EC_WARNING(-1);
             ObjFree(&obj);
             ObjFree(&obj2);
             return gFalse;
@@ -478,8 +470,6 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
         ObjFree(&obj);
         return gFalse;
     }
-
-    /* make base stream */
 
     *str = gmalloc(sizeof(Stream));
     if (!*str)
@@ -494,10 +484,7 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
 
     /* XXX: needs to not access stream data directly */
 
-    /*
-     * Decrypt (RC4), if this object is one XRefFetch flagged as such via
-     * parser->cryptNum/cryptGen.
-     */
+    /* Encrypted file: decrypt with the key of this object */
     if (!parser->noCrypt)
     {
         XRef *xref = LexerGetXRef(parser->lexer);
@@ -526,9 +513,9 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
 
     LexerSetPos(parser->lexer, pos + length);
 
-    /* refill token buffers and check for 'endstream' */
-    ParserShift(parser); /* kill '>>' */
-    ParserShift(parser); /* kill 'stream' */
+    /* Skip ">>" and "stream", then expect "endstream" */
+    ParserShift(parser);
+    ParserShift(parser);
     if (isCmdSame(&parser->buf1, "endstream"))
     {
         ParserShift(parser);
@@ -541,25 +528,23 @@ static GBool ParserMakeStream(Parser *parser, Stream **str, Obj *dict)
     return gTrue;
 }
 
-/***********************************************************************
- *      ParserShift
- ***********************************************************************
- * SYNOPSIS:        Process parser shift.
- * PARAMETERS:      Parser *parser    parser
+/********************************************************************
+ *                      ParserShift
+ ********************************************************************
+ * SYNOPSIS:      Move the token buffers on by one token.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      After the inline image operator ID the data is binary: buf2 is
+ *                not read until the image data is skipped.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 static void ParserShift(Parser *parser)
 {
     if (parser->inlineImg > 0)
@@ -573,7 +558,7 @@ static void ParserShift(Parser *parser)
     }
     ObjFree(&parser->buf1);
     ObjMove(&parser->buf1, &parser->buf2);
-    if (parser->inlineImg > 0) /* don't buffer inline image data' */
+    if (parser->inlineImg > 0) /* do not read binary inline image data */
     {
         initNull(&parser->buf2);
     }
@@ -583,48 +568,10 @@ static void ParserShift(Parser *parser)
     }
 }
 
-/***********************************************************************
- *      ParserGetPos
- ***********************************************************************
- * SYNOPSIS:        Get position.
- * PARAMETERS:      Parser *parser    parser
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 long ParserGetPos(Parser *parser)
 {
     return StreamGetPos(LexerGetStream(parser->lexer));
 }
-
-/***********************************************************************
- *      ParserGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      Parser *parser    parser
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 long ParserGetLength(Parser *parser)
 {

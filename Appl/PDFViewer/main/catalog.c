@@ -42,10 +42,6 @@
 #include <heap.h>
 #include <ec.h>
 
-/*
- * Catalog
- */
-
 #define PDF_MAX_PAGE_COUNT 65535L
 #define catalogPageTreeMaxDepth 20
 
@@ -53,26 +49,22 @@
 #define catalogPageSearchNotFound  0
 #define catalogPageSearchFound     1
 
-/***********************************************************************
- *      CatalogInitNull
- ***********************************************************************
- * SYNOPSIS:        Initialize null.
- * PARAMETERS:      Catalog *cat    cat
+/********************************************************************
+ *                      CatalogInitNull
+ ********************************************************************
+ * SYNOPSIS:      Initialize an empty catalog that is not ok.
  *
- * RETURNS:         void
+ * PARAMETERS:    *cat                  Ptr to the catalog.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Null out the page tree root and named-destination objects, zero
- *      the page count, and mark the catalog as not ok.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void CatalogInitNull(Catalog *cat)
 {
     initNull(&cat->pagesRoot);
@@ -82,29 +74,28 @@ void CatalogInitNull(Catalog *cat)
     cat->ok = gFalse;
 }
 
-/***********************************************************************
- *      CatalogInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Catalog *cat    cat
- *                  Obj *catDict    cat dict
- *                  VMFileHandle vmFile    vm file
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      CatalogInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize the catalog from the /Root dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *cat                  Ptr to the catalog.
+ *                *catDict              Ptr to the /Root dictionary.
+ *                vmFile                Not used.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Validate catDict, keep an unfetched /Pages reference (resolved
- *      lazily by CatalogGetPage()), and read /Count.  Named...
+ * STRATEGY:      Keep /Pages as an unresolved reference (pages are found when
+ *                they are needed), read the page count and the named
+ *                destinations (/Dests, /Names /Dests). On error cat->ok is
+ *                gFalse.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref)
 {
     Obj pagesDict;
@@ -183,24 +174,22 @@ void CatalogInit(Catalog *cat, Obj *catDict, VMFileHandle vmFile, XRef *xref)
     cat->ok = gFalse;
 }
 
-/***********************************************************************
- *      CatalogFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Catalog *cat    cat
+/********************************************************************
+ *                      CatalogFree
+ ********************************************************************
+ * SYNOPSIS:      Free the catalog.
  *
- * RETURNS:         void
+ * PARAMETERS:    *cat                  Ptr to the catalog.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void CatalogFree(Catalog *cat)
 {
     ObjFree(&cat->pagesRoot);
@@ -219,29 +208,26 @@ typedef struct CatalogPageTreeFrame {
     word nextKid;
 } CatalogPageTreeFrame;
 
-/***********************************************************************
- *      CatalogInitPageTreeFrame
- ***********************************************************************
- * SYNOPSIS:        Initialize page tree frame.
- * PARAMETERS:      CatalogPageTreeFrame *frame    frame
- *                  Dict *pagesDict    pages dict
- *                  PageAttrs *parentAttrs    parent attrs
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      CatalogInitPageTreeFrame
+ ********************************************************************
+ * SYNOPSIS:      Start one level of the page tree walk.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *frame                Ptr to the frame to fill.
+ *                *pagesDict            Ptr to the /Pages node.
+ *                *parentAttrs          Ptr to the inherited attributes, NULL at
+ *                                      the root.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if the node has no /Kids array.
  *
  * STRATEGY:
- *      Build the inherited PageAttrs, look up /Kids, and reset the
- *      child iteration index.  On failure, undo the PageAttrs.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static GBool
 CatalogInitPageTreeFrame(CatalogPageTreeFrame *frame, Dict *pagesDict,
     PageAttrs *parentAttrs, XRef *xref)
@@ -259,58 +245,57 @@ CatalogInitPageTreeFrame(CatalogPageTreeFrame *frame, Dict *pagesDict,
     return gTrue;
 }
 
-/***********************************************************************
- *      CatalogFreePageTreeFrame
- ***********************************************************************
- * SYNOPSIS:        Release page tree frame.
- * PARAMETERS:      CatalogPageTreeFrame *frame    frame
+/********************************************************************
+ *                      CatalogFreePageTreeFrame
+ ********************************************************************
+ * SYNOPSIS:      Free one level of the page tree walk.
  *
- * RETURNS:         void
+ * PARAMETERS:    *frame                Ptr to the frame.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static void CatalogFreePageTreeFrame(CatalogPageTreeFrame *frame)
 {
     ObjFree(&frame->kids);
     PageAttrsFree(&frame->attrs);
 }
 
-/***********************************************************************
- *      CatalogFindPageInTree
- ***********************************************************************
- * SYNOPSIS:        Find page in tree.
- * PARAMETERS:      Catalog *cat    cat
- *                  Dict *pagesDict    pages dict
- *                  PageAttrs *attrs    attrs
- *                  long target    target
- *                  long *start    start
- *                  XRef *xref    cross-reference table
- *                  Page *page    page
- *                  short depth    depth
- *                  GBool useCounts    use counts
+/********************************************************************
+ *                      CatalogFindPageInTree
+ ********************************************************************
+ * SYNOPSIS:      Find a page by its index in the page tree.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *cat                  Ptr to the catalog.
+ *                *pagesDict            Ptr to the root /Pages node.
+ *                *attrs                Ptr to the inherited attributes or NULL.
+ *                target                Page index (0-based).
+ *                *start                Ptr to the index of the next page found
+ *                                      (in/out).
+ *                *xref                 Ptr to the cross-reference table.
+ *                *page                 Ptr to the page to fill.
+ *                depth                 Level of pagesDict (1 = root).
+ *                useCounts             gTrue: skip subtrees with /Count.
  *
- * CONTEXT:
+ * RETURNS:       short                 catalogPageSearchFound,
+ *                                      catalogPageSearchNotFound or
+ *                                      catalogPageSearchError.
  *
- * STRATEGY:
- *      Walk the tree iteratively via an explicit, depth-bounded stack
- *      of frames instead of recursion.  /Count is only an...
+ * STRATEGY:      Walk the tree with a stack of frames in a movable block (no
+ *                recursion, the stack is small). /Count is only a hint: if the
+ *                search with /Count fails, the caller walks all nodes.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static short
 CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
     word target, word *start, XRef *xref, Page *page,
@@ -334,6 +319,7 @@ CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
         return catalogPageSearchError;
     }
 
+    /* The frames are too large for the stack */
     stackHandle = MemAlloc((word)(catalogPageTreeMaxDepth *
         sizeof(CatalogPageTreeFrame)),
         HF_SWAPABLE, HAF_NO_ERR);
@@ -378,6 +364,7 @@ CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
 
         ObjArrayGet(&frame->kids, frame->nextKid++, &kid, xref);
 
+        /* A leaf: count it, or fill the page if it is the target */
         if (ObjIsDictSame(&kid, "Page"))
         {
             if (*start == target)
@@ -414,12 +401,12 @@ CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
             }
             ObjFree(&countObj);
 
+            /* Skip the whole subtree if the target is not in it */
             if (useCounts && childCount >= 0 &&
                 *start <= cat->numPages &&
                 childCount <= cat->numPages - *start &&
                 target >= *start + childCount)
             {
-                /* fits: childCount <= numPages - start */
                 *start += (word)childCount;
                 ObjFree(&kid);
                 continue;
@@ -465,29 +452,25 @@ CatalogFindPageInTree(Catalog *cat, Dict *pagesDict, PageAttrs *attrs,
     return result;
 }
 
-/***********************************************************************
- *      CatalogGetPage
- ***********************************************************************
- * SYNOPSIS:        Get page.
- * PARAMETERS:      Catalog *cat    cat
- *                  long i    index
- *                  XRef *xref    cross-reference table
- *                  Page *page    page
+/********************************************************************
+ *                      CatalogGetPage
+ ********************************************************************
+ * SYNOPSIS:      Get a page with its inherited attributes.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *cat                  Ptr to the catalog.
+ *                i                     Page number (1-based).
+ *                *xref                 Ptr to the cross-reference table.
+ *                *page                 Ptr to the page to fill.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if the page is not found.
  *
- * STRATEGY:
- *      Fetch the /Pages root and search via CatalogFindPageInTree(),
- *      trusting /Count hints first for speed.  If that fails,...
+ * STRATEGY:      Search with /Count first; if that fails, walk the whole tree.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 GBool CatalogGetPage(Catalog *cat, word i, XRef *xref, Page *page)
 {
     Obj pagesDict;
@@ -514,6 +497,7 @@ GBool CatalogGetPage(Catalog *cat, word i, XRef *xref, Page *page)
     result = CatalogFindPageInTree(cat, getDict(&pagesDict), NULL,
         i - 1, &start, xref, page, 1, gTrue);
 
+    /* /Count can be wrong: search again without it */
     if (result == catalogPageSearchNotFound)
     {
         start = 0;
@@ -525,33 +509,28 @@ GBool CatalogGetPage(Catalog *cat, word i, XRef *xref, Page *page)
     return result == catalogPageSearchFound;
 }
 
-/* Page reference -> page number, used by link targets (F4). */
-
-/***********************************************************************
- *      CatalogFindPageRefInTree
- ***********************************************************************
- * SYNOPSIS:        Find page ref in tree.
- * PARAMETERS:      Dict *pagesDict    pages dict
- *                  long num    number
- *                  long gen    gen
- *                  long *pageIndex    page index
- *                  XRef *xref    cross-reference table
- *                  short depth    depth
+/********************************************************************
+ *                      CatalogFindPageRefInTree
+ ********************************************************************
+ * SYNOPSIS:      Find the page number of a page object.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *pagesDict            Ptr to the /Pages node.
+ *                num                   Object number of the page.
+ *                gen                   Generation of the page.
+ *                *pageIndex            Ptr to the number of pages counted so
+ *                                      far (in/out).
+ *                *xref                 Ptr to the cross-reference table.
+ *                depth                 Level of pagesDict.
  *
- * CONTEXT:
+ * RETURNS:       word                  Page number (1-based), 0 if not found.
  *
- * STRATEGY:
- *      Recurse into /Kids, comparing each leaf's unfetched reference
- *      against (num, gen) and counting pages as they are...
+ * STRATEGY:      Recursive, limited to catalogPageTreeMaxDepth levels.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static word CatalogFindPageRefInTree(Dict *pagesDict, long num, long gen,
     word *pageIndex, XRef *xref, short depth)
 {
@@ -609,29 +588,26 @@ static word CatalogFindPageRefInTree(Dict *pagesDict, long num, long gen,
     return 0;
 }
 
-/***********************************************************************
- *      CatalogFindPage
- ***********************************************************************
- * SYNOPSIS:        Find page.
- * PARAMETERS:      Catalog *cat    cat
- *                  long num    number
- *                  long gen    gen
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      CatalogFindPage
+ ********************************************************************
+ * SYNOPSIS:      Return the page number of a page object (for link
+ *                destinations).
  *
- * RETURNS:         result value
+ * PARAMETERS:    *cat                  Ptr to the catalog.
+ *                num                   Object number of the page.
+ *                gen                   Generation of the page.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       word                  Page number (1-based), 0 if not found.
  *
  * STRATEGY:
- *      Fetch the /Pages root and delegate to
- *      CatalogFindPageRefInTree().
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 word CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref)
 {
     Obj pagesDict;
@@ -653,47 +629,11 @@ word CatalogFindPage(Catalog *cat, long num, long gen, XRef *xref)
     return result;
 }
 
-/***********************************************************************
- *      CatalogIsOk
- ***********************************************************************
- * SYNOPSIS:        Check ok.
- * PARAMETERS:      Catalog *cat    cat
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 GBool CatalogIsOk(Catalog *cat)
 {
     return cat->ok;
 }
 
-/***********************************************************************
- *      CatalogGetNumPages
- ***********************************************************************
- * SYNOPSIS:        Get number pages.
- * PARAMETERS:      Catalog *cat    cat
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 word CatalogGetNumPages(Catalog *cat)
 {
     return cat->numPages;

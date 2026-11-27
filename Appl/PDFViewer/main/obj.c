@@ -23,8 +23,9 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
- *      Port of Derek Noonburg's "Object" class from xpdf 0.8.
- *      Simple variable-length string type.
+ *      Port of Derek Noonburg's "Object" class from xpdf 0.8:
+ *      the PDF object (null, bool, number, string, name, array,
+ *      dictionary, stream, reference).
  ***********************************************************************/
 
 #ifdef __GNUC__
@@ -41,8 +42,6 @@
 #include "gstr.h"
 #include "pdfGeode.h"
 
-/* Object */
-
 #ifdef DEBUG_MEM
 long Object::numAlloc[numObjTypes] =
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -54,25 +53,22 @@ long Object::numAlloc[numObjTypes] =
 #define initObj(t) obj->type = t
 #endif
 
-/***********************************************************************
- *      initArray
- ***********************************************************************
- * SYNOPSIS:        Initialize array.
- * PARAMETERS:      Obj *obj    object
+/********************************************************************
+ *                      initArray
+ ********************************************************************
+ * SYNOPSIS:      Make an empty array object.
  *
- * RETURNS:         void
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Out of memory: an error object.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void initArray(Obj *obj)
 {
     initObj(objArray);
@@ -85,25 +81,22 @@ void initArray(Obj *obj)
     ArrayInit(obj->u.array);
 }
 
-/***********************************************************************
- *      initDict
- ***********************************************************************
- * SYNOPSIS:        Initialize dictionary.
- * PARAMETERS:      Obj *obj    object
+/********************************************************************
+ *                      initDict
+ ********************************************************************
+ * SYNOPSIS:      Make an empty dictionary object.
  *
- * RETURNS:         void
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Out of memory: an error object.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void initDict(Obj *obj)
 {
     initObj(objDict);
@@ -116,51 +109,46 @@ void initDict(Obj *obj)
     DictInit(obj->u.dict);
 }
 
-/***********************************************************************
- *      initStream
- ***********************************************************************
- * SYNOPSIS:        Initialize stream.
- * PARAMETERS:      Obj *obj    object
- *                  Stream *stream1    stream1
+/********************************************************************
+ *                      initStream
+ ********************************************************************
+ * SYNOPSIS:      Make a stream object.
  *
- * RETURNS:         void
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                *stream1              Ptr to the stream. The object owns it.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void initStream(Obj *obj, Stream *stream1)
 {
     initObj(objStream);
     obj->u.stream = stream1;
 }
 
-/***********************************************************************
- *      ObjMove
- ***********************************************************************
- * SYNOPSIS:        Move.
- * PARAMETERS:      Obj *dest    destination
- *                  Obj *src    source
+/********************************************************************
+ *                      ObjMove
+ ********************************************************************
+ * SYNOPSIS:      Move an object; the source becomes objNone.
  *
- * RETURNS:         void
+ * PARAMETERS:    *dest                 Ptr to the destination.
+ *                *src                  Ptr to the source.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void ObjMove(Obj *dest, Obj *src)
 {
     if (dest == src)
@@ -172,26 +160,25 @@ void ObjMove(Obj *dest, Obj *src)
     src->type = objNone;
 }
 
-/***********************************************************************
- *      ObjCopy
- ***********************************************************************
- * SYNOPSIS:        Copy.
- * PARAMETERS:      Obj *obj    object
- *                  Obj *obj2    obj2
+/********************************************************************
+ *                      ObjCopy
+ ********************************************************************
+ * SYNOPSIS:      Copy an object.
  *
- * RETURNS:         void
+ * PARAMETERS:    *obj                  Ptr to the copy.
+ *                *obj2                 Ptr to the object to copy.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Strings, names and commands are duplicated. Arrays,
+ *                dictionaries and streams are shared through their reference
+ *                count. Out of memory: the copy is an error object.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void ObjCopy(Obj *obj, Obj *obj2)
 {
     memcpy(obj, obj2, sizeof(Obj));
@@ -239,28 +226,6 @@ void ObjCopy(Obj *obj, Obj *obj2)
     }
 }
 
-
-/***********************************************************************
- *      ObjFetch
- ***********************************************************************
- * SYNOPSIS:        Fetch.
- * PARAMETERS:      Obj *dest    destination
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 void ObjFetch(Obj *dest, Obj *obj, XRef *xref)
 {
     (obj->type == objRef && xref) ?
@@ -268,25 +233,23 @@ void ObjFetch(Obj *dest, Obj *obj, XRef *xref)
         obj);
 }
 
-/***********************************************************************
- *      ObjFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Obj *obj    object
+/********************************************************************
+ *                      ObjFree
+ ********************************************************************
+ * SYNOPSIS:      Free the data of an object; it becomes objNone.
  *
- * RETURNS:         void
+ * PARAMETERS:    *obj                  Ptr to the object.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Arrays, dictionaries and streams are freed with their last
+ *                reference.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void ObjFree(Obj *obj)
 {
     switch (obj->type)
@@ -343,6 +306,23 @@ void initReal(Obj *obj, gdouble real1)
     initObj(objReal); obj->u.real = real1;
 }
 
+/********************************************************************
+ *                      initString
+ ********************************************************************
+ * SYNOPSIS:      Make a string object with a copy of a string.
+ *
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                *string1              Ptr to the string to copy.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Out of memory: an error object.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void initString(Obj *obj, GooString *string1)
 {
     initObj(objString);
@@ -353,6 +333,23 @@ void initString(Obj *obj, GooString *string1)
     }
 }
 
+/********************************************************************
+ *                      initName
+ ********************************************************************
+ * SYNOPSIS:      Make a name object with a copy of a name.
+ *
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                *name1                Ptr to the name.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Out of memory: an error object.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void initName(Obj *obj, char *name1)
 {
     initObj(objName);
@@ -370,12 +367,48 @@ void initNull(Obj *obj)
 }
 #endif
 
+/********************************************************************
+ *                      initDictData
+ ********************************************************************
+ * SYNOPSIS:      Make a dictionary object for an existing dictionary.
+ *
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                *dict1                Ptr to the dictionary. The object owns
+ *                                      it.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void initDictData(Obj *obj, Dict *dict1)
 {
     initObj(objDict); 
     obj->u.dict = dict1;
 }
 
+/********************************************************************
+ *                      initRef
+ ********************************************************************
+ * SYNOPSIS:      Make an indirect reference object.
+ *
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                num1                  Object number.
+ *                gen1                  Generation number.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void initRef(Obj *obj, long num1, long gen1)
 {
     initObj(objRef);
@@ -383,6 +416,23 @@ void initRef(Obj *obj, long num1, long gen1)
     obj->u.ref.gen = gen1;
 }
 
+/********************************************************************
+ *                      initCmd
+ ********************************************************************
+ * SYNOPSIS:      Make a command (operator) object with a copy of a name.
+ *
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                *cmd1                 Ptr to the command name.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Out of memory: an error object.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void initCmd(Obj *obj, char *cmd1)
 {
     initObj(objCmd);
@@ -403,9 +453,6 @@ void initEOF(Obj *obj)
     initObj(objEOF);
 }
 
-/* Type checking. */
-
-/* Special type checking. */
 GBool isNameSame(Obj *obj, char *name1)
 { 
     return obj->type == objName && !strcmp(obj->u.name, name1); 
@@ -416,7 +463,6 @@ GBool isCmdSame(Obj *obj, char *cmd1)
     return obj->type == objCmd && !strcmp(obj->u.cmd, cmd1);
 }
 
-/* Accessors. */
 gdouble getNum(Obj *obj)
 { 
     return obj->type == objInt ? IntToGdouble(obj->u.intg) : obj->u.real;
@@ -427,120 +473,25 @@ GooString *getString(Obj *obj)
     return & obj->u.string;
 }
 
-/***********************************************************************
- *      getName
- ***********************************************************************
- * SYNOPSIS:        Get name.
- * PARAMETERS:      Obj *obj    object
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 char *getName(Obj *obj)
 {
     return obj->u.name;
 }
-
-/***********************************************************************
- *      getArray
- ***********************************************************************
- * SYNOPSIS:        Get array.
- * PARAMETERS:      Obj *obj    object
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 Array *getArray(Obj *obj)
 {
     return obj->u.array;
 }
 
-/***********************************************************************
- *      getDict
- ***********************************************************************
- * SYNOPSIS:        Get dictionary.
- * PARAMETERS:      Obj *obj    object
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 Dict *getDict(Obj *obj)
 {
     return obj->u.dict;
 }
 
-/***********************************************************************
- *      getStream
- ***********************************************************************
- * SYNOPSIS:        Get stream.
- * PARAMETERS:      Obj *obj    object
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 Stream *getStream(Obj *obj)
 {
     return obj->u.stream;
 }
-
-/***********************************************************************
- *      getRef
- ***********************************************************************
- * SYNOPSIS:        Get ref.
- * PARAMETERS:      Obj *obj    object
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 Ref getRef(Obj *obj)
 {

@@ -39,34 +39,32 @@
 #include <Ansi/string.h>
 #include <ec.h>
 
-/* PageAttrs */
-
-/***********************************************************************
- *      PageAttrsInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      PageAttrs *this    this
- *                  PageAttrs *attrs    attrs
- *                  Dict *dict    dictionary
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      PageAttrsInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize the attributes of a page tree node.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the attributes to fill.
+ *                *attrs                Ptr to the inherited attributes of the
+ *                                      parent, NULL at the root.
+ *                *dict                 Ptr to the /Pages or /Page dictionary.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Copy the inherited values, then read MediaBox, CropBox, Rotate
+ *                and Resources of the node.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
 {
     Obj obj1, obj2;
 
+    /* Inherit the values of the parent node, else use the defaults */
     if (attrs)
     {
 #ifdef USE_FULL_PAGE_ATTRS
@@ -97,7 +95,6 @@ void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
 
 #ifdef USE_FULL_PAGE_ATTRS
 
-    /* media box */
     DictLookup(dict, "MediaBox", &obj1, xref);
     if (isArray(&obj1) && ObjArrayGetLength(&obj1) == 4)
     {
@@ -128,7 +125,6 @@ void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
     }
     ObjFree(&obj1);
 
-    /* crop box */
     DictLookup(dict, "CropBox", &obj1, xref);
     if (isArray(&obj1) && ObjArrayGetLength(&obj1) == 4)
     {
@@ -164,13 +160,13 @@ void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
     }
     ObjFree(&obj1);
 
-    /* rotate */
     DictLookup(dict, "Rotate", &obj1, xref);
     if (isInt(&obj1))
     {
         this->rotate = (sword)getInt(&obj1);
     }
     ObjFree(&obj1);
+    /* Normalize the rotation to 0..359 */
     while (this->rotate < 0)
     {
         this->rotate += 360;
@@ -181,10 +177,7 @@ void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
     }
 #endif
 
-    /* resource dictionary */
-    /*
-     * XXX: made this into "nf" to prevent reading in resource, if a reference.
-     */
+    /* XXX: keep a reference, the resources are read when needed */
     DictLookupNF(dict, "Resources", &obj1);
     if (isRef(&obj1) || isDict(&obj1))
     {
@@ -194,25 +187,6 @@ void PageAttrsInit(PageAttrs *this, PageAttrs *attrs, Dict *dict, XRef *xref)
     ObjFree(&obj1);
 }
 
-/***********************************************************************
- *      PageAttrsFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 void PageAttrsFree(PageAttrs *this)
 {
     ObjFree(&this->resources);
@@ -220,241 +194,50 @@ void PageAttrsFree(PageAttrs *this)
 
 #ifdef USE_FULL_PAGE_ATTRS
 
-/* Accessors. */
-/***********************************************************************
- *      PageAttrsGetX1
- ***********************************************************************
- * SYNOPSIS:        Get x1.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static gdouble PageAttrsGetX1(PageAttrs *this)
 {
     return this->x1;
 }
-
-/***********************************************************************
- *      PageAttrsGetY1
- ***********************************************************************
- * SYNOPSIS:        Get y1.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static gdouble PageAttrsGetY1(PageAttrs *this)
 {
     return this->y1;
 }
 
-/***********************************************************************
- *      PageAttrsGetX2
- ***********************************************************************
- * SYNOPSIS:        Get x2.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static gdouble PageAttrsGetX2(PageAttrs *this)
 {
     return this->x2;
 }
-
-/***********************************************************************
- *      PageAttrsGetY2
- ***********************************************************************
- * SYNOPSIS:        Get y2.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static gdouble PageAttrsGetY2(PageAttrs *this)
 {
     return this->y2;
 }
 
-/***********************************************************************
- *      PageAttrsIsCropped
- ***********************************************************************
- * SYNOPSIS:        Check cropped.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static GBool PageAttrsIsCropped(PageAttrs *this)
 {
     return this->cropX2 > this->cropX1;
 }
-
-/***********************************************************************
- *      PageAttrsGetCropX1
- ***********************************************************************
- * SYNOPSIS:        Get crop x1.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static gdouble PageAttrsGetCropX1(PageAttrs *this)
 {
     return this->cropX1;
 }
 
-/***********************************************************************
- *      PageAttrsGetCropY1
- ***********************************************************************
- * SYNOPSIS:        Get crop y1.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static gdouble PageAttrsGetCropY1(PageAttrs *this)
 {
     return this->cropY1;
 }
-
-/***********************************************************************
- *      PageAttrsGetCropX2
- ***********************************************************************
- * SYNOPSIS:        Get crop x2.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static gdouble PageAttrsGetCropX2(PageAttrs *this)
 {
     return this->cropX2;
 }
 
-/***********************************************************************
- *      PageAttrsGetCropY2
- ***********************************************************************
- * SYNOPSIS:        Get crop y2.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static gdouble PageAttrsGetCropY2(PageAttrs *this)
 {
     return this->cropY2;
 }
-
-/***********************************************************************
- *      PageAttrsGetRotate
- ***********************************************************************
- * SYNOPSIS:        Get rotate.
- * PARAMETERS:      PageAttrs *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static sword PageAttrsGetRotate(PageAttrs *this)
 {
@@ -462,27 +245,25 @@ static sword PageAttrsGetRotate(PageAttrs *this)
 }
 #endif
 
-/***********************************************************************
- *      PageAttrsCopyResourceDict
- ***********************************************************************
- * SYNOPSIS:        Copy resource dictionary.
- * PARAMETERS:      PageAttrs *this    this
- *                  Obj *dest    destination
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      PageAttrsCopyResourceDict
+ ********************************************************************
+ * SYNOPSIS:      Copy the resource dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the page attributes.
+ *                *dest                 Ptr to the object to fill; null if there
+ *                                      are no resources.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 static void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
 {
 
@@ -500,28 +281,26 @@ static void PageAttrsCopyResourceDict(PageAttrs *this, Obj *dest, XRef *xref)
     }
 }
 
-/***********************************************************************
- *      PageInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Page *page    page
- *                  long num1    num1
- *                  Dict *pageDict    page dict
- *                  PageAttrs *attrs1    attrs1
+/********************************************************************
+ *                      PageInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a page from its dictionary and its attributes.
  *
- * RETURNS:         void
+ * PARAMETERS:    *page                 Ptr to the page.
+ *                num1                  Page number (1-based).
+ *                *pageDict             Ptr to the /Page dictionary.
+ *                *attrs1               Ptr to the attributes of the page.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      /Annots and /Contents are kept as references. A bad value
+ *                makes the page not ok.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
 {
 
@@ -529,9 +308,9 @@ void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
     page->num = num1;
 
     memcpy(&page->attrs, attrs1, sizeof (PageAttrs));
+    /* The page has its own reference to the resources */
     ObjCopy(&page->attrs.resources, &attrs1->resources);
 
-    /* annotations */
     DictLookupNF(pageDict, "Annots", &page->annots);
     if (!(isRef(&page->annots) || isArray(&page->annots)
         || isNull(&page->annots)))
@@ -542,7 +321,6 @@ void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
         goto err2;
     }
 
-    /* contents */
     DictLookupNF(pageDict, "Contents", &page->contents);
     if (!(isRef(&page->contents) || isArray(&page->contents) ||
         isNull(&page->contents)))
@@ -562,25 +340,22 @@ void PageInit(Page *page, word num1, Dict *pageDict, PageAttrs *attrs1)
     page->ok = gFalse;
 }
 
-/***********************************************************************
- *      PageFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Page *page    page
+/********************************************************************
+ *                      PageFree
+ ********************************************************************
+ * SYNOPSIS:      Free a page.
  *
- * RETURNS:         void
+ * PARAMETERS:    *page                 Ptr to the page.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Style cleanup
+ *******************************************************************/
 void PageFree(Page *page)
 {
 
@@ -589,265 +364,56 @@ void PageFree(Page *page)
     ObjFree(&page->contents);
 }
 
-/***********************************************************************
- *      PageIsOk
- ***********************************************************************
- * SYNOPSIS:        Check ok.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 GBool PageIsOk(Page *page)
 {
     return page->ok;
 }
 
 #ifdef USE_FULL_PAGE_ATTRS
-/***********************************************************************
- *      PageGetX1
- ***********************************************************************
- * SYNOPSIS:        Get x1.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 gdouble PageGetX1(Page *page)
 {
     return PageAttrsGetX1(&page->attrs);
 }
-
-/***********************************************************************
- *      PageGetY1
- ***********************************************************************
- * SYNOPSIS:        Get y1.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 gdouble PageGetY1(Page *page)
 {
     return PageAttrsGetY1(&page->attrs);
 }
 
-/***********************************************************************
- *      PageIsCropped
- ***********************************************************************
- * SYNOPSIS:        Check cropped.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 GBool PageIsCropped(Page *page)
 {
     return PageAttrsIsCropped(&page->attrs);
 }
-
-/***********************************************************************
- *      PageGetCropX1
- ***********************************************************************
- * SYNOPSIS:        Get crop x1.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 gdouble PageGetCropX1(Page *page)
 {
     return PageAttrsGetCropX1(&page->attrs);
 }
 
-/***********************************************************************
- *      PageGetCropY1
- ***********************************************************************
- * SYNOPSIS:        Get crop y1.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 gdouble PageGetCropY1(Page *page)
 {
     return PageAttrsGetCropY1(&page->attrs);
 }
-
-/***********************************************************************
- *      PageGetCropX2
- ***********************************************************************
- * SYNOPSIS:        Get crop x2.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 gdouble PageGetCropX2(Page *page)
 {
     return PageAttrsGetCropX2(&page->attrs);
 }
 
-/***********************************************************************
- *      PageGetCropY2
- ***********************************************************************
- * SYNOPSIS:        Get crop y2.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 gdouble PageGetCropY2(Page *page)
 {
     return PageAttrsGetCropY2(&page->attrs);
 }
-
-/***********************************************************************
- *      PageGetWidth
- ***********************************************************************
- * SYNOPSIS:        Get width.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 gdouble PageGetWidth(Page *page)
 {
     return PageAttrsGetX2(&page->attrs) - PageAttrsGetX1(&page->attrs);
 }
 
-/***********************************************************************
- *      PageGetHeight
- ***********************************************************************
- * SYNOPSIS:        Get height.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 gdouble PageGetHeight(Page *page)
 {
     return PageAttrsGetY2(&page->attrs) - PageAttrsGetY1(&page->attrs);
 }
-
-/***********************************************************************
- *      PageGetRotate
- ***********************************************************************
- * SYNOPSIS:        Get rotate.
- * PARAMETERS:      Page *page    page
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 sword PageGetRotate(Page *page)
 {
@@ -855,78 +421,15 @@ sword PageGetRotate(Page *page)
 }
 #endif
 
-/***********************************************************************
- *      PageCopyResourceDict
- ***********************************************************************
- * SYNOPSIS:        Copy resource dictionary.
- * PARAMETERS:      Page *page    page
- *                  Obj *dest    destination
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 void PageCopyResourceDict(Page *page, Obj *dest, XRef *xref)
 {
     PageAttrsCopyResourceDict(&page->attrs, dest, xref);
 }
 
-/***********************************************************************
- *      PageGetAnnots
- ***********************************************************************
- * SYNOPSIS:        Get annots.
- * PARAMETERS:      Page *page    page
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 void PageGetAnnots(Page *page, Obj *obj, XRef *xref)
 {
     ObjFetch(obj, &page->annots, xref);
 }
-
-/***********************************************************************
- *      PageGetContents
- ***********************************************************************
- * SYNOPSIS:        Get contents.
- * PARAMETERS:      Page *page    page
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 void PageGetContents(Page *page, Obj *obj, XRef *xref)
 {

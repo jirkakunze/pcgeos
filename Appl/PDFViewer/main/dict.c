@@ -23,8 +23,8 @@
  *      18.08.26  JK        Relicensed under Apache 2.0, cleanup.
  *
  * DESCRIPTION:
- *      Port of Derek Noonburg's "Dict.cc" class from xpdf 0.8.
- *      Simple variable-length string type.
+ *      Port of Derek Noonburg's "Dict" class from xpdf 0.8:
+ *      the PDF dictionary (list of key/value pairs).
  ***********************************************************************/
 
 #ifdef __GNUC__
@@ -37,32 +37,24 @@
 #include "dict.h"
 #include "gmem.h"
 
-/* 
- * Dict
- */
-
 #define DICT_MAX_ENTRIES ((word)(65535L / (long)sizeof(DictEntry)))
 
-/***********************************************************************
- *      DictInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Dict *dict    dictionary
+/********************************************************************
+ *                      DictInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an empty dictionary with reference count 1.
  *
- * RETURNS:         void
+ * PARAMETERS:    *dict                 Ptr to the dictionary.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Clear the entry pointer and size/length counters, and set the
- *      reference count to 1.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void DictInit(Dict *dict)
 {
     dict->entries = NULL;
@@ -70,24 +62,22 @@ void DictInit(Dict *dict)
     dict->ref = 1;
 }
 
-/***********************************************************************
- *      DictFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Dict *dict    dictionary
+/********************************************************************
+ *                      DictFree
+ ********************************************************************
+ * SYNOPSIS:      Free all keys, values and the entry storage.
  *
- * RETURNS:         void
+ * PARAMETERS:    *dict                 Ptr to the dictionary.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void DictFree(Dict *dict)
 {
     word i;
@@ -100,28 +90,27 @@ void DictFree(Dict *dict)
     gfree(dict->entries);
 }
 
-/***********************************************************************
- *      DictAdd
- ***********************************************************************
- * SYNOPSIS:        Add.
- * PARAMETERS:      Dict *dict    dictionary
- *                  char *key    key
- *                  Obj *val    val
+/********************************************************************
+ *                      DictAdd
+ ********************************************************************
+ * SYNOPSIS:      Add a key and a copy of a value to the dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *dict                 Ptr to the dictionary.
+ *                *key                  Ptr to the key (gmalloc). The dictionary
+ *                                      owns it, also when the add fails.
+ *                *val                  Ptr to the value to copy.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Grow the backing storage by 50% (minimum 8, capped at
- *      DICT_MAX_ENTRIES) via grealloc() if the dictionary is full,...
+ * STRATEGY:      Grow the storage by 50 %, at least 8 and at most
+ *                DICT_MAX_ENTRIES entries. Out of memory: the key is freed and
+ *                GMemHadError() is set.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void DictAdd(Dict *dict, char *key, Obj *val)
 {
     word growBy;
@@ -131,6 +120,7 @@ void DictAdd(Dict *dict, char *key, Obj *val)
 
     if (dict->length >= dict->size)
     {
+        /* All entries must fit into one 64 KB block */
         if (dict->size >= DICT_MAX_ENTRIES)
         {
             GMemSetError();
@@ -138,6 +128,7 @@ void DictAdd(Dict *dict, char *key, Obj *val)
             return;
         }
 
+        /* Grow by 50 %, but at least by 8 entries */
         growBy = dict->size >> 1;
         if (growBy < 8)
         {
@@ -165,6 +156,7 @@ void DictAdd(Dict *dict, char *key, Obj *val)
 
     entry = &dict->entries[dict->length];
     entry->key = key;
+    /* Count the entry only if its value copy is complete */
     ObjCopy(&entry->val, val);
 
     if (GMemHadError())
@@ -175,26 +167,24 @@ void DictAdd(Dict *dict, char *key, Obj *val)
     ++dict->length;
 }
 
-/***********************************************************************
- *      DictFind
- ***********************************************************************
- * SYNOPSIS:        Find.
- * PARAMETERS:      Dict *dict    dictionary
- *                  char *key    key
+/********************************************************************
+ *                      DictFind
+ ********************************************************************
+ * SYNOPSIS:      Find the entry of a key.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *dict                 Ptr to the dictionary.
+ *                *key                  Ptr to the key.
  *
- * CONTEXT:
+ * RETURNS:       DictEntry *           Ptr to the entry, NULL if the key is not
+ *                                      found.
  *
- * STRATEGY:
- *      Linear scan comparing each entry's key via strcmp().
+ * STRATEGY:      Linear search; PDF dictionaries are small.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static DictEntry *DictFind(Dict *dict, char *key)
 {
     word i;
@@ -210,26 +200,6 @@ static DictEntry *DictFind(Dict *dict, char *key)
     return NULL;
 }
 
-/***********************************************************************
- *      DictIs
- ***********************************************************************
- * SYNOPSIS:        Check.
- * PARAMETERS:      Dict *dict    dictionary
- *                  char *type    type
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Look up "Type" via DictFind() and compare it against type.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 GBool DictIs(Dict *dict, char *type)
 {
     DictEntry *e;
@@ -237,29 +207,6 @@ GBool DictIs(Dict *dict, char *type)
     return(e = DictFind(dict, "Type")) && isNameSame(&e->val, type);
 }
 
-/***********************************************************************
- *      DictLookup
- ***********************************************************************
- * SYNOPSIS:        Look up.
- * PARAMETERS:      Dict *dict    dictionary
- *                  char *key    key
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Find the entry via DictFind() and ObjFetch() its value, or
- *      initialize obj to null if the key is absent.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void DictLookup(Dict *dict, char *key, Obj *obj, XRef *xref)
 {
     DictEntry *e;
@@ -267,28 +214,6 @@ void DictLookup(Dict *dict, char *key, Obj *obj, XRef *xref)
     (e = DictFind(dict, key)) ? ObjFetch(obj, &e->val, xref) : initNull(obj);
 }
 
-/***********************************************************************
- *      DictLookupNF
- ***********************************************************************
- * SYNOPSIS:        Look up nf.
- * PARAMETERS:      Dict *dict    dictionary
- *                  char *key    key
- *                  Obj *obj    object
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Find the entry via DictFind() and copy its value directly, or
- *      initialize obj to null if the key is absent.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void DictLookupNF(Dict *dict, char *key, Obj *obj)
 {
     DictEntry *e;
@@ -296,73 +221,16 @@ void DictLookupNF(Dict *dict, char *key, Obj *obj)
     (e = DictFind(dict, key)) ? ObjCopy(obj, &e->val) : initNull(obj);
 }
 
-/***********************************************************************
- *      DictGetKey
- ***********************************************************************
- * SYNOPSIS:        Get key.
- * PARAMETERS:      Dict *dict    dictionary
- *                  word i    index
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 char *DictGetKey(Dict *dict, word i)
 {
     return dict->entries[i].key;
 }
 
-/***********************************************************************
- *      DictGetValNF
- ***********************************************************************
- * SYNOPSIS:        Get val nf.
- * PARAMETERS:      Dict *dict    dictionary
- *                  word i    index
- *                  Obj *obj    object
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void DictGetValNF(Dict *dict, word i, Obj *obj)
 {
     ObjCopy(obj, &dict->entries[i].val);
 }
 
-/***********************************************************************
- *      DictGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      Dict *dict    dictionary
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 word DictGetLength(Dict *dict)
 {
     return dict->length;

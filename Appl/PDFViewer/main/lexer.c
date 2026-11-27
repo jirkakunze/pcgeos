@@ -65,28 +65,25 @@ static char endOfNameChars[128] = {
  * Lexer
  */
 
-/***********************************************************************
- *      LexerInitFromStream
- ***********************************************************************
- * SYNOPSIS:        Initialize from stream.
- * PARAMETERS:      Lexer *lexer    lexer
- *                  Stream *str    string
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      LexerInitFromStream
+ ********************************************************************
+ * SYNOPSIS:      Initialize a lexer on one stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *lexer                Ptr to the lexer.
+ *                *str                  Ptr to the stream. The lexer owns it.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Wrap str in a single-element Array so it can be driven through
- *      the same multi-stream traversal as...
+ * STRATEGY:      The stream is put into an array, so that one stream and a
+ *                content array use the same code.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void LexerInitFromStream(Lexer *lexer, Stream *str, XRef *xref)
 {
     lexer->xref = xref;
@@ -107,28 +104,26 @@ void LexerInitFromStream(Lexer *lexer, Stream *str, XRef *xref)
     ObjStreamReset(&lexer->curStr);
 }
 
-/***********************************************************************
- *      LexerInitFromObj
- ***********************************************************************
- * SYNOPSIS:        Initialize from object.
- * PARAMETERS:      Lexer *lexer    lexer
- *                  Obj *obj    object
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      LexerInitFromObj
+ ********************************************************************
+ * SYNOPSIS:      Initialize a lexer on a stream or on an array of streams (page
+ *                contents).
  *
- * RETURNS:         void
+ * PARAMETERS:    *lexer                Ptr to the lexer.
+ *                *obj                  Ptr to the stream or array object.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      A single stream is wrapped in its own owned Array, matching
- *      LexerInitFromStream(); an existing array is used...
+ * STRATEGY:      A stream is put into an own array. An array is used directly
+ *                and not freed by the lexer.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void LexerInitFromObj(Lexer *lexer, Obj *obj, XRef *xref)
 {
     lexer->xref = xref;
@@ -161,24 +156,22 @@ void LexerInitFromObj(Lexer *lexer, Obj *obj, XRef *xref)
     }
 }
 
-/***********************************************************************
- *      LexerFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Lexer *lexer    lexer
+/********************************************************************
+ *                      LexerFree
+ ********************************************************************
+ * SYNOPSIS:      Free the current stream and the own stream array.
  *
- * RETURNS:         void
+ * PARAMETERS:    *lexer                Ptr to the lexer.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void LexerFree(Lexer *lexer)
 {
     if (!isNone(&lexer->curStr))
@@ -192,24 +185,24 @@ void LexerFree(Lexer *lexer)
     }
 }
 
-/***********************************************************************
- *      LexerGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Lexer *lexer    lexer
+/********************************************************************
+ *                      LexerGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next character.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *lexer                Ptr to the lexer.
  *
- * CONTEXT:
+ * RETURNS:       short                 The character, EOF at the end of the
+ *                                      last stream.
  *
- * STRATEGY:
+ * STRATEGY:      At the end of a stream continue with the next stream of the
+ *                array.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 short LexerGetChar(Lexer *lexer)
 {
     short c;
@@ -230,26 +223,23 @@ short LexerGetChar(Lexer *lexer)
     return c;
 }
 
-/***********************************************************************
- *      LexerLookChar
- ***********************************************************************
- * SYNOPSIS:        Process lexer look char.
- * PARAMETERS:      Lexer *lexer    lexer
+/********************************************************************
+ *                      LexerLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next character but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *lexer                Ptr to the lexer.
  *
- * CONTEXT:
+ * RETURNS:       short                 The character, EOF at the end of the
+ *                                      last stream.
  *
- * STRATEGY:
- *      Same stream-boundary-crossing logic as LexerGetChar(), but via
- *      ObjStreamLookChar() so the character isn't consumed.
+ * STRATEGY:      Same stream change as LexerGetChar.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static short LexerLookChar(Lexer *lexer)
 {
     short c;
@@ -270,27 +260,27 @@ static short LexerLookChar(Lexer *lexer)
     return c;
 }
 
-/***********************************************************************
- *      LexerGetObj
- ***********************************************************************
- * SYNOPSIS:        Get object.
- * PARAMETERS:      Lexer *lexer    lexer
- *                  Obj *obj    object
+/********************************************************************
+ *                      LexerGetObj
+ ********************************************************************
+ * SYNOPSIS:      Read the next token as an object.
  *
- * RETURNS:         void
+ * PARAMETERS:    *lexer                Ptr to the lexer.
+ *                *obj                  Ptr to the object to fill: number,
+ *                                      string, name, bool, null, command
+ *                                      (operators and punctuation), EOF or
+ *                                      error.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Skip whitespace/comments, then dispatch on the first non-blank
- *      character into the appropriate token reader. Numbers...
+ * STRATEGY:      Skip white space and comments, then read the token by its
+ *                first character. Long strings are collected in tokBuf pieces.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void LexerGetObj(Lexer *lexer, Obj *obj)
 {
     char *p;
@@ -298,10 +288,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
     GBool comment, neg, done;
     word numParen;
     long xi;
-    /*
-     * unsigned accumulator for the digit-reading loop below -- some PDF
-     * generators represent a negative integer (e.g.
-     */
+    /* Unsigned, so that 2147483648 of -2147483648 does not overflow */
     dword uxi;
 #ifdef USE_NATIVE_FLOAT_TYPE
     sdword xf;
@@ -312,8 +299,9 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
     GooString s;
     long n, m;
     long tmp;
-    char tokBuf[tokBufSize]; /* temporary token buffer */
+    char tokBuf[tokBufSize];
 
+    /* Skip white space and % comments */
     comment = gFalse;
     while (1)
     {
@@ -340,11 +328,9 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
         }
     }
 
-    /* start reading token */
     switch (c)
     {
 
-        /* number */
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9':
         case '-': case '.':
@@ -409,11 +395,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                 scale *= 10;
             }
 #ifdef USE_NATIVE_FLOAT_TYPE
-            /*
-             * (tmp << 16) / scale, computed one bit at a time instead of
-             * directly -- tmp<<16 alone overflows a 32-bit signed value
-             * whenever tmp is 32768 or higher.
-             */
+            /* (tmp << 16) / scale bit by bit: tmp << 16 overflows */
             {
                 long fracRemainder, fracResult, fracBit;
                 fracRemainder = tmp;
@@ -440,7 +422,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             initReal(obj, xf);
             break;
 
-            /* string */
+            /* Literal string: count nested parentheses, decode escapes */
         case '(':
             p = tokBuf;
             n = 0;
@@ -542,6 +524,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
 
                 if (c2 != EOF)
                 {
+                    /* tokBuf is full: move it into the string */
                     if (n == tokBufSize)
                     {
                         GStrAppendStringN(&s, tokBuf, tokBufSize);
@@ -564,7 +547,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             GStrFree(&s);
             break;
 
-            /* name */
+            /* Name: #xx is a hex escape */
         case '/':
             p = tokBuf;
             n = 0;
@@ -623,7 +606,6 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             initName(obj, tokBuf);
             break;
 
-            /* array punctuation */
         case '[':
         case ']':
             tokBuf[0] = c;
@@ -631,7 +613,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             initCmd(obj, tokBuf);
             break;
 
-            /* hex string or dict punctuation */
+            /* Hex string or "<<" */
         case '<':
             c = LexerLookChar(lexer);
 
@@ -684,6 +666,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                         {
                             EC_WARNING(-1);
                         }
+                        /* Two hex digits make one byte */
                         if (++m == 2)
                         {
                             if (n == tokBufSize)
@@ -700,6 +683,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                     }
                 }
                 GStrAppendStringN(&s, tokBuf, n);
+                /* An odd last digit is followed by 0 */
                 if (m == 1)
                 {
                     GStrAppendChar(&s, (char)(c2 << 4));
@@ -715,7 +699,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             }
             break;
 
-            /* dict punctuation */
+            /* Only ">>" is valid here */
         case '>':
             c = LexerLookChar(lexer);
             if (c == '>')
@@ -732,14 +716,14 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             }
             break;
 
-            /* error */
+            /* Not valid outside a string */
         case ')':
         case '{':
         case '}':
             initError(obj);
             break;
 
-            /* command */
+            /* Operator or keyword (true, false, null) */
         default:
             p = tokBuf;
             *p++ = c;
@@ -776,26 +760,22 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
     }
 }
 
-/***********************************************************************
- *      LexerSkipToNextLine
- ***********************************************************************
- * SYNOPSIS:        Skip to next line.
- * PARAMETERS:      Lexer *lexer    lexer
+/********************************************************************
+ *                      LexerSkipToNextLine
+ ********************************************************************
+ * SYNOPSIS:      Skip to the start of the next line.
  *
- * RETURNS:         void
+ * PARAMETERS:    *lexer                Ptr to the lexer.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Consume characters until a bare '\n', or a '\r' optionally
- *      followed by '\n', or EOF.
+ * STRATEGY:      A line ends with LF, CR or CR LF.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void LexerSkipToNextLine(Lexer *lexer)
 {
     short c;
@@ -818,73 +798,33 @@ void LexerSkipToNextLine(Lexer *lexer)
     }
 }
 
-/***********************************************************************
- *      LexerGetStream
- ***********************************************************************
- * SYNOPSIS:        Get stream.
- * PARAMETERS:      Lexer *lexer    lexer
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 Stream *LexerGetStream(Lexer *lexer)
 {
     return isNone(&lexer->curStr) ? (Stream *)NULL : getStream(&lexer->curStr);
 }
 
-/***********************************************************************
- *      LexerGetPos
- ***********************************************************************
- * SYNOPSIS:        Get position.
- * PARAMETERS:      Lexer *lexer    lexer
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Delegate to ObjStreamGetPos() on the current stream.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 long LexerGetPos(Lexer *lexer)
 {
     return isNone(&lexer->curStr) ? -1 : ObjStreamGetPos(&lexer->curStr);
 }
 
-/***********************************************************************
- *      LexerSetPos
- ***********************************************************************
- * SYNOPSIS:        Set position.
- * PARAMETERS:      Lexer *lexer    lexer
- *                  long pos    file position
+/********************************************************************
+ *                      LexerSetPos
+ ********************************************************************
+ * SYNOPSIS:      Set the position in the current stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *lexer                Ptr to the lexer.
+ *                pos                   New position.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Delegate to ObjStreamSetPos() on the current stream, if any.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void LexerSetPos(Lexer *lexer, long pos)
 {
     if (!isNone(&lexer->curStr))
@@ -893,24 +833,6 @@ void LexerSetPos(Lexer *lexer, long pos)
     }
 }
 
-/***********************************************************************
- *      LexerGetXRef
- ***********************************************************************
- * SYNOPSIS:        Get cross-reference table.
- * PARAMETERS:      Lexer *lexer    lexer
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 XRef *LexerGetXRef(Lexer *lexer)
 {
     return lexer->xref;
