@@ -118,7 +118,7 @@ static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     long colors, long bits);
 static void PredictorStreamFree(Stream *str);
 static void PredictorStreamReset(Stream *str);
-static void PredictorStreamResetLines(PredictorData *pd);
+static GBool PredictorStreamResetLines(PredictorData *pd);
 static GBool PredictorStreamFillLine(Stream *str);
 static short PredictorStreamGetChar(Stream *str);
 static short PredictorStreamLookChar(Stream *str);
@@ -1536,18 +1536,18 @@ static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     rowBytes = (columns * colors * bits + 7) >> 3;
     pixBytes = (colors * bits + 7) >> 3;
 
+    /*
+     * The row buffers are allocated on the first reset (H3c): the parser
+     * builds the filter chain of every stream object it reads, also of
+     * streams that are never decoded.
+     */
     pd = str->u.pred = gmalloc(sizeof(PredictorData));
-    if (pd)
+    if (!pd)
     {
-        pd->lines = gmalloc(2 * rowBytes);
-    }
-    if (!pd || !pd->lines)
-    {
-        gfree(pd);
-        str->u.pred = NULL;
         EOFStreamInit(str, str1);
         return str;
     }
+    pd->lines = NULL;
 
     pd->predictor = (short)pred;
     pd->nComps = (short)colors;
@@ -1560,7 +1560,8 @@ static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
      * still reading the stream object, and resetting would move the
      * shared file position. The caller resets the chain before reading.
      */
-    PredictorStreamResetLines(pd);
+    pd->lineIdx = pd->rowBytes;
+    pd->eof = gTrue;            /* nothing to read until the first reset */
     return str;
 }
 
@@ -1585,19 +1586,29 @@ static void PredictorStreamFree(Stream *str)
  *                  one counts as all zero.
  ***********************************************************************/
 
-static void PredictorStreamResetLines(PredictorData *pd)
+static GBool PredictorStreamResetLines(PredictorData *pd)
 {
+    if (!pd->lines)
+    {
+        pd->lines = gmalloc(2L * pd->rowBytes);
+        if (!pd->lines)
+        {
+            pd->eof = gTrue;
+            return gFalse;
+        }
+    }
     memset(pd->lines, 0, 2 * pd->rowBytes);
     pd->prevLine = pd->lines;
     pd->curLine = pd->lines + pd->rowBytes;
     pd->lineIdx = pd->rowBytes;
     pd->eof = gFalse;
+    return gTrue;
 }
 
 static void PredictorStreamReset(Stream *str)
 {
     StreamReset(str->str);
-    PredictorStreamResetLines(str->u.pred);
+    (void)PredictorStreamResetLines(str->u.pred);
 }
 
 /***********************************************************************
@@ -3066,6 +3077,7 @@ static void LZWStreamInit(Stream *str, Stream *str2, short early1)
 
     str->u.lzw->early = early1;
     str->u.lzw->bufPtr = str->u.lzw->bufEnd = str->u.lzw->buf;
+    str->u.lzw->tab = NULL;     /* allocated by LZWStreamReset */
 }
 
 /***********************************************************************
@@ -3090,6 +3102,7 @@ static void LZWStreamInit(Stream *str, Stream *str2, short early1)
 static void LZWStreamFree(Stream *str)
 {
 
+    gfree(str->u.lzw->tab);
     gfree(str->u.lzw);
 }
 
@@ -3119,14 +3132,25 @@ static void LZWStreamReset(Stream *str)
 
     StreamReset(str->str);
 
+    /* Empty buffer: GetChar calls LZWStreamFillBuf, which needs tab. */
+    plzw->bufPtr = plzw->bufEnd = plzw->buf;
+    if (!plzw->tab)
+    {
+        plzw->tab = gmalloc(sizeof(LZWTables));
+        if (!plzw->tab)
+        {
+            return;             /* LZWStreamFillBuf returns EOF */
+        }
+    }
+
     plzw->inCodeBits = 9;
     plzw->inputBuf = 0;
     plzw->inputBits = 0;
 
     for (code = 0; code < 256; ++code)
     {
-        plzw->codetab[code] = 0;
-        plzw->htab[code] = (Guchar)code;
+        plzw->tab->codetab[code] = 0;
+        plzw->tab->htab[code] = (Guchar)code;
     }
     plzw->free_ent = 258;
 
@@ -3211,11 +3235,16 @@ static GBool LZWStreamFillBuf(Stream *str)
     short code, incode, count;
     LZWData *plzw = str->u.lzw;
 
+    if (!plzw->tab)
+    {
+        return gFalse;          /* no reset yet, or no memory */
+    }
+
     code = LZWStreamGetCode(str);
     if (code == 256)
     {
         /* Clear code */
-        memset(&plzw->codetab[0], 0, 256 * sizeof(short));
+        memset(&plzw->tab->codetab[0], 0, 256 * sizeof(short));
         plzw->free_ent = 258;
         plzw->inCodeBits = 9;
         while ((code = LZWStreamGetCode(str)) == 256);
@@ -3257,8 +3286,8 @@ static GBool LZWStreamFillBuf(Stream *str)
 
     while (code >= 256)
     {
-        plzw->buf[--count] = plzw->htab[code];
-        code = plzw->codetab[code];
+        plzw->buf[--count] = plzw->tab->htab[code];
+        code = plzw->tab->codetab[code];
         if (count == 0)
         {
             EC_WARNING(-1);
@@ -3268,13 +3297,13 @@ static GBool LZWStreamFillBuf(Stream *str)
             return gTrue;
         }
     }
-    plzw->buf[--count] = plzw->finchar = plzw->htab[code];
+    plzw->buf[--count] = plzw->finchar = plzw->tab->htab[code];
 
     /* Generate the new entry. */
     if ((code = plzw->free_ent) < 4096)
     {
-        plzw->codetab[code] = plzw->oldcode;
-        plzw->htab[code] = (Guchar)plzw->finchar;
+        plzw->tab->codetab[code] = plzw->oldcode;
+        plzw->tab->htab[code] = (Guchar)plzw->finchar;
         plzw->free_ent = code + 1;
         if (plzw->free_ent + plzw->early == 0x200)
         {
@@ -3616,23 +3645,17 @@ static void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
     pfax->columns = (short)columns1; /* checked by StreamMakeFilter */
     pfax->rows = rows1;
     pfax->black = black1;
-    pfax->refLine = (short *)gmalloc((pfax->columns + 2) * sizeof(short));
-    pfax->codingLine = (short *)gmalloc((pfax->columns + 2) * sizeof(short));
-    if (!pfax->refLine || !pfax->codingLine)
-    {
-        gfree(pfax->refLine);
-        gfree(pfax->codingLine);
-        gfree(pfax);
-        str->u.fax = NULL;
-        EOFStreamInit(str, str1);
-        return;
-    }
 
-    str->eof = gFalse;
+    /*
+     * The line buffers (up to 2 x 64 KB) are allocated on the first reset
+     * (H3c): the parser builds the filter chain of every stream object it
+     * reads, also of streams that are never decoded.
+     */
+    pfax->refLine = NULL;
+    pfax->codingLine = NULL;
+    str->eof = gTrue;           /* nothing to read until the first reset */
     pfax->nextLine2D = pfax->encoding < 0;
     pfax->inputBits = 0;
-    pfax->codingLine[0] = 0;
-    pfax->codingLine[1] = pfax->refLine[2] = columns1;
     pfax->a0 = 1;
 
     pfax->buf = EOF;
@@ -3688,6 +3711,23 @@ static void CCITTFaxStreamReset(Stream *str)
     CCITTFaxData *pfax = str->u.fax;
 
     StreamReset(str->str);
+    pfax->buf = EOF;
+    if (!pfax->refLine)
+    {
+        pfax->refLine = (short *)gmalloc((pfax->columns + 2L) *
+            sizeof(short));
+        pfax->codingLine = (short *)gmalloc((pfax->columns + 2L) *
+            sizeof(short));
+        if (!pfax->refLine || !pfax->codingLine)
+        {
+            gfree(pfax->refLine);
+            gfree(pfax->codingLine);
+            pfax->refLine = NULL;
+            pfax->codingLine = NULL;
+            str->eof = gTrue;   /* CCITTFaxStreamLookChar returns EOF */
+            return;
+        }
+    }
     str->eof = gFalse;
 
     pfax->nextLine2D = pfax->encoding < 0;
@@ -3729,6 +3769,10 @@ static short CCITTFaxStreamLookChar(Stream *str)
     short bits, i;
     short code1, code2, code3;
 
+    if (!pfax->codingLine)
+    {
+        return EOF;             /* no reset yet, or no memory */
+    }
     if (str->eof && pfax->codingLine[pfax->a0] >= pfax->columns)
     {
         return EOF;

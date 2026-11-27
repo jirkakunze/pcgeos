@@ -613,6 +613,23 @@ typedef struct PredictorData
 
 /* LZWStream */
 
+/*
+ * String table of an LZW stream (12 KB). It is allocated on the first
+ * reset and not with the filter (H3c): the parser builds the filter chain
+ * of every stream object it reads, also of streams that are never decoded.
+ */
+typedef struct LZWTables
+{
+    Guchar htab[4096]; /* only ever holds single decoded bytes */
+
+    /* (16-bit range never needed) AND wrong */
+
+    /* the old declared bound, a pre-existing */
+    /* off-by-2 overflow independent of the */
+    /* type) */
+    short codetab[4096];
+} LZWTables;
+
 typedef struct LZWData
 {
 
@@ -623,14 +640,7 @@ typedef struct LZWData
     char buf[1024]; /* buffer */
     char *bufPtr; /* next char to read */
     char *bufEnd; /* end of buffer */
-    Guchar htab[4096]; /* only ever holds single decoded bytes */
-
-    /* (16-bit range never needed) AND wrong */
-
-    /* the old declared bound, a pre-existing */
-    /* off-by-2 overflow independent of the */
-    /* type) */
-    short codetab[4096];
+    LZWTables *tab; /* string table, NULL until the first reset */
     short oldcode;
     short free_ent;
     short finchar;
