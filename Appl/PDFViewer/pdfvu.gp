@@ -64,6 +64,7 @@ resource FAXCODES  lmem read-only shared
 
 resource AppSCIconResource lmem read-only shared
 resource AppTCIconResource lmem read-only shared
+resource CRYPTDATA lmem read-only shared
 
 
 export PDFDocumentClass

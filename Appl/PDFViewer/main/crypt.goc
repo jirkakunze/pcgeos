@@ -25,6 +25,9 @@
  ***********************************************************************/
 
 #include <Ansi/string.h>
+#include <heap.h>
+#include <lmem.h>
+#include <ec.h>
 
 #include "obj.h"
 #include "array.h"
@@ -37,7 +40,13 @@
  * MD5 Standard RFC 1321 MD5, one-shot .
  */
 
-static dword md5K[64] = {
+/*
+ * Constant tables of MD5 and the security handler, in a data resource and
+ * not in dgroup (H3e). Lock the resource only while they are used.
+ */
+@start CRYPTDATA, data;
+
+@chunk dword md5K[] = {
     0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
         0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
         0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
@@ -56,12 +65,22 @@ static dword md5K[64] = {
         0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
 
-static short md5S[64] = {
+@chunk byte md5S[] = {
     7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
         5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
         4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
         6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
 };
+
+/* Padding string of the standard security handler (PDF spec 7.6.3.3) */
+@chunk byte pdfPadding[] = {
+    0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41,
+        0x64, 0x00, 0x4e, 0x56, 0xff, 0xfa, 0x01, 0x08,
+        0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
+        0x2f, 0x0c, 0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a
+};
+
+@end CRYPTDATA;
 
 /***********************************************************************
  *      md5RotL
@@ -117,6 +136,8 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
     short g, j;
     Guchar *msg;
     dword bitLen;
+    dword *kP;
+    byte *sP;
 
     /*
      * pad: 0x80, then zeros, until length % 64 == 56, then original bit-length
@@ -145,6 +166,9 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
         msg[paddedLen - 8 + i] = 0;
     }
 
+    MemLock(OptrToHandle(@md5K));
+    kP = LMemDeref(@md5K);
+    sP = LMemDeref(@md5S);
     for (chunkStart = 0; chunkStart < paddedLen; chunkStart += 64)
     {
         dword w[16];
@@ -183,13 +207,14 @@ static void MD5Compute(Guchar *data, word len, Guchar digest[16])
             temp = d;
             d = c;
             c = b;
-            m = a + f + md5K[j] + w[g];
-            b = b + md5RotL(m, md5S[j]);
+            m = a + f + kP[j] + w[g];
+            b = b + md5RotL(m, sP[j]);
             a = temp;
         }
 
         a0 += a; b0 += b; c0 += c; d0 += d;
     }
+    MemUnlock(OptrToHandle(@md5K));
 
     for (i = 0; i < 4; ++i)
     {
@@ -320,12 +345,20 @@ void RC4Apply(Guchar *key, short keyLen, Guchar *data, long len)
  * *********************************************************************
  */
 
-static Guchar pdfPadding[32] = {
-    0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41,
-        0x64, 0x00, 0x4e, 0x56, 0xff, 0xfa, 0x01, 0x08,
-        0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
-        0x2f, 0x0c, 0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a
-};
+/***********************************************************************
+ *      XRefCopyPadding
+ ***********************************************************************
+ * SYNOPSIS:        Copy the first n bytes of the padding string.
+ * PARAMETERS:      Guchar *dst    destination
+ *                  word n         number of bytes, max. 32
+ ***********************************************************************/
+static void XRefCopyPadding(Guchar *dst, word n)
+{
+    EC_ERROR_IF(n > 32, -1);
+    MemLock(OptrToHandle(@pdfPadding));
+    memcpy(dst, LMemDeref(@pdfPadding), n);
+    MemUnlock(OptrToHandle(@pdfPadding));
+}
 
 /***********************************************************************
  *      XRefDeriveFileKey
@@ -435,7 +468,7 @@ static GBool XRefCheckUValue(Guchar *fileKey, short keyLenBytes,
 
     if (revision == 2)
     {
-        memcpy(result, pdfPadding, 32);
+        XRefCopyPadding(result, 32);
         RC4Apply(fileKey, keyLenBytes, result, 32);
         return memcmp(result, uValue, 32) == 0;
     }
@@ -445,7 +478,7 @@ static GBool XRefCheckUValue(Guchar *fileKey, short keyLenBytes,
     {
         id0Len = 64;
     }
-    memcpy(buf, pdfPadding, 32);
+    XRefCopyPadding(buf, 32);
     memcpy(&buf[32], id0, id0Len);
     MD5Compute(buf, (word)(32 + id0Len), digest);
 
@@ -499,7 +532,7 @@ static void XRefPadPassword(const char *password, Guchar out[32])
             ++len;
         }
     }
-    memcpy(out + len, pdfPadding, 32 - len);
+    XRefCopyPadding(out + len, 32 - len);
 }
 
 /***********************************************************************

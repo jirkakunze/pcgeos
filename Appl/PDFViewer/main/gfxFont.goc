@@ -57,7 +57,10 @@
 
 static void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray);
 static void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref);
-static short GfxFontLookupStandardWidth(GfxFont *this, char *name);
+static short GfxFontLookupStandardWidth(GfxFont *this, const char *name,
+    word len);
+static sword GfxNameListFind(const char *list, const char *name, word len);
+static word GfxNameListEntryLen(const char *entry);
 static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref,
     GBool hasWidthsArray);
 static void GfxFontAddChar(GfxFont *this, word code, char *name,
@@ -67,8 +70,6 @@ static word GfxFontReadBuiltinEncoding(GfxFont *this, XRef *xref,
 static word GfxFontSymbolChar(const char *name, word unicodeVal);
 static void GfxFontReadToUnicode(GfxFont *this, Dict *fontDict, XRef *xref,
     word *appliedCount);
-static int GfxFontEncodingBinarySearch(char *name, int start, int end,
-    char **pCharNames);
 static GBool GfxFontMatches(GfxFont *this, char *tag1);
 
 /* GfxFont */
@@ -246,7 +247,8 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
 
     Obj obj1, obj2;
     char *pPdfToGeosMap;
-    char **pNameMap;
+    char *pNameMap;
+    word nameLen;
     int code;
     word toUniAppliedCount;
     GBool hasWidthsArray;
@@ -441,15 +443,17 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
             @symbolEncodingNames : @standardEncodingNames));
         /*
          * Compute fallback widths inline; no persistent charNames table is
-         * needed.
+         * needed. pNameMap steps through the name list, one entry per code.
          */
-        for (code = 0; code < 256; ++code)
+        for (code = 0; code < 256 && *pNameMap; ++code)
         {
-            if (pNameMap[code] != NULL)
+            nameLen = GfxNameListEntryLen(pNameMap);
+            if (nameLen)
             {
                 this->widths[code] = GfxFontLookupStandardWidth(this,
-                    pNameMap[code]);
+                    pNameMap, nameLen);
             }
+            pNameMap += nameLen + 1;
         }
         MemUnlock(OptrToHandle(@standardEncodingNames));
     }
@@ -541,12 +545,14 @@ static void GfxFontFree(GfxFont *this)
  *  JK      08/22/26    Style cleanup
  *
  ***********************************************************************/
-static short GfxFontLookupStandardWidth(GfxFont *this, char *name)
+static short GfxFontLookupStandardWidth(GfxFont *this, const char *name,
+    word len)
 {
     optr owidths = @helveticaWidths;
     unsigned short *widths;
-    int j, tableLen;
-    char **pNames;
+    sword j;
+    word tableLen;
+    char *pNames;
     long style = this->flags & (fontBold | fontItalic);
     short result;
 
@@ -616,18 +622,14 @@ static short GfxFontLookupStandardWidth(GfxFont *this, char *name)
         @symbolEncodingNames : @standardEncodingNames);
     tableLen = (this->flags & fontSymbolic) ?
         symbolEncodingSize : standardEncodingSize;
-    for (j = 0; j < tableLen; ++j)
+    j = GfxNameListFind(pNames, name, len);
+    if (j >= 0 && (word)j < tableLen)
     {
-        if (pNames[j] != NULL &&
-            ((name == pNames[j]) || !strcmp(name, pNames[j])))
-        {
-            result = widths[j];
-            break;
-        }
+        result = widths[j];
     }
     MemUnlock(OptrToHandle(@standardEncodingNames));
     MemUnlock(OptrToHandle(owidths));
-    if (result == 0 && !strcmp(name, "Euro"))
+    if (result == 0 && len == 4 && !strncmp(name, "Euro", 4))
     {
         /* not in the old standard tables; current Adobe core font AFMs */
         result = (this->flags & fontFixedWidth) ? 600 :
@@ -807,8 +809,9 @@ static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref,
 static void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray)
 {
     optr charMap, nameMap;
-    char **pNameMap;
+    char *pNameMap;
     word code;
+    word nameLen;
 
     if (isNameSame(pObj, "MacRomanEncoding"))
     {
@@ -835,13 +838,15 @@ static void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray)
     {
         MemLock(OptrToHandle(nameMap));
         pNameMap = LMemDeref(nameMap);
-        for (code = 0; code < 256; ++code)
+        for (code = 0; code < 256 && *pNameMap; ++code)
         {
-            if (pNameMap[code] != NULL)
+            nameLen = GfxNameListEntryLen(pNameMap);
+            if (nameLen)
             {
                 this->widths[code] = GfxFontLookupStandardWidth(this,
-                    pNameMap[code]);
+                    pNameMap, nameLen);
             }
+            pNameMap += nameLen + 1;
         }
         MemUnlock(OptrToHandle(nameMap));
     }
@@ -871,9 +876,9 @@ static void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray)
 static void
 GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
 {
-    char **pCharNames;
+    char *pCharNames;
     char *pCharGEOSEquiv;
-    int searchResult;
+    sword searchResult;
     word sym;
 
     this->symChars[code >> 3] &= (byte)~(1 << (code & 7));
@@ -886,7 +891,8 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
             this->charMap[code] = (byte)name[0];
             if (!hasWidthsArray)
             {
-                this->widths[code] = GfxFontLookupStandardWidth(this, name);
+                this->widths[code] = GfxFontLookupStandardWidth(this, name,
+                strlen(name));
             }
             return;
         }
@@ -910,7 +916,8 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
         this->charMap[code] = 0;
         if (!hasWidthsArray)
         {
-            this->widths[code] = GfxFontLookupStandardWidth(this, name);
+            this->widths[code] = GfxFontLookupStandardWidth(this, name,
+                strlen(name));
         }
         return;
     }
@@ -932,7 +939,8 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
         this->charMap[code] = value;
         if (!hasWidthsArray)
         {
-            this->widths[code] = GfxFontLookupStandardWidth(this, name);
+            this->widths[code] = GfxFontLookupStandardWidth(this, name,
+                strlen(name));
         }
         return;
     }
@@ -946,14 +954,7 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
     pCharNames = LMemDeref(@charNames);
     pCharGEOSEquiv = LMemDeref(@charGEOSEquiv);
 
-    /*
-     * and divide by 4 to get the # of elements Else, I'm not sure how we get
-     * the (unpadded) size of the arrays.)
-     */
-    searchResult = GfxFontEncodingBinarySearch(name,
-        0,
-        (LMemGetChunkSize(@charNames) >> 2) - 1,
-        pCharNames);
+    searchResult = GfxNameListFind(pCharNames, name, strlen(name));
     if (searchResult != -1)
     {
         this->charMap[code] = pCharGEOSEquiv[searchResult];
@@ -984,63 +985,63 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
     }
     if (!hasWidthsArray)
     {
-        this->widths[code] = GfxFontLookupStandardWidth(this, name);
+        this->widths[code] = GfxFontLookupStandardWidth(this, name,
+                strlen(name));
     }
 }
 
-/* recursively search for a name matching 'name' */
 /***********************************************************************
- *      GfxFontEncodingBinarySearch
+ *      GfxNameListEntryLen
  ***********************************************************************
- * SYNOPSIS:        Process gfx font encoding binary search.
- * PARAMETERS:      char *name    name
- *                  int start    start
- *                  int end    end
- *                  char **pCharNames    p char names
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
+ * SYNOPSIS:        Length of one entry of a glyph name list.
+ * PARAMETERS:      const char *entry    start of the entry
+ * RETURNS:         number of chars before the '|' (0 = empty entry)
+ * STRATEGY:        Every entry of a list in ENCODINGS ends with '|'.
  ***********************************************************************/
-
-static int GfxFontEncodingBinarySearch(char *name, int start, int end,
-    char **pCharNames)
+static word GfxNameListEntryLen(const char *entry)
 {
-    int ind;
-    sword comp;
+    word len = 0;
 
-    ind = (start + end) >> 1;
-    if (!(comp = strcmp(pCharNames[ind], name)))
+    while (entry[len] != '|')
     {
-        return ind;
+        EC_ERROR_IF(entry[len] == '\0', -1);
+        ++len;
     }
-    /* Search again */
-    if (comp > 0)
+    return len;
+}
+
+/***********************************************************************
+ *      GfxNameListFind
+ ***********************************************************************
+ * SYNOPSIS:        Find a name in a glyph name list.
+ * PARAMETERS:      const char *list    locked list ("name|name|...|")
+ *                  const char *name    name, need not end with NUL
+ *                  word len            length of the name
+ * RETURNS:         index of the first entry equal to the name, -1 if none
+ * STRATEGY:        Linear search. The lists have at most 335 entries and
+ *                  are searched only while a font is loaded. An empty
+ *                  name or a name with '|' cannot be in a list.
+ ***********************************************************************/
+static sword GfxNameListFind(const char *list, const char *name, word len)
+{
+    sword idx;
+    word entryLen;
+
+    EC(ECCheckBounds((void *)list));
+    if (len == 0 || memchr(name, '|', len) != NULL)
     {
-        if (ind == start)
+        return -1;
+    }
+    for (idx = 0; *list; ++idx)
+    {
+        entryLen = GfxNameListEntryLen(list);
+        if (entryLen == len && !strncmp(list, name, len))
         {
-            return - 1;
+            return idx;
         }
-        return GfxFontEncodingBinarySearch(name, start, ind - 1,
-            pCharNames);
+        list += entryLen + 1;
     }
-    else
-    {
-        if (ind == end)
-        {
-            return - 1;
-        }
-        return GfxFontEncodingBinarySearch(name, ind + 1, end,
-            pCharNames);
-    }
+    return -1;
 }
 
 /***********************************************************************
@@ -1130,19 +1131,27 @@ char GfxFontFindChar(GfxFont *this, unsigned char ch)
 word GfxUnicodeToGeosChar(word unicodeVal)
 {
     word i;
+    word *mapP;
+    word result = 0;
 
     if (unicodeVal == 0)
     {
         return 0;
     }
+    MemLock(OptrToHandle(@geosCharMap));
+    mapP = LMemDeref(@geosCharMap);
+    EC_ERROR_IF(LMemGetChunkSize(@geosCharMap) !=
+        NUM_CHARMAPENTRIES * sizeof(word), -1);
     for (i = 0; i < NUM_CHARMAPENTRIES; ++i)
     {
-        if (geosCharMap[i] == unicodeVal)
+        if (mapP[i] == unicodeVal)
         {
-            return(word)(i + MIN_GEOS_CHAR);
+            result = (word)(i + MIN_GEOS_CHAR);
+            break;
         }
     }
-    return 0;
+    MemUnlock(OptrToHandle(@geosCharMap));
+    return result;
 }
 
 /***********************************************************************
@@ -1153,12 +1162,17 @@ word GfxUnicodeToGeosChar(word unicodeVal)
  ***********************************************************************/
 word GfxGeosCharToUnicode(byte ch)
 {
+    word result;
+
     if (ch < MIN_GEOS_CHAR ||
         (word)GEOS_CHAR_INDEX(ch) >= (word)NUM_CHARMAPENTRIES)
     {
         return 0;
     }
-    return geosCharMap[GEOS_CHAR_INDEX(ch)];
+    MemLock(OptrToHandle(@geosCharMap));
+    result = ((word *)LMemDeref(@geosCharMap))[GEOS_CHAR_INDEX(ch)];
+    MemUnlock(OptrToHandle(@geosCharMap));
+    return result;
 }
 
 /***********************************************************************
@@ -1172,9 +1186,9 @@ word GfxGeosCharToUnicode(byte ch)
  ***********************************************************************/
 byte GfxGlyphNameToGeosChar(char *name)
 {
-    char **pCharNames;
+    char *pCharNames;
     char *pCharGEOSEquiv;
-    int searchResult;
+    sword searchResult;
     byte ch = 0;
     word uni, len, idx;
     char *p;
@@ -1232,10 +1246,7 @@ byte GfxGlyphNameToGeosChar(char *name)
     MemLock(OptrToHandle(@charGEOSEquiv));
     pCharNames = LMemDeref(@charNames);
     pCharGEOSEquiv = LMemDeref(@charGEOSEquiv);
-    searchResult = GfxFontEncodingBinarySearch(name,
-        0,
-        (LMemGetChunkSize(@charNames) >> 2) - 1,
-        pCharNames);
+    searchResult = GfxNameListFind(pCharNames, name, strlen(name));
     if (searchResult != -1)
     {
         ch = (byte)pCharGEOSEquiv[searchResult];
