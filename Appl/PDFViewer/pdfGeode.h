@@ -236,7 +236,7 @@ typedef struct XRef
     long objStmCacheNum;
     long objStmCacheN;
     long objStmCacheFirst;
-    long *objStmPairOffsets;
+    MemHandle objStmPairOffsetsH; /* long[objStmCacheN], swapable, 0 = none */
 } XRef;
 
 /* Lexer */
@@ -617,6 +617,8 @@ typedef struct PredictorData
  * String table of an LZW stream (12 KB). It is allocated on the first
  * reset and not with the filter (H3c): the parser builds the filter chain
  * of every stream object it reads, also of streams that are never decoded.
+ * It is a swapable block that is locked only in LZWStreamReset and
+ * LZWStreamFillBuf, so that it does not stay fixed in the heap.
  */
 typedef struct LZWTables
 {
@@ -640,7 +642,7 @@ typedef struct LZWData
     char buf[1024]; /* buffer */
     char *bufPtr; /* next char to read */
     char *bufEnd; /* end of buffer */
-    LZWTables *tab; /* string table, NULL until the first reset */
+    MemHandle tabH; /* LZWTables, swapable, 0 until the first reset */
     short oldcode;
     short free_ent;
     short finchar;

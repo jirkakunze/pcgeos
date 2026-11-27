@@ -44,6 +44,7 @@
 #include "gmem.h"
 #include "crypt.h"
 #include <vm.h>
+#include <heap.h>
 #include <hugearr.h>
 #include <ctype.h>
 #include <ec.h>
@@ -106,7 +107,7 @@ void XRefInitNull(XRef *xref)
     xref->objStmCacheNum = -1;
     xref->objStmCacheN = 0;
     xref->objStmCacheFirst = 0;
-    xref->objStmPairOffsets = NULL;
+    xref->objStmPairOffsetsH = NullHandle;
 }
 
 /***********************************************************************
@@ -312,14 +313,18 @@ void XRefFree(XRef *xref)
 
     ObjFree(&xref->trailerDict);
 
-    gfree(xref->objStmPairOffsets);
-    xref->objStmPairOffsets = NULL;
+    if (xref->objStmPairOffsetsH)
+    {
+        MemFree(xref->objStmPairOffsetsH);
+        xref->objStmPairOffsetsH = NullHandle;
+    }
     xref->objStmCacheNum = -1;
 }
 
 /*
  * Largest Object Stream (objects) whose offset table is cached: 4 bytes
- * per object, at most 4 KB of heap while the document is open.
+ * per object, at most 4 KB while the document is open. The table is a
+ * swapable block, locked only while it is filled or read (H3c).
  */
 #define XREF_OBJSTM_CACHE_MAX 1024
 
@@ -1546,6 +1551,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     Obj dummyDict;
     Dict *dict;
     long n, first, i, pairOffset, targetOffset, consumed;
+    long *offsetsP;
     short c;
     short j;
     Parser parser;
@@ -1591,7 +1597,7 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     cacheHit = (objStmNum == xref->objStmCacheNum
         && n == xref->objStmCacheN
         && first == xref->objStmCacheFirst
-        && xref->objStmPairOffsets != NULL);
+        && xref->objStmPairOffsetsH != NullHandle);
 
     if (cacheHit)
     {
@@ -1599,7 +1605,10 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
          * Same ObjStm as last time, with a matching element count -- already
          * know every pair's offset from the cache.
          */
-        targetOffset = xref->objStmPairOffsets[idxInStm];
+        offsetsP = MemLock(xref->objStmPairOffsetsH);
+        EC_ERROR_IF(offsetsP == NULL, -1);
+        targetOffset = offsetsP[idxInStm];
+        MemUnlock(xref->objStmPairOffsetsH);
     }
     else
     {
@@ -1607,9 +1616,22 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
          * Cache miss : scan the header for real, same as always -- but also
          * record every pair's offset into a freshly (re)allocated cache array.
          */
-        gfree(xref->objStmPairOffsets);
-        xref->objStmPairOffsets = (n > 0 && n <= XREF_OBJSTM_CACHE_MAX) ?
-            (long *)gmalloc(n * sizeof(long)) : NULL;
+        if (xref->objStmPairOffsetsH)
+        {
+            MemFree(xref->objStmPairOffsetsH);
+            xref->objStmPairOffsetsH = NullHandle;
+        }
+        offsetsP = NULL;
+        if (n > 0 && n <= XREF_OBJSTM_CACHE_MAX)
+        {
+            /* No memory: no cache, the header is scanned every time. */
+            xref->objStmPairOffsetsH = MemAlloc((word)(n * sizeof(long)),
+                HF_SWAPABLE, HAF_ZERO_INIT | HAF_LOCK);
+            if (xref->objStmPairOffsetsH)
+            {
+                offsetsP = MemDeref(xref->objStmPairOffsetsH);
+            }
+        }
         xref->objStmCacheNum = objStmNum;
         xref->objStmCacheN = n;
         xref->objStmCacheFirst = first;
@@ -1643,14 +1665,18 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
                 c = ObjStreamGetCharCounted(&objStmObj, &consumed);
             }
 
-            if (xref->objStmPairOffsets)
+            if (offsetsP)
             {
-                xref->objStmPairOffsets[i] = pairOffset;
+                offsetsP[i] = pairOffset;
             }
             if (i == idxInStm)
             {
                 targetOffset = pairOffset;
             }
+        }
+        if (offsetsP)
+        {
+            MemUnlock(xref->objStmPairOffsetsH);
         }
     }
 

@@ -3037,6 +3037,7 @@ static short ASCII85StreamGetChar(Stream *str)
 /* code copied from Acorn port of xpdf */
 
 static short LZWStreamGetCode(Stream *str);
+static GBool LZWStreamDecode(Stream *str, LZWTables *tab);
 
 /* Code */
 
@@ -3077,7 +3078,7 @@ static void LZWStreamInit(Stream *str, Stream *str2, short early1)
 
     str->u.lzw->early = early1;
     str->u.lzw->bufPtr = str->u.lzw->bufEnd = str->u.lzw->buf;
-    str->u.lzw->tab = NULL;     /* allocated by LZWStreamReset */
+    str->u.lzw->tabH = NullHandle; /* allocated by LZWStreamReset */
 }
 
 /***********************************************************************
@@ -3102,7 +3103,10 @@ static void LZWStreamInit(Stream *str, Stream *str2, short early1)
 static void LZWStreamFree(Stream *str)
 {
 
-    gfree(str->u.lzw->tab);
+    if (str->u.lzw->tabH)
+    {
+        MemFree(str->u.lzw->tabH);
+    }
     gfree(str->u.lzw);
 }
 
@@ -3129,16 +3133,18 @@ static void LZWStreamReset(Stream *str)
 {
     short code;
     LZWData *plzw = str->u.lzw;
+    LZWTables *tab;
 
     StreamReset(str->str);
 
-    /* Empty buffer: GetChar calls LZWStreamFillBuf, which needs tab. */
+    /* Empty buffer: GetChar calls LZWStreamFillBuf, which needs tabH. */
     plzw->bufPtr = plzw->bufEnd = plzw->buf;
-    if (!plzw->tab)
+    if (!plzw->tabH)
     {
-        plzw->tab = gmalloc(sizeof(LZWTables));
-        if (!plzw->tab)
+        plzw->tabH = MemAlloc(sizeof(LZWTables), HF_SWAPABLE, HAF_ZERO_INIT);
+        if (!plzw->tabH)
         {
+            GMemSetError();
             return;             /* LZWStreamFillBuf returns EOF */
         }
     }
@@ -3147,11 +3153,14 @@ static void LZWStreamReset(Stream *str)
     plzw->inputBuf = 0;
     plzw->inputBits = 0;
 
+    tab = MemLock(plzw->tabH);
+    EC_ERROR_IF(tab == NULL, -1);
     for (code = 0; code < 256; ++code)
     {
-        plzw->tab->codetab[code] = 0;
-        plzw->tab->htab[code] = (Guchar)code;
+        tab->codetab[code] = 0;
+        tab->htab[code] = (Guchar)code;
     }
+    MemUnlock(plzw->tabH);
     plzw->free_ent = 258;
 
     while ((code = LZWStreamGetCode(str)) == 256);
@@ -3221,7 +3230,10 @@ static short LZWStreamGetCode(Stream *str)
  *
  * CONTEXT:
  *
- * STRATEGY:
+ * STRATEGY:        Lock the string table only while one code is decoded
+ *                  (H3c). Between the calls the table can move or be
+ *                  swapped out. LZWStreamDecode is in the same segment,
+ *                  so the call is direct.
  *
  * REVISION HISTORY:
  *  Name    Date        Description
@@ -3232,19 +3244,41 @@ static short LZWStreamGetCode(Stream *str)
 
 static GBool LZWStreamFillBuf(Stream *str)
 {
-    short code, incode, count;
     LZWData *plzw = str->u.lzw;
+    LZWTables *tab;
+    GBool ret;
 
-    if (!plzw->tab)
+    if (!plzw->tabH)
     {
         return gFalse;          /* no reset yet, or no memory */
     }
+
+    tab = MemLock(plzw->tabH);
+    EC_ERROR_IF(tab == NULL, -1);
+    ret = LZWStreamDecode(str, tab);
+    MemUnlock(plzw->tabH);
+    return ret;
+}
+
+/***********************************************************************
+ *      LZWStreamDecode
+ ***********************************************************************
+ * SYNOPSIS:        Decode the next code into the buffer.
+ * PARAMETERS:      Stream *str       string
+ *                  LZWTables *tab    locked string table
+ * RETURNS:         gFalse at the end of the data
+ ***********************************************************************/
+
+static GBool LZWStreamDecode(Stream *str, LZWTables *tab)
+{
+    short code, incode, count;
+    LZWData *plzw = str->u.lzw;
 
     code = LZWStreamGetCode(str);
     if (code == 256)
     {
         /* Clear code */
-        memset(&plzw->tab->codetab[0], 0, 256 * sizeof(short));
+        memset(&tab->codetab[0], 0, 256 * sizeof(short));
         plzw->free_ent = 258;
         plzw->inCodeBits = 9;
         while ((code = LZWStreamGetCode(str)) == 256);
@@ -3286,8 +3320,8 @@ static GBool LZWStreamFillBuf(Stream *str)
 
     while (code >= 256)
     {
-        plzw->buf[--count] = plzw->tab->htab[code];
-        code = plzw->tab->codetab[code];
+        plzw->buf[--count] = tab->htab[code];
+        code = tab->codetab[code];
         if (count == 0)
         {
             EC_WARNING(-1);
@@ -3297,13 +3331,13 @@ static GBool LZWStreamFillBuf(Stream *str)
             return gTrue;
         }
     }
-    plzw->buf[--count] = plzw->finchar = plzw->tab->htab[code];
+    plzw->buf[--count] = plzw->finchar = tab->htab[code];
 
     /* Generate the new entry. */
     if ((code = plzw->free_ent) < 4096)
     {
-        plzw->tab->codetab[code] = plzw->oldcode;
-        plzw->tab->htab[code] = (Guchar)plzw->finchar;
+        tab->codetab[code] = plzw->oldcode;
+        tab->htab[code] = (Guchar)plzw->finchar;
         plzw->free_ent = code + 1;
         if (plzw->free_ent + plzw->early == 0x200)
         {
