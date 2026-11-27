@@ -47,9 +47,17 @@
 #include "gstr.h"
 
 /* Keep page-cache policy private to the engine. */
-#define PDF_MAX_CACHED_PAGES    30
-#define PDF_PAGE_CACHE_VM_BUDGET 0x00800000UL
-#define PDF_PAGE_GSTRING_ESTIMATE 1024UL      /* small per-page baseline */
+#define PDF_MAX_CACHED_PAGES    10
+#define PDF_PAGE_CACHE_VM_BUDGET 0x00200000UL /* 2 MB of page GStrings */
+
+/*
+ * ATTENTION: Mean size of a GString element that is not an image slice
+ * (lines, paths, text, attributes). The public API gives only the number
+ * of elements, not the bytes. Pages with much text are a little larger
+ * than the estimate. Upgrade path: a kernel routine that returns the
+ * byte size of a HugeArray without locking its data blocks.
+ */
+#define PDF_GSTRING_ELEMENT_ESTIMATE 16UL
 
 /*
  * Internal layout behind the opaque handles
@@ -60,7 +68,7 @@
 typedef struct {
     word pageNum;
     VMBlockHandle gstringBlock;
-    dword estimatedBytes; /* OPT-19: GString + bitmap VM estimate */
+    dword estimatedBytes; /* VM bytes of the page GString */
     dword lastUse; /* monotonically increasing LRU stamp */
 } PdfPageCacheEntry;
 
@@ -529,6 +537,30 @@ static PdfPageCacheEntry *
         }
     }
     return NULL;
+}
+
+
+/***********************************************************************
+ *      PdfGStringVmBytes
+ ***********************************************************************
+ * SYNOPSIS:        Estimate the VM bytes of a page GString.
+ * PARAMETERS:      VMFileHandle file       scratch VM file
+ *                  VMBlockHandle gstring   HugeArray of the GString
+ *                  dword imageBytes        image bytes copied into it
+ * RETURN:          dword                   estimated VM bytes
+ * STRATEGY:        A VM GString is a HugeArray. HugeArrayGetCount locks
+ *                  only the directory block, so that data blocks that
+ *                  are swapped out stay on disk. The image bytes are
+ *                  known exactly; all other elements are small.
+ ***********************************************************************/
+static dword PdfGStringVmBytes(VMFileHandle file, VMBlockHandle gstring,
+    dword imageBytes)
+{
+    EC(ECVMCheckVMFile(file));
+    EC(ECVMCheckVMBlockHandle(file, gstring));
+
+    return imageBytes +
+        HugeArrayGetCount(file, gstring) * PDF_GSTRING_ELEMENT_ESTIMATE;
 }
 
 
@@ -1213,7 +1245,8 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
     /* ----- store the new page in the reserved fixed cache slot ----- */
     cacheEntry->pageNum = pageNum;
     cacheEntry->gstringBlock = pageData;
-    cacheEntry->estimatedBytes = PDF_PAGE_GSTRING_ESTIMATE + resourceBytes;
+    cacheEntry->estimatedBytes = PdfGStringVmBytes(pdoc->gstringFile,
+        pageData, resourceBytes);
     pdoc->cachedVmBytes += cacheEntry->estimatedBytes;
     PdfTouchPageCacheEntry(pdoc, cacheEntry);
     PdfEnforceCacheByteBudget(pdoc, cacheEntry);
