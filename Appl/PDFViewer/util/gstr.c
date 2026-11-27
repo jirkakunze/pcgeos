@@ -377,28 +377,3 @@ char *GStrGetCString(GooString *gstr)
     return gstr->s ? gstr->s : gEmptyString;
 }
 
-/***********************************************************************
- *      GStrCmpString
- ***********************************************************************
- * SYNOPSIS:        Process gstr cmp string.
- * PARAMETERS:      GooString *gstr    string
- *                  char *s1    s1
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Delegate to strcmp() via GStrGetCString().
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-long GStrCmpString(GooString *gstr, char *s1)
-{
-    return strcmp(GStrGetCString(gstr), s1);
-}
-

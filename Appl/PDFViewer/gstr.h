@@ -66,8 +66,5 @@ extern long GStrGetLength(GooString *gstr);
 /* Get cstring. */
 extern char *GStrGetCString(GooString *gstr);
 
-/* Compare against a C string, per strcmp(). */
-extern long GStrCmpString(GooString *gstr, char *s1);
-
 #endif  /* GSTR_H */
 
