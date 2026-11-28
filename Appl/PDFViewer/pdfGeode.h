@@ -81,8 +81,6 @@ typedef enum ObjType
 
 #define numObjTypes 14  /* total number of object types */
 
-/* Object */
-
 typedef struct Obj
 {
 
@@ -102,8 +100,6 @@ typedef struct Obj
     } u;
 } Obj;
 
-/* Array */
-
 typedef struct Array
 {
 
@@ -114,8 +110,6 @@ typedef struct Array
 
 } Array;
 
-/* Catalog */
-
 typedef struct Catalog
 {
     Obj pagesRoot; /* top-level /Pages ref or direct dict */
@@ -125,8 +119,6 @@ typedef struct Catalog
     GBool ok; /* true if catalog is valid */
 
 } Catalog;
-
-/* Dict */
 
 typedef struct DictEntry
 {
@@ -142,8 +134,6 @@ typedef struct Dict
     word ref; /* reference count */
 
 } Dict;
-
-/* PageAttrs */
 
 typedef struct PageAttrs
 {
@@ -165,8 +155,6 @@ typedef struct Page
     Obj contents; /* page contents */
     GBool ok; /* true if page is valid */
 } Page;
-
-/* Parser */
 
 typedef struct Parser
 {
@@ -239,8 +227,6 @@ typedef struct XRef
     MemHandle objStmPairOffsetsH; /* long[objStmCacheN], swapable, 0 = none */
 } XRef;
 
-/* Lexer */
-
 /* #define tokBufSize 128 // size of token buffer */
 
 typedef struct Lexer
@@ -253,8 +239,6 @@ typedef struct Lexer
     XRef *xref;
 } Lexer;
 
-/* GfxState */
-
 /* Geos needs to be told when a path is starting, and when to set a clip path */
 
 typedef enum PathType
@@ -265,14 +249,10 @@ typedef enum PathType
         PATH_CLIP_EO,
 } PathType;
 
-/* GfxColor */
-
 typedef struct GfxColor
 {
     short r, g, b;
 } GfxColor;
-
-/* GfxColorSpace */
 
 typedef enum GfxColorMode
 {
@@ -367,8 +347,6 @@ typedef struct GfxState
 
 } GfxState;
 
-/* GfxFontDict */
-
 typedef struct GfxFontDict
 {
     struct GfxFont **fonts; /* list of fonts */
@@ -381,8 +359,6 @@ typedef struct GfxFontDict
     struct GfxFont *lastFont; /* NULL until the first successful */
     /* lookup */
 } GfxFontDict;
-
-/* GfxFont */
 
 #define fontFixedWidth (1L << 0)
 #define fontSerif (1L << 1)
@@ -466,7 +442,7 @@ typedef struct Gfx
     XRef *xref; /* current xref pointer */
     VMFileHandle vmFile; /* scratch VM file */
     word nImages; /* # of images drawn so far on this page */
-    GBool resourceLimitExceeded; /* OPT-15: page image guard fired */
+    GBool resourceLimitExceeded; /* page image limit reached */
 
     dword pageResourceBytes; /* image bytes copied into the page GString */
 
@@ -483,8 +459,6 @@ typedef struct Gfx
 #define GFX_SEG_LINE  1
 #define GFX_SEG_CURVE 2
 #define GFX_SEG_CLOSE 3
-
-/* GfxImageColorMap */
 
 typedef struct GfxImageColorMap
 {
@@ -556,8 +530,6 @@ typedef struct Stream
 
 } Stream;
 
-/* FileStream */
-
 typedef struct FStream
 {
     FileHandle f;
@@ -611,25 +583,17 @@ typedef struct PredictorData
     Guchar compBuf[PDF_PREDICTOR_MAX_COMPS]; /* TIFF: running sums */
 } PredictorData;
 
-/* LZWStream */
-
 /*
  * String table of an LZW stream (12 KB). It is allocated on the first
- * reset and not with the filter (H3c): the parser builds the filter chain
+ * reset and not with the filter: the parser builds the filter chain
  * of every stream object it reads, also of streams that are never decoded.
  * It is a swapable block that is locked only in LZWStreamReset and
  * LZWStreamFillBuf, so that it does not stay fixed in the heap.
  */
 typedef struct LZWTables
 {
-    Guchar htab[4096]; /* only ever holds single decoded bytes */
-
-    /* (16-bit range never needed) AND wrong */
-
-    /* the old declared bound, a pre-existing */
-    /* off-by-2 overflow independent of the */
-    /* type) */
-    short codetab[4096];
+    Guchar htab[4096];   /* last byte of the string of each code */
+    short codetab[4096]; /* prefix code of each code */
 } LZWTables;
 
 typedef struct LZWData
@@ -650,8 +614,6 @@ typedef struct LZWData
 
 /* FlateStream: FlateData is private to main/stream.goc (wraps zlib) */
 
-/* ASCII85Stream */
-
 typedef struct ASCII85Data
 {
     short c[5]; /* char or EOF */
@@ -659,16 +621,12 @@ typedef struct ASCII85Data
     short index, n;
 } ASCII85Data;
 
-/* RunLengthStream */
-
 typedef struct RunLengthData
 {
     char buf[128]; /* buffer */
     char *bufPtr; /* next char to read */
     char *bufEnd; /* end of buffer */
 } RunLengthData;
-
-/* CCITTFaxStream */
 
 typedef struct CCITTFaxData
 {

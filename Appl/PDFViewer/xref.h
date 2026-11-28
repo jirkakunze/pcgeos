@@ -41,10 +41,8 @@
 /* Zero-initialize an XRef structure. */
 extern void XRefInitNull(XRef *xref);
 
-/* Constructor */
 extern Boolean XRefInit(XRef *xref, FileHandle fileHan, const char *password);
 
-/* Destructor */
 extern void XRefFree(XRef *xref);
 
 /* Is xref table valid? */

@@ -815,7 +815,7 @@
 /*
  * Glyph name lists: all names of a list in one string, each name ends with
  * '|'. An empty entry ("|" alone) is a code without a glyph. The strings
- * are in this resource and not in dgroup (H3e); an array of char pointers
+ * are in this resource and not in dgroup; an array of char pointers
  * would put every string literal into dgroup. Use GfxNameListFind and
  * GfxNameListEntryLen (gfxFont.goc).
  */

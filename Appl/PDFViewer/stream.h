@@ -100,8 +100,6 @@ GBool StreamResetImage(Stream *stream, word width1, short nComps1,
 extern
 GBool StreamGetImagePixel(Stream *this, Guchar *pix);
 
-/* FileStream */
-
 void FStreamInit(Stream *this, FileHandle f1, long start1, long length1,
     Obj *dict1);
 
@@ -113,8 +111,6 @@ short FStreamGetChar(Stream *str);
 
 /* Get position. */
 long FStreamGetPos(Stream *str);
-
-/* SubStream */
 
 void SubStreamInit(Stream *str, Stream *str1, Obj *dict1);
 
@@ -135,12 +131,8 @@ short DCTStreamLookChar(Stream *str);
 extern
 word DCTStreamRead(Stream *str, Guchar *buf, word size);
 
-/* RC4Stream */
-
 /* Initialize. */
 void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen);
-
-/* EOFStream */
 
 void EOFStreamInit(Stream *str, Stream *str2);
 

@@ -46,7 +46,6 @@
 #include "gfxFont.h"
 #include "gstr.h"
 
-/* Keep page-cache policy private to the engine. */
 #define PDF_MAX_CACHED_PAGES    10
 #define PDF_PAGE_CACHE_VM_BUDGET 0x00200000UL /* 2 MB of page GStrings */
 
@@ -59,11 +58,7 @@
  */
 #define PDF_GSTRING_ELEMENT_ESTIMATE 16UL
 
-/*
- * Internal layout behind the opaque handles
- * **********************************************************************
- * Private to this file.
- */
+/* Internal layout behind the opaque handles (private to this file) */
 
 typedef struct {
     word pageNum;
@@ -96,11 +91,7 @@ typedef struct {
     GBool cancelRequested;
 } PdfDocInternal;
 
-/*
- * Page geometry -- shared by PdfGetPageSize and PdfDrawPage
- * ********************************************************************** Both
- * need the same CropBox/MediaBox + /Rotate.
- */
+/* Page geometry: shared by PdfGetPageSize and PdfDrawPage */
 typedef struct {
     word width; /* on-screen(post-rotation) width, points */
     word height; /* on-screen(post-rotation) height, points */
@@ -120,28 +111,26 @@ typedef struct {
     gdouble rawHeight;
 } PdfPageGeometry;
 
-/***********************************************************************
- *      PdfComputePageGeometry
- ***********************************************************************
- * SYNOPSIS:        Compute page geometry.
- * PARAMETERS:      Catalog *catalog    catalog
- *                  XRef *xref    cross-reference table
- *                  word pageNum    page number
- *                  PdfPageGeometry *geom    page geometry
+/********************************************************************
+ *                      PdfComputePageGeometry
+ ********************************************************************
+ * SYNOPSIS:      Compute the box, size and rotation of a page.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *catalog              Ptr to the catalog.
+ *                *xref                 Ptr to the cross-reference table.
+ *                pageNum               Page number (1-based).
+ *                *geom                 Ptr to the geometry (out).
  *
- * CONTEXT:
+ * RETURNS:       PdfError              PDF_OK or an error.
  *
- * STRATEGY:
+ * STRATEGY:      CropBox, else MediaBox; for /Rotate 90 and 270 width and
+ *                height are swapped for the screen size.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static PdfError
 PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
     PdfPageGeometry *geom)
@@ -168,10 +157,7 @@ PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
         geom->height = GdoubleToWord(PageGetHeight(&page));
     }
 
-    /*
-     * capture native (pre-swap) extent before width/height get swapped for on-
-     * screen 90/270 reporting below.
-     */
+    /* Native extent, before width and height are swapped for 90/270 */
     geom->clipWidth = geom->width;
     geom->clipHeight = geom->height;
 
@@ -192,16 +178,24 @@ PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
     return PDF_OK;
 }
 
-/***********************************************************************
- *      PdfApplyScreenRotation
- ***********************************************************************
- * SYNOPSIS:        Rotate and move PDF user space onto the screen page
- *                  (after the Y flip): /Rotate and the crop box origin.
- * PARAMETERS:      target    GState with the Y flip already applied
- *                  geom      page geometry
- * STRATEGY:        Shared by PdfDrawPage and the link code, so a click
- *                  maps back exactly the way the page was drawn.
- ***********************************************************************/
+/********************************************************************
+ *                      PdfApplyScreenRotation
+ ********************************************************************
+ * SYNOPSIS:      Apply /Rotate and the crop box origin (after the Y flip).
+ *
+ * PARAMETERS:    target                GState or GString.
+ *                *geom                 Ptr to the page geometry.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Shared by PdfDrawPage and the link code, so that a click maps
+ *                back exactly as the page was drawn.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PdfApplyScreenRotation(GStateHandle target, PdfPageGeometry *geom)
 {
     sword transX, transY;
@@ -236,22 +230,25 @@ static void PdfApplyScreenRotation(GStateHandle target, PdfPageGeometry *geom)
         MakeWWFixed(transY - geom->clipY));
 }
 
-/***********************************************************************
- *      PdfFitPrintPage
- ***********************************************************************
- * SYNOPSIS:        Fit a page into the printable area (G2).
- * PARAMETERS:      target    print GState, origin at the top left of
- *                            the printable area
- *                  geom      page geometry (changed: rotation and the
- *                            on-paper width/height)
- *                  area      printable width and height, points
- * STRATEGY:        Scale = min(area / page) keeps the aspect ratio. If
- *                  the page turned by another 90 degrees gets a larger
- *                  scale (landscape page on portrait paper), turn it.
- *                  Then center, scale, and apply the same Y flip and
- *                  rotation as the screen (PdfApplyScreenRotation).
- *                  Small pages are enlarged to fill the area.
- ***********************************************************************/
+/********************************************************************
+ *                      PdfFitPrintPage
+ ********************************************************************
+ * SYNOPSIS:      Fit a page into the printable area.
+ *
+ * PARAMETERS:    target                Print GState.
+ *                *geom                 Ptr to the page geometry.
+ *                *area                 Ptr to the printable area.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Scale = min(area / page). Turn the page by 90 degrees if that
+ *                gives a larger scale, then center it.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PdfFitPrintPage(GStateHandle target, PdfPageGeometry *geom,
     const Point *area)
 {
@@ -287,30 +284,23 @@ static void PdfFitPrintPage(GStateHandle target, PdfPageGeometry *geom,
     PdfApplyScreenRotation(target, geom);
 }
 
-/*
- * Small internal helpers
- * **********************************************************************
- */
-
-/***********************************************************************
- *      PdfLockDoc
- ***********************************************************************
- * SYNOPSIS:        Lock document.
- * PARAMETERS:      PdfDocHandle doc    doc
+/********************************************************************
+ *                      PdfLockDoc
+ ********************************************************************
+ * SYNOPSIS:      Lock the document block.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    doc                   Engine document handle.
  *
- * CONTEXT:
+ * RETURNS:       PdfDocInternal *      Ptr to the document, NULL for an invalid
+ *                                      handle.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static PdfDocInternal *PdfLockDoc(PdfDocHandle doc)
 {
     if (doc == PDF_NULL_DOC)
@@ -323,25 +313,22 @@ static PdfDocInternal *PdfLockDoc(PdfDocHandle doc)
     return(PdfDocInternal *)MemLock((MemHandle)doc);
 }
 
-/***********************************************************************
- *      PdfUnlockDoc
- ***********************************************************************
- * SYNOPSIS:        Unlock document.
- * PARAMETERS:      PdfDocHandle doc    doc
+/********************************************************************
+ *                      PdfUnlockDoc
+ ********************************************************************
+ * SYNOPSIS:      Unlock the document block.
  *
- * RETURNS:         void
+ * PARAMETERS:    doc                   Engine document handle.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PdfUnlockDoc(PdfDocHandle doc)
 {
     if (doc != PDF_NULL_DOC)
@@ -350,26 +337,23 @@ static void PdfUnlockDoc(PdfDocHandle doc)
     }
 }
 
-/***********************************************************************
- *      PdfFreePageCacheEntry
- ***********************************************************************
- * SYNOPSIS:        Release page cache entry.
- * PARAMETERS:      PdfDocInternal *pdoc    PDF document
- *                  PdfPageCacheEntry *entry    cache entry
+/********************************************************************
+ *                      PdfFreePageCacheEntry
+ ********************************************************************
+ * SYNOPSIS:      Free a cached page and its GString.
  *
- * RETURNS:         void
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                *entry                Ptr to the cache entry.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      The GString holds copies of its images: one VM chain.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 PdfFreePageCacheEntry(PdfDocInternal *pdoc, PdfPageCacheEntry *entry)
 {
@@ -394,12 +378,22 @@ PdfFreePageCacheEntry(PdfDocInternal *pdoc, PdfPageCacheEntry *entry)
     entry->lastUse = 0;
 }
 
-
-/***********************************************************************
- *      PdfFreeAllPageCacheEntries
- ***********************************************************************
- * SYNOPSIS:        Drop every decoded page of the document.
- ***********************************************************************/
+/********************************************************************
+ *                      PdfFreeAllPageCacheEntries
+ ********************************************************************
+ * SYNOPSIS:      Free all cached pages.
+ *
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PdfFreeAllPageCacheEntries(PdfDocInternal *pdoc)
 {
     word i;
@@ -413,26 +407,23 @@ static void PdfFreeAllPageCacheEntries(PdfDocInternal *pdoc)
     }
 }
 
-/***********************************************************************
- *      PdfTouchPageCacheEntry
- ***********************************************************************
- * SYNOPSIS:        Touch page cache entry.
- * PARAMETERS:      PdfDocInternal *pdoc    PDF document
- *                  PdfPageCacheEntry *entry    cache entry
+/********************************************************************
+ *                      PdfTouchPageCacheEntry
+ ********************************************************************
+ * SYNOPSIS:      Mark a cache entry as used now (LRU).
  *
- * RETURNS:         void
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                *entry                Ptr to the cache entry.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PdfTouchPageCacheEntry(PdfDocInternal *pdoc,
     PdfPageCacheEntry *entry)
 {
@@ -463,26 +454,24 @@ static void PdfTouchPageCacheEntry(PdfDocInternal *pdoc,
     entry->lastUse = pdoc->cacheUseClock;
 }
 
-/***********************************************************************
- *      PdfFindCachedPage
- ***********************************************************************
- * SYNOPSIS:        Find cached page.
- * PARAMETERS:      PdfDocInternal *pdoc    PDF document
- *                  word pageNum    page number
+/********************************************************************
+ *                      PdfFindCachedPage
+ ********************************************************************
+ * SYNOPSIS:      Find a page in the page cache.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                pageNum               Page number.
  *
- * CONTEXT:
+ * RETURNS:       PdfPageCacheEntry *   Ptr to the cache entry, NULL if the page
+ *                                      is not cached.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static PdfPageCacheEntry *
     PdfFindCachedPage(PdfDocInternal *pdoc, word pageNum)
 {
@@ -502,26 +491,23 @@ static PdfPageCacheEntry *
     return NULL;
 }
 
-
-/***********************************************************************
- *      PdfFindFreePageCacheEntry
- ***********************************************************************
- * SYNOPSIS:        Find free page cache entry.
- * PARAMETERS:      PdfDocInternal *pdoc    PDF document
+/********************************************************************
+ *                      PdfFindFreePageCacheEntry
+ ********************************************************************
+ * SYNOPSIS:      Find an unused cache entry.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
  *
- * CONTEXT:
+ * RETURNS:       PdfPageCacheEntry *   Ptr to the entry, NULL if the cache is
+ *                                      full.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static PdfPageCacheEntry *
     PdfFindFreePageCacheEntry(PdfDocInternal *pdoc)
 {
@@ -539,20 +525,26 @@ static PdfPageCacheEntry *
     return NULL;
 }
 
-
-/***********************************************************************
- *      PdfGStringVmBytes
- ***********************************************************************
- * SYNOPSIS:        Estimate the VM bytes of a page GString.
- * PARAMETERS:      VMFileHandle file       scratch VM file
- *                  VMBlockHandle gstring   HugeArray of the GString
- *                  dword imageBytes        image bytes copied into it
- * RETURN:          dword                   estimated VM bytes
- * STRATEGY:        A VM GString is a HugeArray. HugeArrayGetCount locks
- *                  only the directory block, so that data blocks that
- *                  are swapped out stay on disk. The image bytes are
- *                  known exactly; all other elements are small.
- ***********************************************************************/
+/********************************************************************
+ *                      PdfGStringVmBytes
+ ********************************************************************
+ * SYNOPSIS:      Estimate the VM bytes of a page GString.
+ *
+ * PARAMETERS:    file                  Scratch VM file.
+ *                gstring               HugeArray of the GString.
+ *                imageBytes            Image bytes copied into the GString.
+ *
+ * RETURNS:       dword                 Estimated bytes.
+ *
+ * STRATEGY:      HugeArrayGetCount locks only the directory block: swapped-out
+ *                data blocks stay on disk. The image bytes are exact; the other
+ *                elements count with PDF_GSTRING_ELEMENT_ESTIMATE.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static dword PdfGStringVmBytes(VMFileHandle file, VMBlockHandle gstring,
     dword imageBytes)
 {
@@ -563,27 +555,24 @@ static dword PdfGStringVmBytes(VMFileHandle file, VMBlockHandle gstring,
         HugeArrayGetCount(file, gstring) * PDF_GSTRING_ELEMENT_ESTIMATE;
 }
 
-
-/***********************************************************************
- *      PdfEnforceCacheByteBudget
- ***********************************************************************
- * SYNOPSIS:        Enforce cache byte budget.
- * PARAMETERS:      PdfDocInternal *pdoc    PDF document
- *                  PdfPageCacheEntry *keepEntry    keep entry
+/********************************************************************
+ *                      PdfEnforceCacheByteBudget
+ ********************************************************************
+ * SYNOPSIS:      Free the oldest pages until the cache fits its byte budget.
  *
- * RETURNS:         void
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                *keepEntry            Ptr to the entry that must stay (the new
+ *                                      page).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 PdfEnforceCacheByteBudget(PdfDocInternal *pdoc, PdfPageCacheEntry *keepEntry)
 {
@@ -620,31 +609,31 @@ PdfEnforceCacheByteBudget(PdfDocInternal *pdoc, PdfPageCacheEntry *keepEntry)
     }
 }
 
-/* A. */
-
-/***********************************************************************
- *      PdfOpen
- ***********************************************************************
- * SYNOPSIS:        Open.
- * PARAMETERS:      FileHandle file    file
- *                  const char *password    user/owner password of an
- *                                  encrypted file, NULL or "" for none
- *                  PdfDocHandle *docOut    doc out
+/********************************************************************
+ *                      PdfOpen
+ ********************************************************************
+ * SYNOPSIS:      Open a PDF file.
  *
- * RETURNS:         result value
+ * PARAMETERS:    file                  Handle of the open PDF file (the caller
+ *                                      owns it).
+ *                *password             Ptr to the password, NULL or "" for
+ *                                      none.
+ *                *docOut               Ptr to the document handle (out).
  *
- * CONTEXT:
+ * RETURNS:       PdfError              PDF_OK or a PDF_ERR_* value
+ *                                      (PDF_ERR_PASSWORD: password missing or
+ *                                      wrong, PDF_ERR_ENCRYPTED: not
+ *                                      supported).
  *
- * STRATEGY:
- *      XRefInit -> open scratch VM file -> XRefGetCatalog/CatalogInit,
- *      bailing via errorClose: on any failure. An...
+ * STRATEGY:      Read the cross-reference table, make the scratch VM file for
+ *                the page cache and read the catalog. On error everything is
+ *                freed again.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 PdfError
 PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
 {
@@ -682,7 +671,6 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
     pdoc->progressUserData = NULL;
     pdoc->cancelRequested = FALSE;
 
-    /* ----- xref table ----- */
     XRefInit(&pdoc->xref, file, password);
     if (GMemHadError())
     {
@@ -691,10 +679,7 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
     }
     if (!XRefIsOk(&pdoc->xref))
     {
-        /*
-         * xref->trailerDict is still valid at this point s its local stream,
-         * it doesn't touch the trailer dict).
-         */
+        /* The trailer dictionary of xref is still valid here */
         if (pdoc->xref.needPassword)
         {
             err = PDF_ERR_PASSWORD;
@@ -707,10 +692,7 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
         goto errorClose;
     }
 
-    /*
-     * ----- scratch VM file for decoded page gstrings, temp file in the
-     * wastebasket, exactly like the original -----
-     */
+    /* Scratch VM file for the page GStrings (temporary file) */
     p = pdoc->gstringFileName;
     FileConstructFullPath(&p, sizeof(pdoc->gstringFileName),
         SP_WASTE_BASKET, "", TRUE);
@@ -726,7 +708,6 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
         goto errorClose;
     }
 
-    /* ----- page catalog ----- */
     XRefGetCatalog(&pdoc->xref, &catDict);
     CatalogInit(&pdoc->catalog, &catDict, pdoc->gstringFile, &pdoc->xref);
     ObjFree(&catDict);
@@ -742,7 +723,7 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
         goto errorClose;
     }
 
-    /* ----- success: fill in what PdfGetPageCount/PdfDecodePage need ----- */
+    /* Success: fill in the document */
     pdoc->pageCount = CatalogGetNumPages(&pdoc->catalog);
 
     pdoc->ok = TRUE;
@@ -757,24 +738,22 @@ PdfOpen(FileHandle file, const char *password, PdfDocHandle *docOut)
     return err;
 }
 
-/***********************************************************************
- *      PdfClose
- ***********************************************************************
- * SYNOPSIS:        Close.
- * PARAMETERS:      PdfDocHandle doc    doc
+/********************************************************************
+ *                      PdfClose
+ ********************************************************************
+ * SYNOPSIS:      Close a document and free all its data.
  *
- * RETURNS:         void
+ * PARAMETERS:    doc                   Engine document handle.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void PdfClose(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;
@@ -794,8 +773,6 @@ void PdfClose(PdfDocHandle doc)
     pdoc->progressCallback = NULL;
     pdoc->cancelRequested = FALSE;
 
-    /* Page-cache cleanup replaces the old disabled VMFreeVMChain loop. */
-
     CatalogFree(&pdoc->catalog);
     XRefFree(&pdoc->xref);
 
@@ -809,33 +786,24 @@ void PdfClose(PdfDocHandle doc)
     MemFree((MemHandle)doc);
 }
 
-/* B. */
-
-/***********************************************************************
- *      PdfGetPageCount
- ***********************************************************************
- * SYNOPSIS:        Get page count.
- * PARAMETERS:      PdfDocHandle doc    doc
+/********************************************************************
+ *                      PdfParseDateDigits
+ ********************************************************************
+ * SYNOPSIS:      Read up to count digits of a PDF date.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *p                    Ptr to the read position (in/out).
+ *                count                 Number of digits.
+ *                def                   Value if there are no digits.
  *
- * CONTEXT:
+ * RETURNS:       word                  Value.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
-/***********************************************************************
- *      PdfParseDateDigits
- ***********************************************************************
- * SYNOPSIS:        Read up to count decimal digits of a PDF date.
- * RETURNS:         value, or def if no digit is present
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word PdfParseDateDigits(const char **p, word count, word def)
 {
     word val = 0, n = 0;
@@ -849,16 +817,25 @@ static word PdfParseDateDigits(const char **p, word count, word def)
     return n ? val : def;
 }
 
-/***********************************************************************
- *      PdfFormatDate
- ***********************************************************************
- * SYNOPSIS:        Format a PDF date "D:YYYYMMDDHHmmSS..." with the
- *                  system's short date and hour:minute formats.
- * RETURNS:         FALSE if the string is not a date (buf unchanged)
+/********************************************************************
+ *                      PdfFormatDate
+ ********************************************************************
+ * SYNOPSIS:      Format a PDF date "D:YYYYMMDDHHmmSS" with the system date and
+ *                time formats.
  *
- * STRATEGY:        The time zone suffix is ignored (shown as written).
- ***********************************************************************/
-
+ * PARAMETERS:    *s                    Ptr to the PDF date string.
+ *                *buf                  Ptr to the result (out).
+ *                bufSize               Size of buf.
+ *
+ * RETURNS:       Boolean               FALSE if s is not a date.
+ *
+ * STRATEGY:      The time zone is ignored.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static Boolean PdfFormatDate(const char *s, char *buf, word bufSize)
 {
     TimerDateAndTime dt;
@@ -899,24 +876,27 @@ static Boolean PdfFormatDate(const char *s, char *buf, word bufSize)
     return TRUE;
 }
 
-/***********************************************************************
- *      PdfGetInfoField
- ***********************************************************************
- * SYNOPSIS:        Entry of the document information dictionary.
- * PARAMETERS:      PdfDocHandle doc    document
- *                  const char *key    entry name, e.g. "Title"
- *                  char *buf    output (GEOS character set)
- *                  word bufSize    size of buf
+/********************************************************************
+ *                      PdfGetInfoField
+ ********************************************************************
+ * SYNOPSIS:      Return an entry of the document information dictionary.
  *
- * RETURNS:         TRUE if the entry exists and is not empty
+ * PARAMETERS:    doc                   Engine document handle.
+ *                *key                  Ptr to the key (Title, Author, ...).
+ *                *buf                  Ptr to the result in the GEOS character
+ *                                      set (out).
+ *                bufSize               Size of buf.
+ *
+ * RETURNS:       Boolean               TRUE if the entry is not empty.
+ *
+ * STRATEGY:      Dates (CreationDate, ModDate) are formatted with the system
+ *                formats.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      11/23/26    Initial version (B4)
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/23/26  JK        Initial version
+ *******************************************************************/
 Boolean PdfGetInfoField(PdfDocHandle doc, const char *key, char *buf,
                         word bufSize)
 {
@@ -956,6 +936,22 @@ Boolean PdfGetInfoField(PdfDocHandle doc, const char *key, char *buf,
     return buf[0] != 0;
 }
 
+/********************************************************************
+ *                      PdfOkToPrint
+ ********************************************************************
+ * SYNOPSIS:      Check if /P allows printing.
+ *
+ * PARAMETERS:    doc                   Engine document handle.
+ *
+ * RETURNS:       Boolean               TRUE if printing is allowed.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Boolean PdfOkToPrint(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;
@@ -971,6 +967,22 @@ Boolean PdfOkToPrint(PdfDocHandle doc)
     return ok;
 }
 
+/********************************************************************
+ *                      PdfOkToCopy
+ ********************************************************************
+ * SYNOPSIS:      Check if /P allows copying.
+ *
+ * PARAMETERS:    doc                   Engine document handle.
+ *
+ * RETURNS:       Boolean               TRUE if copying is allowed.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Boolean PdfOkToCopy(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;
@@ -986,6 +998,23 @@ Boolean PdfOkToCopy(PdfDocHandle doc)
     return ok;
 }
 
+/********************************************************************
+ *                      PdfGetPageCount
+ ********************************************************************
+ * SYNOPSIS:      Return the number of pages.
+ *
+ * PARAMETERS:    doc                   Engine document handle.
+ *
+ * RETURNS:       word                  Number of pages, 0 for an invalid
+ *                                      handle.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 word PdfGetPageCount(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;
@@ -1003,28 +1032,24 @@ word PdfGetPageCount(PdfDocHandle doc)
     return count;
 }
 
-/***********************************************************************
- *      PdfGetPageSize
- ***********************************************************************
- * SYNOPSIS:        Get page size.
- * PARAMETERS:      PdfDocHandle doc    doc
- *                  word pageNum    page number
- *                  Point *sizeOut    size out
+/********************************************************************
+ *                      PdfGetPageSize
+ ********************************************************************
+ * SYNOPSIS:      Return the screen size of a page.
  *
- * RETURNS:         result value
+ * PARAMETERS:    doc                   Engine document handle.
+ *                pageNum               Page number (1-based).
+ *                *sizeOut              Ptr to the size (out).
  *
- * CONTEXT:
+ * RETURNS:       PdfError              PDF_OK or an error.
  *
- * STRATEGY:
- *      Delegate to PdfComputePageGeometry(), shared with PdfDrawPage()
- *      since both need the same CropBox/MediaBox + /Rotate...
+ * STRATEGY:      Same geometry as PdfDrawPage (crop box and /Rotate).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 PdfError PdfGetPageSize(PdfDocHandle doc, word pageNum, Point *sizeOut)
 {
     PdfDocInternal *pdoc;
@@ -1058,29 +1083,26 @@ PdfError PdfGetPageSize(PdfDocHandle doc, word pageNum, Point *sizeOut)
     return err;
 }
 
-/* C. */
-
-/***********************************************************************
- *      PdfDecodePageContent
- ***********************************************************************
- * SYNOPSIS:        Decode page content.
- * PARAMETERS:      PdfDocInternal *pdoc    PDF document
- *                  word pageNum    page number
- *                  VMBlockHandle *pageDataOut    page data out
+/********************************************************************
+ *                      PdfDecodePageContent
+ ********************************************************************
+ * SYNOPSIS:      Decode a page into a GString of the page cache.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                pageNum               Page number (1-based).
+ *                *pageDataOut          Ptr to the GString VM block (out).
  *
- * CONTEXT:
+ * RETURNS:       PdfError              PDF_OK or an error.
  *
- * STRATEGY:
+ * STRATEGY:      Take a free cache entry (or the least recently used one), draw
+ *                the page content into a new VM GString, then enforce the cache
+ *                budget.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
     VMBlockHandle *pageDataOut)
 {
@@ -1101,9 +1123,7 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
     *pageDataOut = 0;
     GMemClearError();
 
-    /*
-     * ----- reserve a cache slot; evict the least-recently-used page if full
-     */
+    /* Reserve a cache entry; free the oldest page if the cache is full */
     cacheEntry = PdfFindFreePageCacheEntry(pdoc);
     if (cacheEntry == NULL)
     {
@@ -1124,7 +1144,7 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
 
     cacheEntry->estimatedBytes = 0;
 
-    /* ----- lazily materialize this page and decode its content stream ----- */
+    /* Load the page and decode its content stream */
     if (!CatalogGetPage(&pdoc->catalog, pageNum, &pdoc->xref, &page))
     {
         PdfFreePageCacheEntry(pdoc, cacheEntry);
@@ -1179,10 +1199,7 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
             {
                 gfx.pageResourceBytes = 0;
 
-                /*
-                 * Route progress and cancellation through the document
-                 * callback.
-                 */
+                /* Progress and cancel through the document callback */
                 gfx.progressCallback = pdoc->progressCallback;
                 gfx.progressUserData = pdoc->progressUserData;
                 gfx.cancelFlag = &pdoc->cancelRequested;
@@ -1194,12 +1211,7 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
                 }
                 resourceLimitExceeded = gfx.resourceLimitExceeded;
 
-                /*
-                 * Annotation appearances (PDF 12.5.5) are not drawn in the
-                 * RM viewer (I1); links are handled by PdfFindLink.
-                 * PM-TODO: Draw annotation appearance streams again
-                 * (git history before I1: GfxDrawAnnotations).
-                 */
+                /* PM-TODO: draw annotation appearances (git history before I1) */
 
                 resourceBytes = gfx.pageResourceBytes;
                 GfxFree(&gfx);
@@ -1234,15 +1246,10 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
         {
             return PDF_ERR_OUT_OF_MEMORY;
         }
-        /*
-         * So PDF_ERR_CANCELLED below is reachable in principle but not in
-         * practice through this path -- kept for correctness, not because it
-         * fires often.
-         */
         return pdoc->cancelRequested ? PDF_ERR_CANCELLED : PDF_ERR_NOT_A_PDF;
     }
 
-    /* ----- store the new page in the reserved fixed cache slot ----- */
+    /* Store the new page in the reserved cache entry */
     cacheEntry->pageNum = pageNum;
     cacheEntry->gstringBlock = pageData;
     cacheEntry->estimatedBytes = PdfGStringVmBytes(pdoc->gstringFile,
@@ -1255,27 +1262,25 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
     return PDF_OK;
 }
 
-/***********************************************************************
- *      PdfDecodePage
- ***********************************************************************
- * SYNOPSIS:        Decode page.
- * PARAMETERS:      PdfDocHandle doc    doc
- *                  word pageNum    page number
+/********************************************************************
+ *                      PdfDecodePage
+ ********************************************************************
+ * SYNOPSIS:      Make sure that a page is in the page cache.
  *
- * RETURNS:         result value
+ * PARAMETERS:    doc                   Engine document handle.
+ *                pageNum               Page number (1-based).
  *
- * CONTEXT:
+ * RETURNS:       PdfError              PDF_OK or an error.
  *
- * STRATEGY:
- *      Validate doc/pageNum, check for a pending cancel request, then
- *      decode via PdfDecodePageContent() only if the page...
+ * STRATEGY:      Decode only if the page is not cached. Out of memory: empty
+ *                the cache and try once more (the heap is fragmented, not
+ *                full).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
 {
     PdfDocInternal *pdoc;
@@ -1300,9 +1305,7 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
         PdfUnlockDoc(doc);
         return PDF_ERR_INVALID_PAGE;
     }
-    /* A cancel request belongs to the decode that was running when the
-     * user pressed Stop. Drop a leftover one instead of failing the next,
-     * unrelated page with PDF_ERR_CANCELLED. */
+    /* Drop a cancel request that belongs to an earlier decode */
     pdoc->cancelRequested = FALSE;
 
     cacheEntry = PdfFindCachedPage(pdoc, pageNum);
@@ -1312,15 +1315,7 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
     {
         err = PdfDecodePageContent(pdoc, pageNum, &pageData);
 
-        /*
-         * Out of memory is often only temporary in real mode: fixed blocks
-         * (malloc, zlib's 32 KB window) fragment the heap, and the failed
-         * attempt has just released all of its own memory. Drop the other
-         * cached pages and try once more before reporting the error.
-         * Only for real allocation failures -- the page resource budget
-         * (also PDF_ERR_OUT_OF_MEMORY, but without GMemHadError) would
-         * just fail again.
-         */
+        /* Out of memory is often temporary (fragmented heap): retry once */
         if (err == PDF_ERR_OUT_OF_MEMORY && GMemHadError() &&
             !pdoc->cancelRequested)
         {
@@ -1340,32 +1335,31 @@ PdfError PdfDecodePage(PdfDocHandle doc, word pageNum)
     return PDF_OK;
 }
 
-/***********************************************************************
- *      PdfDrawPage
- ***********************************************************************
- * SYNOPSIS:        Draw page.
- * PARAMETERS:      PdfDocHandle doc    doc
- *                  word pageNum    page number
- *                  GStateHandle target    target
- *                  Boolean printing    printing
- *                  const Point *fitArea    printable area (print only)
- *                  Point *pageSizeOut    page size out
+/********************************************************************
+ *                      PdfDrawPage
+ ********************************************************************
+ * SYNOPSIS:      Draw a cached page into a GState or GString.
  *
- * RETURNS:         result value
+ * PARAMETERS:    doc                   Engine document handle.
+ *                pageNum               Page number (1-based).
+ *                target                GState or GString to draw into.
+ *                printing              TRUE for printing and the clipboard
+ *                                      (copy the GString).
+ *                *fitArea              Ptr to the printable area (print), NULL
+ *                                      for 1:1.
+ *                *pageSizeOut          Ptr to the page size (out).
  *
- * CONTEXT:
+ * RETURNS:       PdfError              PDF_OK; PDF_ERR_INVALID_PAGE also if the
+ *                                      page left the cache (decode it again).
  *
- * STRATEGY:
- *      Re-read the cache entry, compute page geometry, then flip Y and
- *      either rotate+clip+GrDrawGString (screen), fit+rotate+clip+
- *      GrCopyGString (print, G2) or copy at 1:1 (clipboard).
+ * STRATEGY:      Flip Y, then rotate and clip (screen), fit, rotate and clip
+ *                (print), or copy 1:1 (clipboard).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
     Boolean printing, const Point *fitArea, Point *pageSizeOut)
 {
@@ -1450,29 +1444,24 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
     return PDF_OK;
 }
 
-/* D. */
-
-/***********************************************************************
- *      PdfSetProgressCallback
- ***********************************************************************
- * SYNOPSIS:        Set progress callback.
- * PARAMETERS:      PdfDocHandle doc    doc
- *                  PdfProgressCallback callback    callback
- *                  void *userData    callback data
+/********************************************************************
+ *                      PdfSetProgressCallback
+ ********************************************************************
+ * SYNOPSIS:      Set the progress callback of a document.
  *
- * RETURNS:         void
+ * PARAMETERS:    doc                   Engine document handle.
+ *                callback              Callback, NULL for none.
+ *                *userData             Ptr passed to the callback.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Store callback and userData directly on the document.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void PdfSetProgressCallback(PdfDocHandle doc, PdfProgressCallback callback,
     void *userData)
 {
@@ -1490,24 +1479,23 @@ void PdfSetProgressCallback(PdfDocHandle doc, PdfProgressCallback callback,
     PdfUnlockDoc(doc);
 }
 
-/***********************************************************************
- *      PdfCancelDecode
- ***********************************************************************
- * SYNOPSIS:        Cancel decode.
- * PARAMETERS:      PdfDocHandle doc    doc
+/********************************************************************
+ *                      PdfCancelDecode
+ ********************************************************************
+ * SYNOPSIS:      Ask the running decode to stop.
  *
- * RETURNS:         void
+ * PARAMETERS:    doc                   Engine document handle.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Only a flag is set (called from the UI thread); GfxGo checks
+ *                it after each operator.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void PdfCancelDecode(PdfDocHandle doc)
 {
     PdfDocInternal *pdoc;
@@ -1523,23 +1511,30 @@ void PdfCancelDecode(PdfDocHandle doc)
     PdfUnlockDoc(doc);
 }
 
-
 #pragma code_seg("PdfLink")
 
-/*
- * Links (F4). Nothing is kept in memory: a click walks the /Annots of the
- * current page once, finds the link rectangle and resolves its target.
- */
+/* Links: a click reads the /Annots of the page once; nothing is kept */
 
 #define PDF_NAME_TREE_MAX_DEPTH 16
 
-/***********************************************************************
- *      PdfScreenState
- ***********************************************************************
- * SYNOPSIS:        GState without a window that holds the screen
- *                  transformation of a page (PdfDrawPage, not printing).
- * RETURNS:         GState (caller frees with GrDestroyState), 0 on error
- ***********************************************************************/
+/********************************************************************
+ *                      PdfScreenState
+ ********************************************************************
+ * SYNOPSIS:      Make a GState without a window with the screen transform of a
+ *                page.
+ *
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                pageNum               Page number (1-based).
+ *
+ * RETURNS:       GStateHandle          GState handle, 0 on error.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GStateHandle PdfScreenState(PdfDocInternal *pdoc, word pageNum)
 {
     PdfPageGeometry geom;
@@ -1559,12 +1554,23 @@ static GStateHandle PdfScreenState(PdfDocInternal *pdoc, word pageNum)
     return gs;
 }
 
-/***********************************************************************
- *      PdfStrCmp
- ***********************************************************************
- * SYNOPSIS:        Compare two PDF strings byte by byte (name trees).
- * RETURNS:         < 0, 0, > 0
- ***********************************************************************/
+/********************************************************************
+ *                      PdfStrCmp
+ ********************************************************************
+ * SYNOPSIS:      Compare two PDF strings byte by byte (name trees).
+ *
+ * PARAMETERS:    *a                    Ptr to the first string.
+ *                *b                    Ptr to the second string.
+ *
+ * RETURNS:       sword                 < 0, 0 or > 0.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static sword PdfStrCmp(GooString *a, GooString *b)
 {
     long la = GStrGetLength(a), lb = GStrGetLength(b);
@@ -1579,17 +1585,27 @@ static sword PdfStrCmp(GooString *a, GooString *b)
     return (la < lb) ? -1 : (la > lb) ? 1 : 0;
 }
 
-/***********************************************************************
- *      PdfNameTreeLookup
- ***********************************************************************
- * SYNOPSIS:        Find a key in a name tree (/Names /Dests).
- * PARAMETERS:      tree    root node (dict)
- *                  key     string key
- *                  out     value, null if not found (caller frees)
- * STRATEGY:        Walk down one node per level: /Names pairs, else the
- *                  /Kids entry whose /Limits contain the key. No
- *                  recursion, depth limited.
- ***********************************************************************/
+/********************************************************************
+ *                      PdfNameTreeLookup
+ ********************************************************************
+ * SYNOPSIS:      Find a key in a name tree.
+ *
+ * PARAMETERS:    *tree                 Ptr to the root node.
+ *                *key                  Ptr to the key.
+ *                *xref                 Ptr to the cross-reference table.
+ *                *out                  Ptr to the value (out); null if not
+ *                                      found.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      One node per level: /Names pairs, else the /Kids entry whose
+ *                /Limits hold the key. No recursion, depth limited.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PdfNameTreeLookup(Obj *tree, GooString *key, XRef *xref, Obj *out)
 {
     Obj node, arr, kid, lim, lo, hi, k;
@@ -1658,25 +1674,30 @@ static void PdfNameTreeLookup(Obj *tree, GooString *key, XRef *xref, Obj *out)
     ObjFree(&node);
 }
 
-/***********************************************************************
- *      PdfResolveDest
- ***********************************************************************
- * SYNOPSIS:        Resolve a destination to a page and a vertical
- *                  position.
- * PARAMETERS:      dest      explicit array, name (/Dests) or string
- *                            (name tree); a dict value uses its /D
- *                  topOut    PDF user space y of the top edge, or
- *                            PDF_DEST_NO_TOP
- * RETURNS:         page number (1-based), 0 = no valid target
- * STRATEGY:        [page /XYZ left top zoom], [page /FitH top],
- *                  [page /FitBH top] give a top; /Fit, /FitV, /FitR,
- *                  /FitB show the top of the page. The page is a page
- *                  reference (or a number, used by some producers).
- *                  ATTENTION: Zoom of /XYZ and /Fit* is ignored, the
- *                  view keeps its scale. Upgrade: set the view scale.
- ***********************************************************************/
 #define PDF_DEST_NO_TOP ((sdword)0x7fffffffL)
 
+/********************************************************************
+ *                      PdfResolveDest
+ ********************************************************************
+ * SYNOPSIS:      Resolve a link destination to a page and a top position.
+ *
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                *dest                 Ptr to the destination (array, name or
+ *                                      string).
+ *                *topOut               Ptr to the top in PDF user space (out),
+ *                                      PDF_DEST_NO_TOP for the top of the page.
+ *
+ * RETURNS:       word                  Page number (1-based), 0 if not valid.
+ *
+ * STRATEGY:      Named destinations through /Dests and the name tree. /XYZ,
+ *                /FitH and /FitBH give a top. ATTENTION: the zoom is ignored,
+ *                the view keeps its scale. Upgrade: set the view scale.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word PdfResolveDest(PdfDocInternal *pdoc, Obj *dest, sdword *topOut)
 {
     Obj d, v, pg, kind, top;
@@ -1758,24 +1779,31 @@ static word PdfResolveDest(PdfDocInternal *pdoc, Obj *dest, sdword *topOut)
     return page;
 }
 
-/***********************************************************************
- *      PdfFindLink
- ***********************************************************************
- * SYNOPSIS:        Find the internal link at a point of a page.
- * PARAMETERS:      doc, pageNum    page on display
- *                  docX, docY      click point, document coordinates
- *                                  (as drawn by PdfDrawPage on screen)
- *                  destPage        target page (1-based)
- *                  destDocY        target y in document coordinates of
- *                                  the target page, -1 = page top
- * RETURNS:         TRUE if a link with a valid internal target is hit
- * STRATEGY:        Map the point back to PDF user space through the
- *                  same transformation as the page (GState without a
- *                  window), test the /Rect of every /Link annotation,
- *                  resolve /Dest or /A << /S /GoTo /D ... >>. Other
- *                  actions (URI, GoToR, Launch) are ignored.
- *                  PM-TODO: URI and GoToR links (Ausbauplan PM).
- ***********************************************************************/
+/********************************************************************
+ *                      PdfFindLink
+ ********************************************************************
+ * SYNOPSIS:      Find the internal link at a point of a page.
+ *
+ * PARAMETERS:    doc                   Engine document handle.
+ *                pageNum               Page number (1-based).
+ *                docX                  x in document coordinates.
+ *                docY                  y in document coordinates.
+ *                *destPage             Ptr to the target page (out).
+ *                *destDocY             Ptr to the target y in document
+ *                                      coordinates (out), < 0 for the top.
+ *
+ * RETURNS:       Boolean               TRUE if a link with a valid target was
+ *                                      found.
+ *
+ * STRATEGY:      Map the point back to PDF user space with the page transform,
+ *                test the /Rect of each /Link annotation (last one first) and
+ *                resolve /Dest or /A /GoTo. URI and GoToR: PM-TODO.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Boolean PdfFindLink(PdfDocHandle doc, word pageNum, sword docX, sword docY,
     word *destPage, sdword *destDocY)
 {

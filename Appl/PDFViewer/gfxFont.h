@@ -52,8 +52,6 @@
 #define C_FFL_LIGATURE  C_CTRL_C
 #define C_FL_LIGATURE   C_CTRL_D
 
-/* GfxFont */
-
 /* Map char. */
 extern
 char GfxFontMapChar(GfxFont *this, unsigned char c, char defaultChar);
@@ -78,8 +76,6 @@ void GfxFontMapName(GfxFont *this, const char *name);
 /* Process gfx font is16 bit. */
 extern
 GBool GfxFontIs16Bit(GfxFont *this);
-
-/* GfxFontDict */
 
 /* Build the font dictionary, given the PDF font dictionary. */
 extern void

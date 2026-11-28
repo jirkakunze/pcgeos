@@ -34,8 +34,6 @@
 #pragma interface
 #endif
 
-/* PageAttrs */
-
 /* Construct a new PageAttrs object by merging a dictionary */
 /* (of type Pages or Page) into another PageAttrs object. */
 /* <attrs> is NULL, uses defaults. */

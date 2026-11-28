@@ -32,7 +32,6 @@
  ***************************************************************************
  */
 
-
 @include <stdapp.goh>
 #include "pdfEngine.h"
 #include "graphics.h"
@@ -152,7 +151,6 @@ Boolean onTV, g_showTools;
  * Sent to app model by File > Document Info: fills and opens PDFInfoDB.
  */
 
-
 @message void MSG_PDF_DOCUMENT_GOTO_DEST(word page, sdword docY);
 /*
  * Go to a link target: page (1-based) and y in document coordinates of
@@ -160,7 +158,6 @@ Boolean onTV, g_showTools;
  */
 
 /* data from the 'pdf doc' object in xpdf */
-
 
 /*
  * All PDF-internal state (XRef, Catalog, decoded-page cache, scratch
@@ -201,10 +198,8 @@ Boolean onTV, g_showTools;
  * PDF_MAX_CACHED_PAGES (main/pdfEngine.goc) -- the UI doesn't manage
  * the cache any more. */
 
-
 @class  PDFDocumentControlClass, GenDocumentControlClass ;
 @endc
-
 
 @class PDFImageInteractionClass, GenInteractionClass ;
 @endc
@@ -338,7 +333,6 @@ Boolean onTV, g_showTools;
 		@PDFPageProgressDialog,
     		@PDFImageProgressDialog;
 	 HINT_PRIMARY_NO_FILE_MENU;
-//    HINT_PRIMARY_FULL_SCREEN;
     ATTR_GEN_HELP_CONTEXT = "TOC";
 }
 
@@ -363,13 +357,11 @@ Boolean onTV, g_showTools;
 
 	 GII_visibility = GIV_POPUP;
 
-
 	 /* to get the open menu item (so that we can open more than one doc -
 	  * setting to viewer removes that open menu) we'll provide it ourselves
 	  * which also means we'll need to add our own close item...
 	  * and if the user has the Open menu item turned on (in
 	  * configureUI we turn off our custom item in OPEN_APP) - jfh */
-//    ATTR_GEN_INTERACTION_GROUP_TYPE = (GIGT_FILE_MENU);
 }
 
 @object GenTriggerClass PDFDocumentOpenTrigger = {
@@ -394,10 +386,6 @@ Boolean onTV, g_showTools;
 	ATTR_GEN_INTERACTION_GROUP_TYPE = (GIGT_VIEW_MENU);
 }
 
-//@object GenInteractionClass PDFViewControlGroup = {
-//	GI_comp = @PDFViewControl;
-//}
-
 @object GenViewControlClass PDFViewControl = {
 
     GVCI_minZoom = 25 ;
@@ -418,7 +406,6 @@ Boolean onTV, g_showTools;
 }
 
 @object PDFPageControlClass PDFPageControl = {
-//	 GCI_output = (TO_APP_TARGET);
 	 ATTR_GEN_DESTINATION_CLASS = &PDFDocumentClass;
     ATTR_GEN_CONTROL_REQUIRE_UI = GPCF_FIRST_PAGE | GPCF_LAST_PAGE;
     ATTR_GEN_CONTROL_REQUIRE_TOOLBOX_UI = GPCTF_FIRST_PAGE | GPCTF_LAST_PAGE;
@@ -446,8 +433,6 @@ Boolean onTV, g_showTools;
 	GTI_destination = process;
 	GTI_actionMsg = MSG_PDF_TOGGLE_OPTIONS;
 }
-
-
 
 @object GenInteractionClass PDFWindowMenu = {
     /*
@@ -506,7 +491,6 @@ Boolean onTV, g_showTools;
 			 GDCA_NATIVE |
 		  	 GDCA_MULTIPLE_OPEN_FILES |
 			 (GDCT_OPEN << GDCA_CURRENT_TASK_OFFSET));
-
 
 	 GDCI_features = 0;
 
@@ -665,11 +649,9 @@ Boolean onTV, g_showTools;
 											  GECF_SELECT_ALL | GECF_DELETE;
 	 ATTR_GEN_CONTROL_PROHIBIT_TOOLBOX_UI = GECTF_UNDO | GECTF_CUT | GECTF_PASTE |
 	                                        GECTF_SELECT_ALL | GECF_DELETE;
-//    GCI_output = (TO_APP_TARGET);
 }
 
 @endif
-
 
 @object GenTriggerClass PDFDocumentSave = {
 	 GI_visMoniker = 'C', "Save Copy As...";
@@ -772,7 +754,6 @@ Boolean onTV, g_showTools;
     GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
     HINT_FIXED_SIZE = {SST_AVG_CHAR_WIDTHS | 40, 0, 0};
 }
-
 
 /*
  * Save Copy As dialog -- laid out like the document control's own
@@ -877,7 +858,6 @@ Boolean onTV, g_showTools;
     HINT_EXPAND_WIDTH_TO_FIT_PARENT;
 }
 
-
 /* PDF passwords are at most 32 bytes */
 @object PDFPasswordTextClass PDFPasswordText = {
     GI_visMoniker = 'P', "Password:";
@@ -902,7 +882,6 @@ Boolean onTV, g_showTools;
     ATTR_GEN_TRIGGER_INTERACTION_COMMAND = IC_DISMISS;
     HINT_SEEK_REPLY_BAR;
 }
-
 
 @end Interface ;
 
@@ -1047,7 +1026,6 @@ Boolean onTV, g_showTools;
 
 @end DisplayUI ;
 
-
 @start StringResource, data;
 
 @chunk char PDFOpenError[] = "PDF Viewer encountered an error while trying to "
@@ -1077,41 +1055,37 @@ Boolean onTV, g_showTools;
 @end StringResource;
 
 
-/***********************************************************************
- *		MSG_GEN_PROCESS_OPEN_APPLICATION for PDFProcessClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_GEN_PROCESS_OPEN_APPLICATION for PDFProcessClass
+ ********************************************************************
+ * SYNOPSIS:      Set up the UI when the application starts.
  *
- * SYNOPSIS:
- * PARAMETERS:		AppAttachFlags		attachFlags,
- *       			MemHandle		launchBlock,
- *       			MemHandle 		extraState);
+ * PARAMETERS:    attachFlags           Attach flags.
+ *                launchBlock           Launch block.
+ *                extraState            Extra state block.
  *
- * SIDE EFFECTS:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Hide our Open trigger if the user configured the standard one;
+ *                show or hide the tool bar as set in the INI file.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	dhunter		3/21/2000	Initial version
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/21/2000  dhunter   Initial version
+ *******************************************************************/
 @method PDFProcessClass, MSG_GEN_PROCESS_OPEN_APPLICATION
 {
-//    DisplayScheme ds;
  word		optionsSet;
  Boolean	initError;
 
-
-	/* turn off our custom open menu if open menu item was turned on
-	 * using Prefs/ConfigureUI - jfh */
+	/* Hide our Open trigger if the standard one is configured */
 	InitFileReadInteger("uiFeatures", "docControlOptions", &optionsSet);
 	if (optionsSet & 8192)
 		@send PDFDocumentOpenTrigger::MSG_GEN_SET_NOT_USABLE(
 																 VUM_DELAYED_VIA_APP_QUEUE);
 
-
-	/* show the tool bar or not */
+	/* Show the tool bar or not */
 	initError = InitFileReadBoolean("pdfvu", "tools", &g_showTools);
 	if (initError) g_showTools = TRUE;
 	if (g_showTools) {
@@ -1129,59 +1103,52 @@ Boolean onTV, g_showTools;
 
 	 @callsuper();
 
-/*    @call application::MSG_GEN_APPLICATION_GET_DISPLAY_SCHEME(&ds);
-    if ((((ds.DS_displayType) & DT_DISP_ASPECT_RATIO)
-	    >> DT_DISP_ASPECT_RATIO_OFFSET) == DAR_TV)
-		  onTV = TRUE;
-	 else  */
 		  onTV = FALSE;
 
 }
 
 
-/***********************************************************************
- *		MSG_GEN_PROCESS_CREATE_NEW_STATE_FILE for PDFProcessClass
- ***********************************************************************
- * SYNOPSIS:     System wants us to create a new state file and
- *               return a memblock
- * PARAMETERS:   MemHandle appInstanceReference
- * RETURNS:      word (VMFileHandle) - State file
- * SIDE EFFECTS: none
- * STRATEGY:     Simply return a NullHandle so we don't create a
- *               new state file.
+/********************************************************************
+ *      MSG_GEN_PROCESS_CREATE_NEW_STATE_FILE for PDFProcessClass
+ ********************************************************************
+ * SYNOPSIS:      Do not create a state file.
+ *
+ * PARAMETERS:    appInstanceReference  Not used.
+ *
+ * RETURNS:       VMFileHandle          NullHandle.
+ *
+ * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	dhunter		5/9/2000	Initial version
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      5/9/2000  dhunter   Initial version
+ *******************************************************************/
 @method PDFProcessClass, MSG_GEN_PROCESS_CREATE_NEW_STATE_FILE
 {
     return( NullHandle );
 }
 
-/***********************************************************************
- *		MSG_PDF_TOGGLE_OPTIONS for PDFProcessClass
- ***********************************************************************
- * SYNOPSIS:     Toggles tool bar on and off
+/********************************************************************
+ *                      MSG_PDF_TOGGLE_OPTIONS for PDFProcessClass
+ ********************************************************************
+ * SYNOPSIS:      Show or hide the tool bar and save the setting in the INI
+ *                file.
  *
- * PARAMETERS:   none
- * RETURNS:      none
- * SIDE EFFECTS: none
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
+ *
  * STRATEGY:
  *
- *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	jfh		11/15/02	Initial version
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/15/02  jfh       Initial version
+ *******************************************************************/
 @method PDFProcessClass, MSG_PDF_TOGGLE_OPTIONS
 {
 
-	/* toggle the UI */
 	if (g_showTools) {
 		g_showTools = FALSE;
 		@send PDFToolsToggle::MSG_GEN_USE_VIS_MONIKER(
@@ -1197,7 +1164,7 @@ Boolean onTV, g_showTools;
 		@send Toolbar::MSG_GEN_SET_USABLE(VUM_DELAYED_VIA_APP_QUEUE);
 		}
 
-	/* and change the .ini */
+	/* Save the setting */
 	InitFileWriteBoolean("pdfvu", "tools", g_showTools);
    InitFileSave();
 
@@ -1210,82 +1177,69 @@ Boolean onTV, g_showTools;
  */
 
 
-/***********************************************************************
- *		MSG_GEN_DOCUMENT_CONTROL_FILE_CHANGED for PDFDocumentControlClass
- ***********************************************************************
+@if 1
+/********************************************************************
+ *      MSG_GEN_DOCUMENT_CONTROL_FILE_CHANGED for PDFDocumentControlClass
+ ********************************************************************
+ * SYNOPSIS:      Update the print and page controls when the current document
+ *                changes.
  *
- * SYNOPSIS:	Set the print control output when the current doc
- *		changes.
+ * PARAMETERS:    dup                   Ptr to the file change parameters.
  *
- * PARAMETERS:	void (DocumentFileChangedParams dup = ss:bp);
- * SIDE EFFECTS:    
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/23/99   	Initial Revision
- *
- ***********************************************************************/
-@if 1
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentControlClass, MSG_GEN_DOCUMENT_CONTROL_FILE_CHANGED
 {
     @callsuper();
-    /*
-     * If no current document, exit
-     */
 
     if (dup->DFCP_name[0] == '\0') {
 	return;
     }
-    /*
-     * Tell the document to tell the print controller its # of pages
-     */
 	 @send dup->DFCP_document::
 	MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES();
 
-	/* and update the page controller */
 	@send dup->DFCP_document::MSG_PDF_DOCUMENT_UPDATE_PAGE_CONTROL();
 
-}	/* End of MSG_GEN_DOCUMENT_CONTROL_FILE_CHANGED.	*/
+}
 @endif
 
 
-/***********************************************************************
- *		MSG_GEN_DOCUMENT_CONTROL_CONFIGURE_FILE_SELECTOR for PDFDocumentControlClass
- ***********************************************************************
+/********************************************************************
+ *      MSG_GEN_DOCUMENT_CONTROL_CONFIGURE_FILE_SELECTOR
+ *      for PDFDocumentControlClass
+ ********************************************************************
+ * SYNOPSIS:      Show only *.pdf files (any case) in the file selector.
  *
- * SYNOPSIS:	    Tweak the file selector to only display .pdf files.
- * PARAMETERS: 	    void (optr fileSelector = cx:dx, word flags = bp);
-
- * SIDE EFFECTS:    
+ * PARAMETERS:    fileSelector          File selector.
+ *                flags                 Not used.
+ *
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	5/18/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      5/18/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentControlClass, MSG_GEN_DOCUMENT_CONTROL_CONFIGURE_FILE_SELECTOR
 {
     FileSelectorFileCriteria	attrs;
 
-/*
- * Set the file-match mask
- */
     @call fileSelector::MSG_GEN_FILE_SELECTOR_SET_MASK("*.pdf");
 
-/*
- * OR in the case-insensitive bit for matching.
- */
     attrs = @call fileSelector::MSG_GEN_FILE_SELECTOR_GET_FILE_CRITERIA();
     attrs |= FSFC_MASK_CASE_INSENSITIVE;
     @call fileSelector::MSG_GEN_FILE_SELECTOR_SET_FILE_CRITERIA(attrs);
 
-}	/* End of MSG_GEN_DOCUMENT_CONTROL_CONFIGURE_FILE_SELECTOR.	*/
+}
 
 /*
  ***************************************************************************
@@ -1293,39 +1247,46 @@ Boolean onTV, g_showTools;
  ***************************************************************************
  */
 
-/***********************************************************************
- *		MSG_VIS_RECALC_SIZE for PDFDocumentClass
- ***********************************************************************
- * SYNOPSIS:	    Specify how big we want the document object to be
- * PARAMETERS:	    SizeAsDWord (word width, word height)
- * SIDE EFFECTS:    none
+/********************************************************************
+ *                      MSG_VIS_RECALC_SIZE for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Return the size of the current page.
  *
- * STRATEGY:	    We ignore the suggested width and height and insist
- *		    on our predetermined dimensions.
+ * PARAMETERS:    width                 Not used.
+ *                height                Not used.
+ *
+ * RETURNS:       SizeAsDWord           Page size from PDFDoc_bounds.
+ *
+ * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	tony	8/91		Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_VIS_RECALC_SIZE
 {
     return( MAKE_SIZE_DWORD(pself->PDFDoc_bounds.P_x, pself->PDFDoc_bounds.P_y) );
 }
 
 
-/***********************************************************************
- *		PDFPasswordTextClass
- ***********************************************************************
- * SYNOPSIS:	Text field that shows '*' for every typed character.
- * STRATEGY:	Printable keys go into PDFPTI_password, Backspace removes
- *		the last one; after each change the visible text is
- *		replaced by as many '*' (so cursor or selection changes
- *		can never get the display out of step). Enter, Tab and
- *		Escape go to the superclass (default action, navigation,
- *		cancel); all other editing keys are ignored.
- ***********************************************************************/
+/********************************************************************
+ *                      PDFPasswordTextShow
+ ********************************************************************
+ * SYNOPSIS:      Show one "*" for each typed password char.
+ *
+ * PARAMETERS:    oself                 Password text object.
+ *                len                   Number of chars.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 static void
 PDFPasswordTextShow(optr oself, word len)
 {
@@ -1336,6 +1297,26 @@ PDFPasswordTextShow(optr oself, word len)
     @call oself::MSG_VIS_TEXT_REPLACE_ALL_PTR(stars, len);
 }
 
+/********************************************************************
+ *                      MSG_META_KBD_CHAR for PDFPasswordTextClass
+ ********************************************************************
+ * SYNOPSIS:      Collect password chars; the text shows only "*".
+ *
+ * PARAMETERS:    character             Char.
+ *                flags                 Char flags.
+ *                state                 Shift state.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Printable keys go into PDFPTI_password, Backspace removes the
+ *                last one. Other keys (function keys, shortcuts) go to the
+ *                superclass; text editing keys are ignored.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFPasswordTextClass, MSG_META_KBD_CHAR
 {
     if (flags & CF_RELEASE) {
@@ -1379,6 +1360,22 @@ PDFPasswordTextShow(optr oself, word len)
     }
 }
 
+/********************************************************************
+ *                      MSG_VIS_TEXT_DELETE_ALL for PDFPasswordTextClass
+ ********************************************************************
+ * SYNOPSIS:      Clear the password and the text.
+ *
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFPasswordTextClass, MSG_VIS_TEXT_DELETE_ALL
 {
     memset(pself->PDFPTI_password, 0, sizeof(pself->PDFPTI_password));
@@ -1386,6 +1383,23 @@ PDFPasswordTextShow(optr oself, word len)
     @callsuper();
 }
 
+/********************************************************************
+ *                      MSG_PDF_PASSWORD_TEXT_GET for PDFPasswordTextClass
+ ********************************************************************
+ * SYNOPSIS:      Return the typed password.
+ *
+ * PARAMETERS:    buf                   Ptr to the buffer (PDF_PASSWORD_BUF_SIZE
+ *                                      bytes).
+ *
+ * RETURNS:       word                  Length of the password.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFPasswordTextClass, MSG_PDF_PASSWORD_TEXT_GET
 {
     memcpy(buf, pself->PDFPTI_password, pself->PDFPTI_length);
@@ -1393,32 +1407,74 @@ PDFPasswordTextShow(optr oself, word len)
     return pself->PDFPTI_length;
 }
 
-/* no clipboard or quick copy/paste of the password field */
+/********************************************************************
+ *      MSG_META_CLIPBOARD_CUT/COPY/PASTE for PDFPasswordTextClass
+ ********************************************************************
+ * SYNOPSIS:      Do not cut, copy or paste the password (ignored).
+ *
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFPasswordTextClass, MSG_META_CLIPBOARD_CUT,
 			      MSG_META_CLIPBOARD_COPY,
 			      MSG_META_CLIPBOARD_PASTE
 {
 }
 
+/********************************************************************
+ *                      MSG_META_START_MOVE_COPY for PDFPasswordTextClass
+ ********************************************************************
+ * SYNOPSIS:      Ignore quick copy of the password.
+ *
+ * PARAMETERS:    retVal                Ptr to the mouse return data.
+ *                xPosition             Not used.
+ *                yPosition             Not used.
+ *                inputState            Not used.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFPasswordTextClass, MSG_META_START_MOVE_COPY
 {
     /* consume quick copy; tell the UI the event was handled */
     retVal->flags = MRF_PROCESSED;
 }
 
-/***********************************************************************
- *		PDFAskPassword
- ***********************************************************************
- * SYNOPSIS:	Ask for the password of an encrypted PDF.
- * PARAMETERS:	char *password	buffer, PDF_PASSWORD_BUF_SIZE bytes
- *		Boolean retry	TRUE: the last password was wrong
- * RETURNS:	TRUE with the password in Latin-1 (the encoding of PDF
- *		passwords), FALSE if the user cancelled
- * STRATEGY:	Runs on the process thread from PHYSICAL_OPEN (not inside
- *		a draw), so a modal UserDoDialog is fine here. The text
- *		is cleared again right away, so the password does not
- *		stay in the UI.
- ***********************************************************************/
+/********************************************************************
+ *                      PDFAskPassword
+ ********************************************************************
+ * SYNOPSIS:      Ask for the password of an encrypted PDF.
+ *
+ * PARAMETERS:    *password             Ptr to the password buffer (out).
+ *                retry                 TRUE after a wrong password (shows a
+ *                                      hint).
+ *
+ * RETURNS:       Boolean               TRUE with the password, FALSE if the
+ *                                      user cancelled.
+ *
+ * STRATEGY:      Runs in PHYSICAL_OPEN (not inside a draw): a modal
+ *                UserDoDialog is safe. The text is cleared at once, so the
+ *                password does not stay in the UI.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 static Boolean
 PDFAskPassword(char *password, Boolean retry)
 {
@@ -1444,30 +1500,25 @@ PDFAskPassword(char *password, Boolean retry)
     return TRUE;
 }
 
-/***********************************************************************
- *		MSG_GEN_DOCUMENT_PHYSICAL_OPEN for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_GEN_DOCUMENT_PHYSICAL_OPEN for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Open the PDF file with the engine.
  *
- * SYNOPSIS:	    
- * PARAMETERS:		word *fileOrError = multipleax,
- *		        DocumentCommonParams *params = ss:bp)
+ * PARAMETERS:    fileOrError           Ptr to the file handle or error (out).
+ *                params                Ptr to the document parameters.
  *
- * RETURNS:		Boolean (true if error)
- * SIDE EFFECTS:    
+ * RETURNS:       Boolean               TRUE on error.
  *
- * NOTES:
- *	We intercept this message, because it's a handy place to return
- *	an error if the file isn't really a pdf file -- GEOS document
- *	control will realize the file isn't open and continue appropriately.
- *
- *	The code is ported from the PDFDoc constructor.
+ * STRATEGY:      The superclass opens the file, then PdfOpen reads it.
+ *                Encrypted files try the empty password first, then ask. Files
+ *                that are not PDF are closed again with an error message.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	3/30/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/30/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_GEN_DOCUMENT_PHYSICAL_OPEN
 {
     Boolean status;
@@ -1477,12 +1528,8 @@ PDFAskPassword(char *password, Boolean retry)
     Boolean retry;
     Boolean cancelled = FALSE;
 
-  /* setup */
     pself->PDFDoc_engine = PDF_NULL_DOC;
     pself->PDFDoc_sourceFile = 0;
-
-
-/* use superclass to open file; return if error */
 
     status = @callsuper();
     if (status) return(status);
@@ -1493,17 +1540,9 @@ PDFAskPassword(char *password, Boolean retry)
 
     pself->PDFDoc_sourceFile = *fileOrError;
 
-/* hand the already-open file to the PDF engine -- it parses the xref
- * table, the page catalog, and opens its own scratch VM file for
- * decoded pages. See pdfEngine.h for what PdfOpen does and doesn't do
- * (in particular: it never closes `file` itself, on success or
- * failure -- that stays our job below). */
+/* PdfOpen reads the xref table and the catalog of the open file */
 
-    /*
-     * Encrypted file: try without a password first (most encrypted PDFs
-     * only restrict printing/copying and open with the empty user
-     * password), then ask until the password fits or the user cancels.
-     */
+    /* Encrypted: try the empty password first, then ask */
     password[0] = 0;
     retry = FALSE;
     for (;;) {
@@ -1524,51 +1563,28 @@ PDFAskPassword(char *password, Boolean retry)
 	goto errorClose;
     }
 
-  // done
-
-  /*
-   * Set current page, tell controller # of pages -- XXX: how is this
-	* done when switching between multiple docs?  jfh - tell the control
-	* in MSG_GEN_DOCUMENT_CONTROL_FILE_CHANGED
-   */
 	 pself->PDFDoc_pageNum = 1;
 
-    /* Phase 4: route this document's page/image progress through
-     * PDFDocProgressCallback instead of the four separate functions
-     * gfx.goc used to call by name. */
+    /* Page and image progress through PDFDocProgressCallback */
     PdfSetProgressCallback(pself->PDFDoc_engine, PDFDocProgressCallback, NULL);
 
     PDFUpdatePageControl(PdfGetPageCount(pself->PDFDoc_engine), 1);
 
-    /* opened okay -- return carry clear. */
-
   return FALSE;
-
 
 errorClose:
 
     pself = ObjDerefGen(oself);
-/*
- * Free anything the engine allocated
- */
     PdfClose(pself->PDFDoc_engine);
     pself->PDFDoc_engine = PDF_NULL_DOC;
 
-/* 
- * Close the doc file by hand -- the system opened it fine, but we don't think
- * it looks like a PDF file.
- */
+/* Not a PDF: close the file again */
 
     FileClose(*fileOrError, FALSE);
     *fileOrError = 0;
     pself->PDFDoc_sourceFile = 0;
 
-/*
- * Display an error message. Encrypted files get their own, specific
- * message -- PdfOpen already distinguishes PDF_ERR_ENCRYPTED from a
- * genuinely corrupt file (PDF_ERR_BAD_XREF etc.), no reason to make
- * the user read "may be corrupt" for a file that isn't.
- */
+/* Encrypted files get their own message */
 
     if (cancelled) {
 	/* password dialog cancelled: nothing to report */
@@ -1582,29 +1598,25 @@ errorClose:
 
     return TRUE;
 
-}	/* End of MSG_GEN_DOCUMENT_PHYSICAL_OPEN.	*/
+}
 
 
-/***********************************************************************
- *	MSG_GEN_DOCUMENT_ATTACH_UI_TO_DOCUMENT for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *      MSG_GEN_DOCUMENT_ATTACH_UI_TO_DOCUMENT for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Set the view color for files outside the GEOS tree on a TV.
  *
- * SYNOPSIS:	    Adjust the UI for this document
- * PARAMETERS:	    
- * SIDE EFFECTS:    Changes view object in duplicated document resource
+ * PARAMETERS:    none
  *
- * STRATEGY:	Change the view color to the gray level specified in
- *		INI if both of the following conditions are met:
+ * RETURNS:       void
  *
- *		1. The user is running on the TV
- *		2. The file is located outside of the GEOS tree.
+ * STRATEGY:      The gray level comes from the INI file.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	dhunter		3/21/2000	Initial version
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      3/21/2000  dhunter   Initial version
+ *******************************************************************/
 @method PDFDocumentClass, MSG_GEN_DOCUMENT_ATTACH_UI_TO_DOCUMENT
 {
     GenFilePath *ppath = ObjVarFindData(oself, ATTR_GEN_PATH_DATA);
@@ -1626,28 +1638,25 @@ errorClose:
 }
 
 
-/***********************************************************************
- *		MSG_GEN_DOCUMENT_CLOSE for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_GEN_DOCUMENT_CLOSE for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Close the PDF engine document.
  *
- * SYNOPSIS:	    Release the memory we allocated
- * PARAMETERS:	    word (IACPConnection connection = bp) = cx;
- * SIDE EFFECTS:    
+ * PARAMETERS:    connection            IACP connection.
+ *
+ * RETURNS:       word                  Result of the superclass.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/07/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/07/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_GEN_DOCUMENT_CLOSE
 {
-    /*
-     * The Stop trigger (UI thread) cancels whatever currentlyDecodingDoc
-     * names; never leave it pointing at a handle PdfClose is about to free.
-     */
+    /* Stop cancels currentlyDecodingDoc: do not leave a freed handle */
     if (currentlyDecodingDoc == pself->PDFDoc_engine) {
 	currentlyDecodingDoc = PDF_NULL_DOC;
     }
@@ -1655,29 +1664,30 @@ errorClose:
     pself->PDFDoc_engine = PDF_NULL_DOC;
     pself->PDFDoc_sourceFile = 0;
 
-    /* callsuper */
-
     return (@callsuper());
 
-}	/* End of MSG_GEN_DOCUMENT_CLOSE.	*/
+}
 
 
-/***********************************************************************
- *		MSG_VIS_DRAW for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_VIS_DRAW for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Decode and draw the current page.
  *
- * SYNOPSIS:	    
- * PARAMETERS:	    void (DrawFlags drawFlags, GStateHandle gstate)
- * SIDE EFFECTS:    
+ * PARAMETERS:    drawFlags             Not used.
+ *                gstate                GState to draw into.
  *
- * STRATEGY:
+ * RETURNS:       void
+ *
+ * STRATEGY:      The page comes from the page cache or is decoded. A new page
+ *                size goes to the view. An error is reported once per page
+ *                through a queued message (no modal dialog inside a draw).
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/06/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/06/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_VIS_DRAW
 {
     word pagenum = pself->PDFDoc_pageNum;
@@ -1686,12 +1696,7 @@ errorClose:
 
     GrSaveState(gstate);
 
-
-/* do we need callsuper? nope - none available jfh */
-
-//    @callsuper();
-
-/* Decode (or fetch from cache) this page */
+/* Page from the cache or decoded */
 
     if (pagenum == pself->PDFDoc_cancelledPage) {
 	GrRestoreState(gstate);
@@ -1709,20 +1714,13 @@ errorClose:
 	}
     }
 
-/*
- * Draw the page
- */
     if (err == PDF_OK) {
 
-/* Render it, and pick up the page size while we're at it -- this
- * used to be set inside PDFSetupGState (which wrote PDFDoc_bounds and
- * sent MSG_GEN_VIEW_SET_DOC_BOUNDS itself); that's UI-object messaging
- * and now happens here instead, using what PdfDrawPage reports. */
+/* Draw the page and get its size */
 
 	err = PdfDrawPage(pself->PDFDoc_engine, pagenum, gstate, FALSE, NULL,
 			  &pageSize);
-	/* only tell the view about a new size -- setting the bounds on
-	 * every draw makes the view redraw/rescroll for nothing */
+	/* Send only a new size: setting it on each draw redraws the view */
 	if (err == PDF_OK && (pageSize.P_x != pself->PDFDoc_bounds.P_x ||
 			      pageSize.P_y != pself->PDFDoc_bounds.P_y)) {
 	    pself->PDFDoc_bounds = pageSize;
@@ -1732,10 +1730,7 @@ errorClose:
 
     }
 
-/* Report a failure once per page. The dialog is queued instead of shown
- * here: a modal dialog inside MSG_VIS_DRAW would trigger the next
- * redraw (and the next dialog) when it closes. A cancelled decode is
- * the user's own doing and needs no message. */
+/* Report once per page, queued: a dialog here would redraw */
 
     if (err == PDF_OK) {
 	pself->PDFDoc_errorPage = 0;
@@ -1746,7 +1741,7 @@ errorClose:
 
     GrRestoreState(gstate);
 
-}	/* End of MSG_VIS_DRAW.	*/
+}
 
 /*
  * PDFSetupGState and PDFGetPageGString used to be defined here.
@@ -1761,45 +1756,23 @@ errorClose:
  */
 
 
-/***********************************************************************
- *		PDFDocProgressCallback
- ***********************************************************************
+/********************************************************************
+ *                      PDFProgressFraction
+ ********************************************************************
+ * SYNOPSIS:      Return current / total as a WWFixed fraction.
  *
- * SYNOPSIS:	PdfProgressCallback registered with the engine (Phase 4)
- *		for the current document; replaces the four separate
- *		functions gfx.goc used to call directly
- *		(PDFUpdateProgress, PDFPutUpImageProgress,
- *		PDFUpdateImageProgress, PDFTakeDownImageProgress).
- * CALLED BY:	the PDF engine, from inside PdfDecodePage
- * PARAMETERS:	see PdfProgressCallback in pdfEngine.h
- * RETURN:	nothing
- * SIDE EFFECTS:
+ * PARAMETERS:    current               Progress so far.
+ *                total                 Total amount.
  *
- * STRATEGY:	Dispatch on `kind`. ppValue/ipValue/PDFImageProgressDialog
- *		are the same singleton UI objects the four original
- *		functions sent to; only the entry point changed.
+ * RETURNS:       dword                 Fraction 0-1 (WWFixed).
  *
- *		The decode runs on the process thread; the dialogs live
- *		in the Interface resource (ui-object), i.e. on the UI
- *		thread. INITIATE and IC_DISMISS are @call so the dialog
- *		is really up/down when the engine continues; the value
- *		updates are @send so the decode never waits for them.
- *		MSG_GEN_VALUE_SET_VALUE's second parameter is the
- *		`indeterminate' flag (not a VisUpdateMode): passing
- *		VUM_NOW (1) marked the value as unknown and the bar
- *		stayed empty.
+ * STRATEGY:
  *
- *		The engine calls this through ProcCallFixedOrMovable_cdecl,
- *		which has no parameter prototype; GfxReportProgress in
- *		gfx.goc makes sure all arguments arrive as dwords.
- *
- ***********************************************************************/
-/*
- * PDFProgressFraction: current/total as a WWFixed in the range 0..1 (the
- * range of ppValue/ipValue). The old MakeWWFixed(current)/total shifted
- * `current` left by 16 bits and overflowed for current >= 32768, and
- * divided by zero for total == 0.
- */
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 static dword
 PDFProgressFraction(dword current, dword total)
 {
@@ -1819,23 +1792,12 @@ PDFProgressFraction(dword current, dword total)
     return MakeWWFixed(current)/total;
 }
 
-/*
- * PDFDismissProgress: safety net, called after a decode returns. Makes
- * sure the image progress dialog is closed on every path, e.g. when an
- * error ended the decode before PDF_PROGRESS_IMAGE_END was sent.
- */
 void
 PDFDismissProgress(void)
 {
     @call PDFImageProgressDialog::MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
 }
 
-/***********************************************************************
- *		PDFShowError
- ***********************************************************************
- * SYNOPSIS:	Show an error notification with a string from
- *		StringResource.
- ***********************************************************************/
 void
 PDFShowError(optr msg)
 {
@@ -1844,14 +1806,23 @@ PDFShowError(optr msg)
 	(GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET));
 }
 
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_REPORT_ERROR for PDFDocumentClass
- ***********************************************************************
- * SYNOPSIS:	Tell the user that a page couldn't be decoded/drawn.
- * PARAMETERS:	word err (a PdfError)
- * STRATEGY:	Queued by MSG_VIS_DRAW, printing and clipboard copy so
- *		the modal dialog runs outside of those handlers.
- ***********************************************************************/
+/********************************************************************
+ *                      MSG_PDF_DOCUMENT_REPORT_ERROR for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Show the error dialog for a page that could not be decoded.
+ *
+ * PARAMETERS:    err                   PdfError.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Queued by MSG_VIS_DRAW, printing and Copy: the modal dialog
+ *                runs outside of those handlers.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_REPORT_ERROR
 {
     if (err == PDF_ERR_OUT_OF_MEMORY) {
@@ -1861,6 +1832,27 @@ PDFShowError(optr msg)
     }
 }
 
+/********************************************************************
+ *                      PDFDocProgressCallback
+ ********************************************************************
+ * SYNOPSIS:      Progress callback of the engine.
+ *
+ * PARAMETERS:    kind                  PDF_PROGRESS_* value.
+ *                current               Progress so far.
+ *                total                 Total amount.
+ *                *userData             Not used.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Updates the page and image progress dialogs. Called on the
+ *                process thread during the decode; the dialogs run on the UI
+ *                thread.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 void
 PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 {
@@ -1885,26 +1877,27 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 	    MSG_GEN_GUP_INTERACTION_COMMAND(IC_DISMISS);
 	break;
     }
-}	/* End of PDFDocProgressCallback.	*/
+}
 
 
-/***********************************************************************
- *		MSG_META_KBD_CHAR for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_META_KBD_CHAR for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Keyboard shortcuts for page navigation.
  *
- * SYNOPSIS:	Some obvious keyboard shortcuts.
- *    
- * PARAMETERS:	word character = cx, word flags = dx, word state = bp);
- * SIDE EFFECTS:    
+ * PARAMETERS:    character             Char.
+ *                flags                 Char flags.
+ *                state                 Shift state.
+ *
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/20/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/20/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_KBD_CHAR
 {
     EventHandle event;
@@ -1948,37 +1941,33 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     } else {
 	@callsuper();
     }
-}	/* End of MSG_META_KBD_CHAR.	*/
+}
 
 
-/***********************************************************************
- *		MSG_META_PAGED_OBJECT_NEXT_PAGE for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_META_PAGED_OBJECT_NEXT_PAGE for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Show the next page.
  *
- * SYNOPSIS:	    
- * PARAMETERS:	    
- * SIDE EFFECTS:    
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/20/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/20/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_PAGED_OBJECT_NEXT_PAGE
 {
     optr view;
     word numPages = PdfGetPageCount(pself->PDFDoc_engine);
 
-/* If on last page, don't advance */
-
     if (pself->PDFDoc_pageNum >= numPages) {
 	return;
     }
-
-/* else, advance */
 
     ++pself->PDFDoc_pageNum;
     pself->PDFDoc_cancelledPage = 0;
@@ -1993,42 +1982,36 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     @call view::MSG_GEN_VIEW_REDRAW_CONTENT();
     @call view::MSG_GEN_VIEW_UNSUSPEND_UPDATE();
 
-/* update the page controller */
-
     pself = ObjDerefGen(oself);
     PDFUpdatePageControl(numPages,
 			 pself->PDFDoc_pageNum);
 
-}	/* End of MSG_META_PAGED_OBJECT_NEXT_PAGE.	*/
+}
 
 
-/***********************************************************************
- *		MSG_META_PAGED_OBJECT_PREVIOUS_PAGE for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_META_PAGED_OBJECT_PREVIOUS_PAGE for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Show the previous page.
  *
- * SYNOPSIS:	    
- * PARAMETERS:	    
- * SIDE EFFECTS:    
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/20/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/20/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_PAGED_OBJECT_PREVIOUS_PAGE
 {
     optr view;
 
-/* If on first page, don't retreat */
-
     if (pself->PDFDoc_pageNum == 1) {
 	return;
     }
-
-/* else, retreat */
 
     --pself->PDFDoc_pageNum;
     pself->PDFDoc_cancelledPage = 0;
@@ -2043,56 +2026,57 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     @call view::MSG_GEN_VIEW_REDRAW_CONTENT();
     @call view::MSG_GEN_VIEW_UNSUSPEND_UPDATE();
 
-/* update the page controller */
-
     pself = ObjDerefGen(oself);
 	 PDFUpdatePageControl(PdfGetPageCount(pself->PDFDoc_engine),
 			 pself->PDFDoc_pageNum);
 
-}	/* End of MSG_META_PAGED_OBJECT_PREVIOUS_PAGE.	*/
+}
 
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_UPDATE_PAGE_CONTROL for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *      MSG_PDF_DOCUMENT_UPDATE_PAGE_CONTROL for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Tell the page control the current page.
  *
- * SYNOPSIS:	update the page control.
- * PARAMETERS:	void (void)
- * SIDE EFFECTS:
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	jfh		11/14/02  Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/14/02  jfh       Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_UPDATE_PAGE_CONTROL
 {
 
 	 PDFUpdatePageControl(PdfGetPageCount(pself->PDFDoc_engine),
 			 pself->PDFDoc_pageNum);
 
-
 }
 
 
-/***********************************************************************
- *		MSG_META_PAGED_OBJECT_GOTO_PAGE for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_META_START_SELECT for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Follow a link under a mouse click.
  *
- * SYNOPSIS:	    
- * PARAMETERS:	    word page = cx
- * SIDE EFFECTS:    
+ * PARAMETERS:    retVal                Ptr to the mouse return data.
+ *                xPosition             x in document coordinates.
+ *                yPosition             y in document coordinates.
+ *                inputState            Not used.
  *
- * STRATEGY:
+ * RETURNS:       void
+ *
+ * STRATEGY:      The engine reads the /Annots of the page once per click;
+ *                nothing is kept in memory.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/20/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/20/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_START_SELECT
 {
     word destPage;
@@ -2101,10 +2085,7 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     @callsuper();
     retVal->flags |= MRF_PROCESSED;
 
-    /*
-     * Internal link under the click? The engine walks the page's
-     * /Annots once; nothing is kept in memory.
-     */
+    /* Link under the click? (reads /Annots once) */
     if (pself->PDFDoc_engine != PDF_NULL_DOC &&
 	PdfFindLink(pself->PDFDoc_engine, pself->PDFDoc_pageNum,
 		    xPosition, yPosition, &destPage, &destY))
@@ -2113,16 +2094,25 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     }
 }
 
-
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_GOTO_DEST for PDFDocumentClass
- ***********************************************************************
- * SYNOPSIS:	Show a link target: switch the page (if needed) and
- *		scroll its target y to the top of the view.
- * STRATEGY:	The view only gets the new page size in MSG_VIS_DRAW;
- *		set it here first, else the new origin is clipped to the
- *		old page. The x origin stays.
- ***********************************************************************/
+/********************************************************************
+ *                      MSG_PDF_DOCUMENT_GOTO_DEST for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Show a link destination.
+ *
+ * PARAMETERS:    page                  Page number (1-based).
+ *                docY                  Target y in document coordinates, < 0
+ *                                      for the top of the page.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The view gets the new page size first, else the new origin is
+ *                clipped to the old page. The x origin stays.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_GOTO_DEST
 {
     optr view;
@@ -2163,13 +2153,27 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     @call view::MSG_GEN_VIEW_UNSUSPEND_UPDATE();
 }
 
-
+/********************************************************************
+ *                      MSG_META_PAGED_OBJECT_GOTO_PAGE for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Show a page.
+ *
+ * PARAMETERS:    page                  Page number (1-based), limited to the
+ *                                      page count.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_PAGED_OBJECT_GOTO_PAGE
 {
     optr view;
     word numPages = PdfGetPageCount(pself->PDFDoc_engine);
-
-/* verify page is in range */
 
     if (numPages == 0) {
 	return;		/* no document: nothing to show */
@@ -2177,12 +2181,8 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
     if (page < 1) page = 1;
     if (page > numPages) page = numPages;
 
-/* update page number */
-
     pself->PDFDoc_pageNum = page;
     pself->PDFDoc_cancelledPage = 0;
-
-/* redraw view */
 
     view = @call PDFDocumentGroup::MSG_GEN_DOCUMENT_GROUP_GET_VIEW();
     pself = ObjDerefGen(oself);	/* the call may move our block */
@@ -2197,30 +2197,26 @@ PDFDocProgressCallback(dword kind, dword current, dword total, void *userData)
 
     PDFUpdatePageControl(numPages, page);
 
-}	/* End of MSG_META_PAGED_OBJECT_GOTO_PAGE.	*/
+}
 
 
-/***********************************************************************
- *		PDFUpdatePageControl
- ***********************************************************************
+/********************************************************************
+ *                      PDFUpdatePageControl
+ ********************************************************************
+ * SYNOPSIS:      Tell the page and print controls the current page.
  *
- * SYNOPSIS:	Tell the page control what page we're on, so it can
- *		disable next/prev appropriately.
- * CALLED BY:	
- * PARAMS:	word totalPages	= total # pages in doc
- *		word curPage	= the current page
+ * PARAMETERS:    totalPages            Number of pages; 0 does nothing.
+ *                curPage               Current page.
  *
- * RETURN:	nothing
- * SIDE EFFECTS:
- *	
+ * RETURNS:       void
+ *
  * STRATEGY:
- *	
- * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/21/99   	Initial Revision
  *
- ***********************************************************************/
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/21/99   mevissen  Initial Revision
+ *******************************************************************/
 void
 PDFUpdatePageControl (word totalPages, word curPage)
 {
@@ -2233,10 +2229,9 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	return;
     }
 
-    /* the print dialog offers the page on display (G2) */
+    /* The print dialog offers the page on display */
     @send PDFPrintControl::MSG_PRINT_CONTROL_SET_SELECTED_PAGE_RANGE(
 	curPage, curPage);
-
 
     mh = MemAlloc(sizeof(NotifyPageStateChange),
 		  HF_SHARABLE | HF_SWAPABLE,
@@ -2262,27 +2257,27 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	GAGCNLT_APP_TARGET_NOTIFY_PAGE_STATE_CHANGE,
 	MANUFACTURER_ID_GEOWORKS);
 
-}	/* End of PDFUpdatePageControl.	*/
+}
 
 
-/***********************************************************************
- *		MSG_PRINT_START_PRINTING for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_PRINT_START_PRINTING for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Print the selected pages.
  *
- * SYNOPSIS:	Start printing this document.
- * PARAMETERS:	void   (optr 		printCtrlOD = cx:dx,
- *			GStateHandle 	gstate = bp );
+ * PARAMETERS:    printCtrlOD           Print control.
+ *                gstate                GState of the print job.
  *
- * SIDE EFFECTS:    
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Each page is fitted into the printable area (PdfDrawPage).
+ *                Stop at the first page that fails; /P can forbid printing.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/23/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/23/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PRINT_START_PRINTING
 {
 	 PdfError	err = PDF_ERR_INVALID_PAGE;
@@ -2298,49 +2293,20 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	return;
     }
 
-	 /*
-     * Set page size 
-     */
-/*
-    @call printCtrlOD::MSG_PRINT_CONTROL_GET_PAPER_SIZE_INFO(
-        &sPageSize );
-    @call printCtrlOD::MSG_PRINT_CONTROL_SET_DOC_MARGINS(&sPageSize.PSR_margins);
-    @call printCtrlOD::MSG_PRINT_CONTROL_SET_DOC_SIZE(
-        sPageSize.PSR_width - sPageSize.PSR_margins.PCMP_left
-	 - sPageSize.PSR_margins.PCMP_right,
-	sPageSize.PSR_height - sPageSize.PSR_margins.PCMP_top
-	 - sPageSize.PSR_margins.PCMP_bottom );
-*/
-    /*
-     * Let the print control set the document margins and dimensions to
-     * yield the largest possible print area.
-     */
+    /* The print control sets margins for the largest print area */
     @call printCtrlOD::MSG_PRINT_CONTROL_CALC_DOC_DIMENSIONS(&sPageSize);
 
-    /*
-     * Every page is fitted into this area (PdfDrawPage): the
-     * dimensions come back with the margins already subtracted.
-     */
+    /* Each page is fitted into this area (margins already removed) */
     printArea.P_x = (sPageSize.PSR_width > 0x7fffL) ? 0x7fff :
 	(sword)sPageSize.PSR_width;
     printArea.P_y = (sPageSize.PSR_height > 0x7fffL) ? 0x7fff :
 	(sword)sPageSize.PSR_height;
 
-    /*
-     * Get the page range to print
-     */
     pageRange = @call printCtrlOD::
 	MSG_PRINT_CONTROL_GET_SELECTED_PAGE_RANGE();
 
-    /*
-     * Loop through the pages to be printed
-     */
     for (pagenum = pageRange.PCPR_firstPage; 
 	 pagenum <= pageRange.PCPR_lastPage; ++pagenum) {
-
-	/*
-	 * Report progress, check for cancel
-	 */
 
 	bContinue = @call printCtrlOD::
 	    MSG_PRINT_CONTROL_REPORT_PROGRESS( PCPT_PAGE, pagenum );
@@ -2348,10 +2314,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	    break;
 	}
 
-
-    /* Decode (or fetch from cache) this page, then render it straight
-     * into the printing gstate. printing == TRUE picks the same
-     * GrCopyGString path PDFSetupGState used here before. */
+    /* Page from the cache or decoded, drawn into the print GState */
 
 	currentlyDecodingDoc = pself->PDFDoc_engine;
 	err = PdfDecodePage(pself->PDFDoc_engine, pagenum);
@@ -2365,8 +2328,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
 			      &printArea, NULL);
 	}
 
-	/* stop at the first failing page -- otherwise the next page's
-	 * result would hide the error and the job would count as done */
+	/* Stop at the first failing page, else the job counts as done */
 	if (err != PDF_OK) {
 	    if (err != PDF_ERR_CANCELLED) {
 		@send, forceQueue oself::MSG_PDF_DOCUMENT_REPORT_ERROR(err);
@@ -2374,70 +2336,65 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	    break;
 	}
 
-	/* emit page-finished command */
 	GrNewPage(gstate, PEC_FORM_FEED);
     }
-    /*
-     * Send 'finished' message, which depends on whether we were canceled
-     * (or other error occurred).
-     */
+    /* Send "finished" or "cancelled" */
     if (TRUE == bContinue && err == PDF_OK) {
 	@send printCtrlOD::MSG_PRINT_CONTROL_PRINTING_COMPLETED();
     } else {
 	@send printCtrlOD::MSG_PRINT_CONTROL_PRINTING_CANCELLED();
     }
-}	/* End of MSG_PRINT_START_PRINTING.	*/
+}
 
 
-/***********************************************************************
- *		MSG_PRINT_GET_DOC_NAME for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_PRINT_GET_DOC_NAME for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Tell the print control the document name.
  *
- * SYNOPSIS:	Tell the printer the current document name.
- * PARAMETERS:	void  (optr printCtrlOD = cx:dx);
- * SIDE EFFECTS:    
+ * PARAMETERS:    printCtrlOD           Print control.
+ *
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/23/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/23/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PRINT_GET_DOC_NAME
 {
 
     @call printCtrlOD::
 	MSG_PRINT_CONTROL_SET_DOC_NAME(pself->GDI_fileName);
 
-}	/* End of MSG_PRINT_GET_DOC_NAME.	*/
+}
 
 
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *      MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Tell the print control the page range and if printing is
+ *                allowed.
  *
- * SYNOPSIS:	Tell the print control how many pages in this document.
- * PARAMETERS:	void (void)
- * SIDE EFFECTS:
+ * PARAMETERS:    none
  *
- * STRATEGY:
+ * RETURNS:       void
+ *
+ * STRATEGY:      Can come after MSG_GEN_DOCUMENT_CLOSE (0 pages): a range 1..0
+ *                is not sent.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	4/26/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/26/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES
 {
     word numPages = PdfGetPageCount(pself->PDFDoc_engine);
 
-    /*
-     * Can arrive after MSG_GEN_DOCUMENT_CLOSE (engine gone, 0 pages):
-     * the print control rejects the range 1..0 (EC fatal error).
-     */
+    /* Can come after MSG_GEN_DOCUMENT_CLOSE: no range 1..0 */
     if (numPages == 0) {
 	return;
     }
@@ -2451,7 +2408,7 @@ PDFUpdatePageControl (word totalPages, word curPage)
 	@send PDFPrintControl::MSG_GEN_SET_NOT_ENABLED(VUM_NOW);
     }
 
-}	/* End of MSG_PDF_DOCUMENT_TELL_PRINT_CONTROL_NUM_PAGES.	*/
+}
 
 
 /*
@@ -2463,85 +2420,50 @@ PDFUpdatePageControl (word totalPages, word curPage)
  */
 
 
-/***********************************************************************
- *		MSG_GEN_GUP_INTERACTION_COMMAND for PDFImageInteractionClass
- ***********************************************************************
+/********************************************************************
+ *      MSG_GEN_GUP_INTERACTION_COMMAND for PDFImageInteractionClass
+ ********************************************************************
+ * SYNOPSIS:      Stop the decode when the user clicks Stop in a progress
+ *                dialog.
  *
- * SYNOPSIS:	    See whether image-display is being canceled.
- * PARAMETERS:	    Boolean (InteractionCommand command = cx);
+ * PARAMETERS:    command               Interaction command.
  *
- * SIDE EFFECTS:    
+ * RETURNS:       Boolean               Result of the superclass.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	mevissen	6/02/99   	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      6/02/99   mevissen  Initial Revision
+ *******************************************************************/
 @method PDFImageInteractionClass, MSG_GEN_GUP_INTERACTION_COMMAND
 {
     if (command == IC_STOP) {
-	/*
-	 * user-canceled; tell the engine to stop the current decode
-	 */
+	/* Stop: cancel the current decode */
 	PdfCancelDecode(currentlyDecodingDoc);
     }
     return (@callsuper());
-}	/* End of MSG_GEN_GUP_INTERACTION_COMMAND.	*/
+}
 
-/***********************************************************************
- *		MSG_GEN_CONTROL_SCAN_FEATURE_HINTS for PDFPageControlClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_PDF_DOCUMENT_SAVE for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Open the Save Copy As dialog.
  *
- * SYNOPSIS:	    Fixup the prohibited toolbox UI features to
- *                  ensure that the page tools are present.  This is
- *                  a workaround for the GPC CUI, where the page control
- *                  tools are globally prohibited by an INI setting.
+ * PARAMETERS:    none
  *
- * PARAMETERS:	    GenControlUIType type,
- *  			    GenControlScanInfo *info
- *
- * SIDE EFFECTS:    
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	dhunter     1/27/2000   Initial revision
- *
- ***********************************************************************/
-/*@method PDFPageControlClass, MSG_GEN_CONTROL_SCAN_FEATURE_HINTS
-{
-    @callsuper();
-
-    info->GCSI_appProhibited &= ~(GPCTF_PREVIOUS_PAGE | GPCTF_GOTO_PAGE |
-	    GPCTF_NEXT_PAGE | GPCTF_FIRST_PAGE | GPCTF_LAST_PAGE);
-}*/
-
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_SAVE for PDFDocumentClass
- ***********************************************************************
- *
- * SYNOPSIS:	    Initialize and initiate the save dialog.
- *
- * PARAMETERS:	    
- *
- * SIDE EFFECTS:    
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	dhunter	4/26/2000	Initial revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      4/26/2000  dhunter   Initial revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_SAVE
 {
-    /* Grab the current file's name and stuff it into the text object */
 	 @call PDFFileName::MSG_VIS_TEXT_REPLACE_ALL_PTR(
 														pself->GDI_fileName, 0);
 	 PDFUpdateSaveDirText();
@@ -2551,11 +2473,26 @@ PDFUpdatePageControl (word totalPages, word curPage)
 
 #define PDF_INFO_BUF_SIZE 256
 
-/***********************************************************************
- *		PDFSetInfoText
- ***********************************************************************
- * SYNOPSIS:	Put one /Info entry into a text object of PDFInfoDB.
- ***********************************************************************/
+/********************************************************************
+ *                      PDFSetInfoText
+ ********************************************************************
+ * SYNOPSIS:      Put one /Info entry into a text object.
+ *
+ * PARAMETERS:    text                  Text object.
+ *                engine                Engine document.
+ *                *key                  Ptr to the /Info key.
+ *                *buf                  Ptr to a work buffer of
+ *                                      PDF_INFO_BUF_SIZE bytes.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 static void
 PDFSetInfoText(optr text, PdfDocHandle engine, const char *key, char *buf)
 {
@@ -2563,22 +2500,22 @@ PDFSetInfoText(optr text, PdfDocHandle engine, const char *key, char *buf)
     @call text::MSG_VIS_TEXT_REPLACE_ALL_PTR(buf, 0);
 }
 
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_SHOW_INFO for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_PDF_DOCUMENT_SHOW_INFO for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Fill the Document Info dialog and show it.
  *
- * SYNOPSIS:	Fill the Document Info dialog and bring it up.
+ * PARAMETERS:    none
  *
- * STRATEGY:	Text strings are converted to the GEOS character set
- *		and dates formatted by PdfGetInfoField (engine). The
- *		buffer is a heap block (small process stack).
+ * RETURNS:       void
+ *
+ * STRATEGY:      The work buffer is a heap block (small process stack).
  *
  * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	JK	11/23/26	Initial revision (B4)
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/23/26  JK        Initial revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_SHOW_INFO
 {
     MemHandle mh;
@@ -2605,14 +2542,24 @@ PDFSetInfoText(optr text, PdfDocHandle engine, const char *key, char *buf)
     @send PDFInfoDB::MSG_GEN_INTERACTION_INITIATE();
 }
 
-/***********************************************************************
- *		PDFUpdateSaveDirText
- ***********************************************************************
- * SYNOPSIS:	Show the file selector's current folder below it, like
- *		the standard Save As dialog ("Saving to Folder: NAME").
- * STRATEGY:	Path buffers come from the heap -- PATH_BUFFER_SIZE is
- *		too big for the process stack.
- ***********************************************************************/
+/********************************************************************
+ *                      PDFUpdateSaveDirText
+ ********************************************************************
+ * SYNOPSIS:      Show the current folder of the Save Copy As file selector
+ *                ("Saving to Folder: NAME").
+ *
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The path buffers come from the heap: PATH_BUFFER_SIZE is too
+ *                large for the process stack.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 void
 PDFUpdateSaveDirText(void)
 {
@@ -2655,12 +2602,24 @@ PDFUpdateSaveDirText(void)
     MemFree(mh);
 }
 
-/***********************************************************************
- *		MSG_PDF_SAVE_DIR_SELECTED for PDFProcessClass
- ***********************************************************************
- * SYNOPSIS:	Save Copy As file selector changed folder (or selection);
- *		update the "Saving to Folder" line.
- ***********************************************************************/
+/********************************************************************
+ *                      MSG_PDF_SAVE_DIR_SELECTED for PDFProcessClass
+ ********************************************************************
+ * SYNOPSIS:      Update the folder line when the Save Copy As file selector
+ *                changes.
+ *
+ * PARAMETERS:    entryNum              Not used.
+ *                entryFlags            File selector entry flags.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFProcessClass, MSG_PDF_SAVE_DIR_SELECTED
 {
     if (!(entryFlags & (GFSEF_ERROR | GFSEF_NO_ENTRIES))) {
@@ -2668,38 +2627,28 @@ PDFUpdateSaveDirText(void)
     }
 }
 
-/***********************************************************************
- *		MSG_PDF_DOCUMENT_SAVE_FILE_NOW for PDFDocumentProcessClass
- ***********************************************************************
- * SYNOPSIS:	    Copy the current document to SP_DOCUMENT
- * PARAMETERS:	    
- * SIDE EFFECTS:    
- *
- * STRATEGY:
- *       Determine that the destination file does not exist
- *       Copy the file to the destination
- *       Bring down the dialog box
- *
- * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	Don	3/14/00   	Initial Revision
- *
- ***********************************************************************/
 #define PDF_SAVE_BUF_SIZE 4096
 
-/***********************************************************************
- *		PDFCopyOpenFile
- ***********************************************************************
- * SYNOPSIS:	Copy the (already open) document file to a new file in
- *		the current directory.
- * RETURNS:	0 on success, non-zero on error
- * STRATEGY:	Read through our own file handle instead of reopening
- *		the file by name: we only have the handle, and the open
- *		document may not be shareable. The engine seeks before
- *		every read, so moving the file position here is safe.
- *		A partly written destination is deleted again.
- ***********************************************************************/
+/********************************************************************
+ *                      PDFCopyOpenFile
+ ********************************************************************
+ * SYNOPSIS:      Copy the open document file to a new file.
+ *
+ * PARAMETERS:    src                   Handle of the open PDF file.
+ *                *destName             Ptr to the name of the new file in the
+ *                                      current folder.
+ *
+ * RETURNS:       word                  0 on success, non-zero on error.
+ *
+ * STRATEGY:      Read through the own file handle (the open document may not be
+ *                shareable). The engine sets the file position before every
+ *                read, so moving it here is safe.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 static word
 PDFCopyOpenFile(FileHandle src, const char *destName)
 {
@@ -2744,6 +2693,24 @@ PDFCopyOpenFile(FileHandle src, const char *destName)
     return result;
 }
 
+/********************************************************************
+ *                      MSG_PDF_DOCUMENT_SAVE_FILE_NOW for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Save a copy of the document under the name of the Save Copy As
+ *                dialog.
+ *
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      An existing file is not overwritten; the application is busy
+ *                during the copy.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      04/20/99  mevissen  Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_PDF_DOCUMENT_SAVE_FILE_NOW
 {
  word		retval;
@@ -2751,20 +2718,17 @@ PDFCopyOpenFile(FileHandle src, const char *destName)
  char			PDFPath[PATH_BUFFER_SIZE];
  DiskHandle		PDFDiskhandle;
 
-
-	/* get the file's name, path and disk handle */
 	@call PDFFileName::MSG_VIS_TEXT_GET_ALL_PTR(destFile);
 	@call PDFSaveFileSel::MSG_GEN_PATH_GET(PDFPath, sizeof(PDFPath));
 	PDFDiskhandle = @call PDFSaveFileSel::MSG_GEN_PATH_GET_DISK_HANDLE();
 
-	/* and set the PDF file dir  - FileSel doesn't do this */
+	/* Set the folder: the file selector does not */
 	FilePushDir();
 	FileSetCurrentPath(PDFDiskhandle, PDFPath);
 
-	/* Determine if the destination file exists by checking its attributes */
+	/* Does the file exist? */
 	FileGetAttributes(destFile);
 	if (ThreadGetError() != ERROR_FILE_NOT_FOUND) {
-		/* Display a dialog to the user */
 		UserStandardDialogOptr(
 			(char *)NULL, (void *)NULL, NullOptr, NullOptr,
 			@SaveFileExistsStr,
@@ -2772,14 +2736,11 @@ PDFCopyOpenFile(FileHandle src, const char *destName)
 			(GIT_NOTIFICATION << CDBF_INTERACTION_TYPE_OFFSET)));
 		}
 	else {
-		/* Mark aplication busy prior to copy */
 		@send PDFSaveTrigger::MSG_GEN_SET_NOT_ENABLED(VUM_NOW);
 		@call application::MSG_GEN_APPLICATION_MARK_APP_COMPLETELY_BUSY();
 
-		/* Complete the copy */
 		retval = PDFCopyOpenFile(pself->PDFDoc_sourceFile, destFile);
 
-		/* All done - unmark application busy */
 		@send PDFSaveTrigger::MSG_GEN_SET_ENABLED(VUM_NOW);
 		@call application::MSG_GEN_APPLICATION_MARK_APP_NOT_COMPLETELY_BUSY();
 
@@ -2798,50 +2759,40 @@ PDFCopyOpenFile(FileHandle src, const char *destName)
 }
 
 @ifdef COPY_PAGE
-/***********************************************************************
- *				SendSelectNotify
- ***********************************************************************
- * SYNOPSIS:	    Tell the world about our selection state.
- * CALLED BY:	MSG_META_GAINED_TARGET_EXCL
- * RETURN:	    nothing
- * SIDE EFFECTS:    none
+/********************************************************************
+ *                      SendSelectNotify
+ ********************************************************************
+ * SYNOPSIS:      Tell the edit control if the page can be copied.
+ *
+ * PARAMETERS:    canCopy               FALSE if /P forbids copying.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	ardeb	7/29/92		Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      7/29/92   ardeb     Initial Revision
+ *******************************************************************/
 static void
 SendSelectNotify(Boolean canCopy)
 {
-    MemHandle	data;	    	    	/* Extra data block sent along with the
-					 * notification. */
-    NotifySelectStateChange *nsscPtr;	/* The extra data block, locked */
-    EventHandle	notifyEvent;	    	/* Recorded notification event for
-					 * the GCN list */
+    MemHandle	data;
+    NotifySelectStateChange *nsscPtr;
+    EventHandle	notifyEvent;
 
-    /*
-     * Allocate the data block we'll be sending along and lock it down. It
-     * must be sharable, as it might be locked down by something other than
-     * the current application (there's no restriction on who can join an
-     * application's GCN lists). Because the block we're allocating is so
-     * tiny, it's safe to pass the HAF_NO_ERR flag.
-     */
+    /* Sharable: the edit control locks it in another thread */
     data = MemAlloc(sizeof(NotifySelectStateChange), HF_DYNAMIC|HF_SHARABLE,
 		    HAF_STANDARD_NO_ERR);
 EC( ECCheckMemHandle( data ); )
     nsscPtr = (NotifySelectStateChange *)MemLock(data);
 EC( ECCheckBounds( nsscPtr ); )
 
-    /*
-     * Tell the world that the current selection is graphics.
-     */
+    /* The selection is graphics */
     nsscPtr->NSSC_selectionType = SDT_GRAPHICS;
 
-    /*
-     * The page is always "clipboardable" -- unless /P forbids copying.
-     */
+    /* The page can be copied unless /P forbids it */
     nsscPtr->NSSC_clipboardableSelection = canCopy;
 
     MemUnlock(data);
@@ -2862,35 +2813,23 @@ EC( ECCheckEventHandle( notifyEvent ); )
 
 }
 
-/***********************************************************************
- *		MSG_META_GAINED_TARGET_EXCL for ClipSampProcessClass
- ***********************************************************************
- * SYNOPSIS:	    Take note that we are the target object and are
- *		    thus responsible for notifying the GenEditControl
- *		    of our status.
- * PARAMETERS:	    void (void)
- * SIDE EFFECTS:    process is added to the clipboard notification list
+/********************************************************************
+ *                      MSG_META_GAINED_TARGET_EXCL for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Enable the document commands and the edit control when the
+ *                document becomes the target.
  *
- * STRATEGY:	    When we are the target object, it is our responsibility
- *		    to keep any objects controlling us (in this app, the
- *		    GenEditControl object) aprised of our status by sending
- *		    notification to them whenever it changes. To do this,
- *		    we must be on the clipboard notification list, so we
- *		    can tell the controller(s) if we can paste the new
- *		    normal transfer item, when it arrives.
+ * PARAMETERS:    none
  *
- *	    	    To the controllers, a change of target is simply a massive
- *		    state change (of every aspect of the target object), so
- *		    we send out all the notifications we're supposed to
- *		    send, during the course of our life, whenever we gain
- *		    the target.
+ * RETURNS:       void
+ *
+ * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	ardeb	7/31/92		Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      7/31/92   ardeb     Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_GAINED_TARGET_EXCL
 {
     ClipboardAddToNotificationList(oself);
@@ -2903,26 +2842,23 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	SendSelectNotify(PdfOkToCopy(pself->PDFDoc_engine));
 }
 
-/***********************************************************************
- *		MSG_META_LOST_TARGET_EXCL for ClipSampProcessClass
- ***********************************************************************
- * SYNOPSIS:	    Take note that we are no longer the target object
- *		    and thus are no longer responsible for notifying
- *		    the GenEditControl of our status.
- * PARAMETERS:	    void (void)
- * SIDE EFFECTS:    process is removed from the clipboard notification list.
+/********************************************************************
+ *                      MSG_META_LOST_TARGET_EXCL for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Disable the document commands when the document is no longer
+ *                the target.
  *
- * STRATEGY:	    Since we don't have to continually update the
- *		    controller of our status, we no longer need to be kept
- *		    aprised of the state of the clipboard, so we remove
- *		    ourself from its notification list.
+ * PARAMETERS:    none
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
  *
  * REVISION HISTORY:
- *	Name	Date		Description
- *	----	----		-----------
- *	ardeb	7/31/92		Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      7/31/92   ardeb     Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_LOST_TARGET_EXCL
 {
     ClipboardRemoveFromNotificationList(oself);
@@ -2931,31 +2867,30 @@ EC( ECCheckEventHandle( notifyEvent ); )
     @callsuper();
 }
 
-/***********************************************************************
- *		MSG_META_CLIPBOARD_COPY for PDFDocumentClass
- ***********************************************************************
+/********************************************************************
+ *                      MSG_META_CLIPBOARD_COPY for PDFDocumentClass
+ ********************************************************************
+ * SYNOPSIS:      Copy the current page as a graphics string to the clipboard.
  *
- * SYNOPSIS:	    Do the clipboard copy thing.
- * PARAMETERS:	    
+ * PARAMETERS:    none
  *
- * SIDE EFFECTS:    
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      The page is drawn into a GString in the transfer VM file with
+ *                its real page size. /P can forbid copying.
  *
  * REVISION HISTORY:
- *	Name		Date		Description
- *	----		----		-----------
- *	dhunter		1/24/2000	Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      1/24/2000  dhunter   Initial Revision
+ *******************************************************************/
 @method PDFDocumentClass, MSG_META_CLIPBOARD_COPY
 {
-    VMFileHandle      transferVMFile;  /* VM file handle of Transfer VM File */
-//    VMChain			  dataVMChain;     /* VM chain of attached data block */
-	 VMBlockHandle     headerVMBlock;   /* VM handle of attached header block */
+    VMFileHandle      transferVMFile;
+	 VMBlockHandle     headerVMBlock;
 	 VMBlockHandle     dataVMBlock;
-    ClipboardItemHeader *headerMem;    /* ClipboardItemHeader for the VM file */
-	 MemHandle         headerMemHandle; /* handle of ClipboardItemHeader block */
+    ClipboardItemHeader *headerMem;
+	 MemHandle         headerMemHandle;
 	 PdfError          err;
 	 GStateHandle        gstate;
 	 Point             pageSize;
@@ -2977,21 +2912,13 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	     return;
 	 }
 
-    /* Now get the transfer VM file. */
     transferVMFile = ClipboardGetClipboardFile();
 
-	/* Copy from one to the other. */
-/*	dataVMChain = VMCopyVMChain(pself->PDFDoc_gstringFile,
-	  VMCHAIN_MAKE_FROM_VM_BLOCK(pageData), transferVMFile);
-
-	/* since the copied page comes out flipped top/bottom with the above,
-	 * let's try swiping the printing routine and slap that into the
-	 *clipboard - jfh */
+/* Draw the page again (a VM chain copy comes out flipped) */
 	gstate = GrCreateGString(transferVMFile, GST_VMEM, &dataVMBlock);
 
 	err = PdfDrawPage(pself->PDFDoc_engine, pself->PDFDoc_pageNum, gstate,
 			  TRUE, NULL, &pageSize);
-
 
 	if (err != PDF_OK) {
 	    GrDestroyGString(gstate, NULL, GSKT_KILL_DATA);
@@ -2999,19 +2926,15 @@ EC( ECCheckEventHandle( notifyEvent ); )
 	    return;
 	}
 
-	/* terminate the gstring and free its handle; the data stays in
-	 * the clipboard file as the transfer item's VM chain */
+	/* End the GString; its data stays in the clipboard file */
 	GrEndGString(gstate);
 	GrDestroyGString(gstate, NULL, GSKT_LEAVE_DATA);
-
-
-	 /* Now, allocate and fill in the transfer item header block. */
 
     headerVMBlock = VMAlloc(transferVMFile, sizeof(ClipboardItemHeader), 1111);
     headerMem = (ClipboardItemHeader *)VMLock(transferVMFile, headerVMBlock,
 							&headerMemHandle);
     headerMem->CIH_owner = (optr) (((dword)GeodeGetProcessHandle()<<16) | 0);
-    headerMem->CIH_flags = 0;           /* Normal transfer; no flags. */
+    headerMem->CIH_flags = 0;
     MemLock(OptrToHandle(@PDFClipboardItemName));
     strncpy(headerMem->CIH_name, LMemDeref(@PDFClipboardItemName),
         CLIPBOARD_ITEM_NAME_LENGTH);
@@ -3019,28 +2942,22 @@ EC( ECCheckEventHandle( notifyEvent ); )
     MemUnlock(OptrToHandle(@PDFClipboardItemName));
     headerMem->CIH_sourceID = 0;
 
-    headerMem->CIH_formatCount = 1;     /* only one format */
+    headerMem->CIH_formatCount = 1;
 
-    /* describe format */
     headerMem->CIH_formats[0].CIFI_format =
       FormatIDFromManufacturerAndType(MANUFACTURER_ID_GEOWORKS,
         CIF_GRAPHICS_STRING);
-/*    headerMem->CIH_formats[0].CIFI_vmChain =
-		dataVMChain;  */
     headerMem->CIH_formats[0].CIFI_vmChain =
         (VMChain)(((dword)(dataVMBlock))<<16L) ;
 
-	 /* Real page size from the engine, instead of the old hardcoded
-	  * DOCUMENT_WIDTH/DOCUMENT_HEIGHT (8.5x11) -- same fix as the view
-	  * bounds in MSG_VIS_DRAW. */
+	 /* Real page size from the engine */
 	 headerMem->CIH_formats[0].CIFI_extra1 =
       (sword)(pageSize.P_x);
 	 headerMem->CIH_formats[0].CIFI_extra2 =
       (sword)(pageSize.P_y);
     VMUnlock(headerMemHandle);
 
-    /* Now register the transfer item with the Clipboard. This will actually
-     * put the transfer item and its header into the Clipboard. */
+    /* Register the transfer item with the clipboard */
 
     ClipboardRegisterItem(BlockIDFromFileAndBlock(
                             transferVMFile, headerVMBlock),

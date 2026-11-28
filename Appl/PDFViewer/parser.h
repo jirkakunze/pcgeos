@@ -34,8 +34,6 @@
 #pragma interface
 #endif
 
-/* Parser */
-
 /* Constructor. */
 extern void
 ParserInit(Parser *parser, Lexer *lexer1);

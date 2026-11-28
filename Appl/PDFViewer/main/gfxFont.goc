@@ -49,7 +49,6 @@
 #include "gstr.h"
 #include "gmem.h"
 #include <heap.h>
-/* #include "FontInfo.h" */
 
 #if JAPANESE_SUPPORT
 #include "CMapInfo.h"
@@ -72,14 +71,23 @@ static void GfxFontReadToUnicode(GfxFont *this, Dict *fontDict, XRef *xref,
     word *appliedCount);
 static GBool GfxFontMatches(GfxFont *this, char *tag1);
 
-/* GfxFont */
-
-/***********************************************************************
- *      GfxFontNameRule
- ***********************************************************************
- * SYNOPSIS:        Generic name rules for fonts not in fontNameMap.
- * RETURNS:         class letter (see fontNameMap), 0 = no rule applies
- ***********************************************************************/
+/********************************************************************
+ *                      GfxFontNameRule
+ ********************************************************************
+ * SYNOPSIS:      Generic name rules for fonts not in fontNameMap.
+ *
+ * PARAMETERS:    *name                 Ptr to the normalized font name.
+ *
+ * RETURNS:       char                  Class letter (see fontNameMap), 0 if no
+ *                                      rule applies.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static char GfxFontNameRule(const char *name)
 {
     const char *p;
@@ -113,21 +121,26 @@ static char GfxFontNameRule(const char *name)
     return 0;
 }
 
-/***********************************************************************
- *      GfxFontMapName
- ***********************************************************************
- * SYNOPSIS:        Pick the GEOS substitute font class from the name.
- * PARAMETERS:      GfxFont *this       font, flags already set from
- *                                      /Flags (or the default)
- *                  const char *name    PDF font name (BaseFont)
- * STRATEGY:        Font names are far more reliable than /Flags (many
- *                  producers write 32 = "nonsymbolic" for every font).
- *                  The name is normalized (subset tag "AAAAAA+", spaces
- *                  and '_' dropped), then looked up as a prefix in
- *                  fontNameMap, then the generic rules. If either knows
- *                  the font, its class replaces the serif / fixed /
- *                  symbolic flags; otherwise the flags stay.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxFontMapName
+ ********************************************************************
+ * SYNOPSIS:      Select the GEOS substitute font class from the font name.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *name                 Ptr to the font name.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Names are more reliable than /Flags (often just 32). The name
+ *                is normalized (no subset tag, spaces or "_"), looked up as a
+ *                prefix in fontNameMap, then the generic rules; else /Flags
+ *                stay.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxFontMapName(GfxFont *this, const char *name)
 {
     char buf[48];
@@ -194,13 +207,23 @@ void GfxFontMapName(GfxFont *this, const char *name)
     }
 }
 
-/***********************************************************************
- *      GfxFontNameStyle
- ***********************************************************************
- * SYNOPSIS:        Derive bold/italic from the font name.
- * STRATEGY:        The font code uses the fontBold and fontItalic flags
- *                  to set the bold and italic text styles.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxFontNameStyle
+ ********************************************************************
+ * SYNOPSIS:      Set bold and italic from the font name.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Many fonts set no style flags: words like "Bold" or "Italic"
+ *                in the name decide (also TeX names such as CMBX, CMTI).
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontNameStyle(GfxFont *this)
 {
     if (strstr(GStrGetCString(&this->name), "Bold")
@@ -219,29 +242,29 @@ static void GfxFontNameStyle(GfxFont *this)
     }
 }
 
-/***********************************************************************
- *      GfxFontInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      GfxFont *this    this
- *                  char *tag1    tag1
- *                  Ref id1    id1
- *                  Dict *fontDict    font dict
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      GfxFontInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a font from its font dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *tag1                 Ptr to the resource name.
+ *                id1                   Object reference of the font.
+ *                *fontDict             Ptr to the font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Read the name and the descriptor flags, select the substitute
+ *                font, then the encoding (named, /Differences, built-in), the
+ *                widths and /ToUnicode, which wins last. Type0 fonts use
+ *                cidFont.c.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef *xref)
 {
 
@@ -283,11 +306,7 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
 
     /* is it a built-in font? */
 
-    /*
-     * TeX extension font (big operators, delimiters): its glyphs hang
-     * below the baseline (cmex10.afm: summationtext 0 .. -1000), the
-     * GEOS substitutes stand on it -- move them down.
-     */
+    /* CMEX: big operators hang below the baseline */
     if (strstr(GStrGetCString(&this->name), "CMEX"))
     {
         this->charRise = -800;
@@ -314,10 +333,7 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
     ObjFree(&obj1);
     this->is16 = gFalse;
 
-    /*
-     * Substitute font class: Times-Roman by default, the font name
-     * (GfxFontMapName) overrides it -- also over the /Flags read below.
-     */
+    /* Font class: Times-Roman, then the font name decides */
     this->flags = fontSerif;
     GfxFontMapName(this, GStrGetCString(&this->name));
 
@@ -339,22 +355,15 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
         }
         ObjFree(&obj2);
 
-        /* flags */
         ObjDictLookup(&obj1, "Flags", &obj2, xref);
         if (isInt(&obj2))
         {
             this->flags = getInt(&obj2);
         }
         ObjFree(&obj2);
-        /*
-         * The name decides over the flags (often just 32, or 'symbolic'
-         * set for ordinary text fonts).
-         */
+        /* The name decides over the flags */
         GfxFontMapName(this, GStrGetCString(&this->name));
-        /*
-         * Maybe this is too tailored to a specific problem, but I've had a
-         * case of the 'symbol' flag getting set for non-symbol fonts:
-         */
+        /* Serif or mono fonts are never symbolic */
         if (this->flags & (fontSerif | fontFixedWidth))
         {
             this->flags &= ~fontSymbolic;
@@ -385,11 +394,7 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
     }
     ObjFree(&obj1);
 
-    /*
-     * Type0: codes, widths and char mapping come from the CIDFont
-     * descendant and /ToUnicode (main/cidFont.c), none of the 8 bit
-     * encoding work below applies.
-     */
+    /* Type0: everything from the CIDFont and /ToUnicode (cidFont.c) */
     if (this->type == fontType0)
     {
         GfxCidFontInit(this, fontDict, xref);
@@ -397,25 +402,16 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
         return;
     }
 
-    /*
-     * Check for an explicit /Widths array EARLY, before any of the inline
-     * standard-font fallback width lookups below ~= 85760 comparisons.
-     */
+    /* Check /Widths first: no standard width lookups then */
     DictLookup(fontDict, "Widths", &obj1, xref);
     hasWidthsArray = isArray(&obj1);
     ObjFree(&obj1);
 
-    /*
-     * Zero this->widths[] here, before any code path that computes standard-
-     * font fallback widths inline as it discovers glyph names.
-     */
+    /* Clear the widths before standard widths are filled in */
     memset(this->widths, 0, 256 * sizeof(short));
     memset(this->symChars, 0, sizeof(this->symChars));
 
-    /*
-     * duplicate the standard (or symbol) character map -- moved here so this
-     * sees this->flags' FINAL value.
-     */
+    /* Standard or symbol char map, after the final flags */
 
     if (this->flags & fontSymbolic)
     {
@@ -432,19 +428,12 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
         MemUnlock(OptrToHandle(@pdfToGeosMap));
     }
 
-    /*
-     * Skip this whole block (including the lock/unlock) when the font has an
-     * explicit /Widths array -- see hasWidthsArray's own comment above.
-     */
     if (!hasWidthsArray)
     {
         MemLock(OptrToHandle(@standardEncodingNames));
         pNameMap = LMemDeref((this->flags & fontSymbolic ?
             @symbolEncodingNames : @standardEncodingNames));
-        /*
-         * Compute fallback widths inline; no persistent charNames table is
-         * needed. pNameMap steps through the name list, one entry per code.
-         */
+        /* Standard widths: one name list entry per code */
         for (code = 0; code < 256 && *pNameMap; ++code)
         {
             nameLen = GfxNameListEntryLen(pNameMap);
@@ -458,11 +447,7 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
         MemUnlock(OptrToHandle(@standardEncodingNames));
     }
 
-    /*
-     * An embedded Type 1 font without a named /Encoding uses the encoding
-     * built into the font file (pdfTeX: all fonts, /Flags 4 = symbolic).
-     * The glyph names tell the characters, so it is a text font.
-     */
+    /* Embedded Type 1 without /Encoding: the built-in encoding */
     if (this->type == fontType1 && this->embFontID.num >= 0)
     {
         if (GfxFontReadBuiltinEncoding(this, xref, hasWidthsArray) > 0)
@@ -473,19 +458,15 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
 
     GfxFontNameStyle(this);
 
-    /* Homegrown char encoding merging */
+    /* Apply /Encoding and /Differences */
     if (this->type != fontType0)
     {
         GfxFontMakeEncoding(this, fontDict, xref, hasWidthsArray);
-        /* Make widths too */
+        /* /Widths */
         GfxFontMakeWidths(this, fontDict, xref);
     }
 
-    /*
-     * /ToUnicode, if present, is the most reliable source of truth we have for
-     * what a character code actually means -- so it comes last and wins
-     * over /Encoding and /Differences (unknown glyph names map to 0 there).
-     */
+    /* /ToUnicode last: it wins over the encoding */
     toUniAppliedCount = 0;
     GfxFontReadToUnicode(this, fontDict, xref, &toUniAppliedCount);
     /* fontSymbolic selects the Symbol or Dingbat GEOS font family. */
@@ -496,25 +477,22 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
 
 }
 
-/***********************************************************************
- *      GfxFontFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      GfxFont *this    this
+/********************************************************************
+ *                      GfxFontFree
+ ********************************************************************
+ * SYNOPSIS:      Free the data of a font.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontFree(GfxFont *this)
 {
     GStrFree(&this->tag);
@@ -524,27 +502,27 @@ static void GfxFontFree(GfxFont *this)
 
 }
 
-/* Read the array of widths from the font dict. */
-
-/***********************************************************************
- *      GfxFontLookupStandardWidth
- ***********************************************************************
- * SYNOPSIS:        Look up standard width.
- * PARAMETERS:      GfxFont *this    this
- *                  char *name    name
+/********************************************************************
+ *                      GfxFontLookupStandardWidth
+ ********************************************************************
+ * SYNOPSIS:      Return the standard width of a glyph name.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *name                 Ptr to the glyph name (need not end with
+ *                                      NUL).
+ *                len                   Length of the name.
  *
- * CONTEXT:
+ * RETURNS:       short                 Width (1/1000 em), 0 if not known.
  *
- * STRATEGY:
+ * STRATEGY:      Width table of the matching base 14 font (Times, Helvetica,
+ *                Courier, Symbol by the flags), indexed by the position of the
+ *                name in the standard or symbol name list.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short GfxFontLookupStandardWidth(GfxFont *this, const char *name,
     word len)
 {
@@ -558,24 +536,19 @@ static short GfxFontLookupStandardWidth(GfxFont *this, const char *name,
 
     if (this->flags & fontSerif)
     {
-        /* Times-Roman derivatives */
         if (style == (fontBold | fontItalic))
-        /* Times-BoldItalic */
         {
             owidths = @timesBoldItalicWidths;
         }
         else if (style == fontBold)
-        /* Times-Bold */
         {
             owidths = @timesBoldWidths;
         }
         else if (style == fontItalic)
-        /* Times-Italic */
         {
             owidths = @timesItalicWidths;
         }
         else
-        /* Times-Roman */
         {
             owidths = @timesRomanWidths;
         }
@@ -586,29 +559,24 @@ static short GfxFontLookupStandardWidth(GfxFont *this, const char *name,
         owidths = @courierWidths;
     }
     else if (this->flags & fontSymbolic)
-    /* Symbol */
     {
         owidths = @symbolWidths;
     }
     else
     {
         if (style == (fontBold | fontItalic))
-        /* Helvetica-BoldOblique */
         {
             owidths = @helveticaBoldObliqueWidths;
         }
         else if (style == fontBold)
-        /* Helvetica-Bold */
         {
             owidths = @helveticaBoldWidths;
         }
         else if (style == fontItalic)
-        /* Helvetica-Oblique */
         {
             owidths = @helveticaObliqueWidths;
         }
         else
-        /* Helvetica */
         {
             owidths = @helveticaWidths;
         }
@@ -638,27 +606,24 @@ static short GfxFontLookupStandardWidth(GfxFont *this, const char *name,
     return result;
 }
 
-/***********************************************************************
- *      GfxFontMakeWidths
- ***********************************************************************
- * SYNOPSIS:        Create widths.
- * PARAMETERS:      GfxFont *this    this
- *                  Dict *fontDict    font dict
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      GfxFontMakeWidths
+ ********************************************************************
+ * SYNOPSIS:      Read /FirstChar, /LastChar and /Widths.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *fontDict             Ptr to the font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Only codes 0-255 are used.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref)
 {
     Obj obj1, obj2;
@@ -696,37 +661,31 @@ static void GfxFontMakeWidths(GfxFont *this, Dict *fontDict, XRef *xref)
             ObjFree(&obj2);
         }
     }
-    /*
-     * No "else" branch needed anymore: when there's no explicit /Widths array,
-     * this->widths[] already holds the standard-font fallback values computed
-     * during encoding.
-     */
+    /* Without /Widths, widths[] has the standard widths already */
 
     ObjFree(&obj1);
 }
 
-/***********************************************************************
- *      GfxFontMakeEncoding
- ***********************************************************************
- * SYNOPSIS:        Create encoding.
- * PARAMETERS:      GfxFont *this    this
- *                  Dict *fontDict    font dict
- *                  XRef *xref    cross-reference table
- *                  GBool hasWidthsArray    has widths array
+/********************************************************************
+ *                      GfxFontMakeEncoding
+ ********************************************************************
+ * SYNOPSIS:      Apply /Encoding (a name or a dictionary with /Differences).
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *fontDict             Ptr to the font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
+ *                hasWidthsArray        TRUE if the font has /Widths (no
+ *                                      standard widths needed).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref,
     GBool hasWidthsArray)
 {
@@ -735,7 +694,7 @@ static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref,
     word code, i;
     DictLookup(fontDict, "Encoding", &obj1, xref);
 
-    /* encoding specified by dictionary */
+    /* /Encoding dictionary */
     if (isDict(&obj1))
     {
         ObjDictLookup(&obj1, "BaseEncoding", &obj2, xref);
@@ -775,7 +734,7 @@ static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref,
         }
         ObjFree(&obj2);
 
-        /* encoding specified by name or null */
+        /* /Encoding name or none */
     }
     else if (isName(&obj1))
     {
@@ -786,26 +745,26 @@ static void GfxFontMakeEncoding(GfxFont *this, Dict *fontDict, XRef *xref,
 
 }
 
-/***********************************************************************
- *      CopyNamedEncoding
- ***********************************************************************
- * SYNOPSIS:        Copy named encoding.
- * PARAMETERS:      GfxFont *this    this
- *                  Obj *pObj    p obj
- *                  GBool hasWidthsArray    has widths array
+/********************************************************************
+ *                      CopyNamedEncoding
+ ********************************************************************
+ * SYNOPSIS:      Apply MacRomanEncoding or WinAnsiEncoding.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *pObj                 Ptr to the encoding name.
+ *                hasWidthsArray        TRUE if the font has /Widths (no
+ *                                      standard widths needed).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Copy the char map and, without /Widths, set the standard
+ *                widths. Other names do nothing.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  mevissen    6/02/99     Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      6/02/99   mevissen  Initial Revision
+ *******************************************************************/
 static void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray)
 {
     optr charMap, nameMap;
@@ -852,27 +811,28 @@ static void CopyNamedEncoding(GfxFont *this, Obj *pObj, GBool hasWidthsArray)
     }
 }
 
-/***********************************************************************
- *      GfxFontAddChar
- ***********************************************************************
- * SYNOPSIS:        Add char.
- * PARAMETERS:      GfxFont *this    this
- *                  word code    character code
- *                  char *name    name
- *                  GBool hasWidthsArray    has widths array
+/********************************************************************
+ *                      GfxFontAddChar
+ ********************************************************************
+ * SYNOPSIS:      Map one code to the GEOS char of a glyph name.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                code                  Code 0-255.
+ *                *name                 Ptr to the glyph name.
+ *                hasWidthsArray        TRUE if the font has /Widths (no
+ *                                      standard widths needed).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      One-char names directly, ".notdef" clears the code, "G###"
+ *                gives a code number, other names through charNames, the Adobe
+ *                Glyph List rules and the Symbol font (Greek, math).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
 {
@@ -897,20 +857,14 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
             return;
         }
     }
-    /*
-     * if name == ".notdef", we zero out that encoding -- no width lookup,
-     * matching the original behavior of leaving *charName NULL there
-     */
+    /* ".notdef": no char and no width */
     if (!strcmp(name, ".notdef"))
     {
         this->charMap[code] = 0;
         return;
     }
 
-    /*
-     * if name == "H###", I think that's an embedded char which we don't know
-     * how to decode.
-     */
+    /* "H###": an embedded char code, not decoded */
     if (name[0] == 'H' && name[1] >= '0' && name[1] <= '9')
     {
         this->charMap[code] = 0;
@@ -945,10 +899,7 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
         return;
     }
 
-    /*
-     * else, we need to search for this name and use the GEOS char code that it
-     * maps to
-     */
+    /* Look up the glyph name */
 
     MemLock(OptrToHandle(@charGEOSEquiv));
     pCharNames = LMemDeref(@charNames);
@@ -990,14 +941,23 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
     }
 }
 
-/***********************************************************************
- *      GfxNameListEntryLen
- ***********************************************************************
- * SYNOPSIS:        Length of one entry of a glyph name list.
- * PARAMETERS:      const char *entry    start of the entry
- * RETURNS:         number of chars before the '|' (0 = empty entry)
- * STRATEGY:        Every entry of a list in ENCODINGS ends with '|'.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxNameListEntryLen
+ ********************************************************************
+ * SYNOPSIS:      Return the length of one entry of a glyph name list.
+ *
+ * PARAMETERS:    *entry                Ptr to the entry.
+ *
+ * RETURNS:       word                  Number of chars before the "|" (0 =
+ *                                      empty entry).
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word GfxNameListEntryLen(const char *entry)
 {
     word len = 0;
@@ -1010,18 +970,27 @@ static word GfxNameListEntryLen(const char *entry)
     return len;
 }
 
-/***********************************************************************
- *      GfxNameListFind
- ***********************************************************************
- * SYNOPSIS:        Find a name in a glyph name list.
- * PARAMETERS:      const char *list    locked list ("name|name|...|")
- *                  const char *name    name, need not end with NUL
- *                  word len            length of the name
- * RETURNS:         index of the first entry equal to the name, -1 if none
- * STRATEGY:        Linear search. The lists have at most 335 entries and
- *                  are searched only while a font is loaded. An empty
- *                  name or a name with '|' cannot be in a list.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxNameListFind
+ ********************************************************************
+ * SYNOPSIS:      Find a name in a glyph name list.
+ *
+ * PARAMETERS:    *list                 Ptr to the locked list
+ *                                      ("name|name|...|").
+ *                *name                 Ptr to the name (need not end with NUL).
+ *                len                   Length of the name.
+ *
+ * RETURNS:       sword                 Index of the first equal entry, -1 if
+ *                                      not found.
+ *
+ * STRATEGY:      Linear search (at most 335 entries, only while a font is
+ *                loaded). An empty name or a name with "|" is never found.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static sword GfxNameListFind(const char *list, const char *name, word len)
 {
     sword idx;
@@ -1044,27 +1013,24 @@ static sword GfxNameListFind(const char *list, const char *name, word len)
     return -1;
 }
 
-/***********************************************************************
- *      GfxFontMapChar
- ***********************************************************************
- * SYNOPSIS:        Map char.
- * PARAMETERS:      GfxFont *this    this
- *                  unsigned char c    c
- *                  char defaultChar    default char
+/********************************************************************
+ *                      GfxFontMapChar
+ ********************************************************************
+ * SYNOPSIS:      Return the GEOS char of a code.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                c                     Code.
+ *                defaultChar           Char for codes without a GEOS char.
  *
- * CONTEXT:
+ * RETURNS:       char                  GEOS char.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 char GfxFontMapChar(GfxFont *this, unsigned char c, char defaultChar)
 {
     char trans = this->charMap[c];
@@ -1076,27 +1042,23 @@ char GfxFontMapChar(GfxFont *this, unsigned char c, char defaultChar)
     return trans;
 }
 
-/* Map a string to the GEOS charset */
-/***********************************************************************
- *      GfxFontFindChar
- ***********************************************************************
- * SYNOPSIS:        Find char.
- * PARAMETERS:      GfxFont *this    this
- *                  unsigned char ch    ch
+/********************************************************************
+ *                      GfxFontFindChar
+ ********************************************************************
+ * SYNOPSIS:      Return the code of a GEOS char.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                ch                    GEOS char.
  *
- * CONTEXT:
+ * RETURNS:       char                  Code, 0 if not found.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 char GfxFontFindChar(GfxFont *this, unsigned char ch)
 {
     int i;
@@ -1110,24 +1072,22 @@ char GfxFontFindChar(GfxFont *this, unsigned char ch)
     return 0;
 }
 
-/***********************************************************************
- *      GfxUnicodeToGeosChar
- ***********************************************************************
- * SYNOPSIS:        Process gfx unicode to geos char.
- * PARAMETERS:      word unicodeVal    unicode val
+/********************************************************************
+ *                      GfxUnicodeToGeosChar
+ ********************************************************************
+ * SYNOPSIS:      Return the GEOS char of a Unicode value.
  *
- * RETURNS:         result value
+ * PARAMETERS:    unicodeVal            Unicode value.
  *
- * CONTEXT:
+ * RETURNS:       word                  GEOS char, 0 if there is none.
  *
- * STRATEGY:
+ * STRATEGY:      Linear search in geosCharMap (locked only during the search).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 word GfxUnicodeToGeosChar(word unicodeVal)
 {
     word i;
@@ -1154,12 +1114,22 @@ word GfxUnicodeToGeosChar(word unicodeVal)
     return result;
 }
 
-/***********************************************************************
- *      GfxGeosCharToUnicode
- ***********************************************************************
- * SYNOPSIS:        Unicode value of a GEOS char.
- * RETURNS:         Unicode value, 0 for control codes
- ***********************************************************************/
+/********************************************************************
+ *                      GfxGeosCharToUnicode
+ ********************************************************************
+ * SYNOPSIS:      Return the Unicode value of a GEOS char.
+ *
+ * PARAMETERS:    ch                    GEOS char.
+ *
+ * RETURNS:       word                  Unicode value, 0 for control codes.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 word GfxGeosCharToUnicode(byte ch)
 {
     word result;
@@ -1175,15 +1145,24 @@ word GfxGeosCharToUnicode(byte ch)
     return result;
 }
 
-/***********************************************************************
- *      GfxGlyphNameToGeosChar
- ***********************************************************************
- * SYNOPSIS:        GEOS char for a PostScript glyph name.
- * RETURNS:         GEOS char or C_xx_LIGATURE, 0 if unknown
- * STRATEGY:        Same name table as GfxFontAddChar, plus the ligatures
- *                  and the "uniXXXX" / "uXXXX" names of the Adobe Glyph
- *                  List specification.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxGlyphNameToGeosChar
+ ********************************************************************
+ * SYNOPSIS:      Return the GEOS char of a PostScript glyph name.
+ *
+ * PARAMETERS:    *name                 Ptr to the glyph name.
+ *
+ * RETURNS:       byte                  GEOS char or C_xx_LIGATURE, 0 if not
+ *                                      known.
+ *
+ * STRATEGY:      charNames, the ligatures, "uniXXXX"/"uXXXX" (Adobe Glyph List)
+ *                and the math names of mathNames.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 byte GfxGlyphNameToGeosChar(char *name)
 {
     char *pCharNames;
@@ -1284,24 +1263,23 @@ byte GfxGlyphNameToGeosChar(char *name)
     return ch;
 }
 
-/***********************************************************************
- *      GfxFontStringToUnicode
- ***********************************************************************
- * SYNOPSIS:        Process gfx font string to unicode.
- * PARAMETERS:      Obj *strObj    str obj
+/********************************************************************
+ *                      GfxFontStringToUnicode
+ ********************************************************************
+ * SYNOPSIS:      Return the value of a 1- or 2-byte CMap string.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *strObj               Ptr to the string object.
  *
- * CONTEXT:
+ * RETURNS:       word                  Value (big-endian), 0 for an empty
+ *                                      string.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word GfxFontStringToUnicode(Obj *strObj)
 {
     char *bytes;
@@ -1324,14 +1302,27 @@ static word GfxFontStringToUnicode(Obj *strObj)
     }
 }
 
-/***********************************************************************
- *      GfxFontSetUnicode
- ***********************************************************************
- * SYNOPSIS:        Map one code from /ToUnicode.
- * STRATEGY:        GEOS character if there is one, else a Greek letter
- *                  of the Symbol font; nothing for other characters
- *                  (the encoding stays).
- ***********************************************************************/
+/********************************************************************
+ *                      GfxFontSetUnicode
+ ********************************************************************
+ * SYNOPSIS:      Map one code from /ToUnicode.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                code                  Code.
+ *                unicodeVal            Unicode value.
+ *                *appliedCount         Ptr to the count of mapped codes
+ *                                      (in/out).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The GEOS char if there is one, else a Greek letter of the
+ *                Symbol font; other values keep the encoding.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontSetUnicode(GfxFont *this, Guchar code, word unicodeVal,
     word *appliedCount)
 {
@@ -1354,26 +1345,25 @@ static void GfxFontSetUnicode(GfxFont *this, Guchar code, word unicodeVal,
     }
 }
 
-/***********************************************************************
- *      GfxFontParseBfChar
- ***********************************************************************
- * SYNOPSIS:        Parse bf char.
- * PARAMETERS:      Parser *parser    parser
- *                  GfxFont *this    this
- *                  word *appliedCount    applied count
+/********************************************************************
+ *                      GfxFontParseBfChar
+ ********************************************************************
+ * SYNOPSIS:      Read a bfchar section of /ToUnicode.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser after "beginbfchar".
+ *                *this                 Ptr to the font.
+ *                *appliedCount         Ptr to the count of mapped codes
+ *                                      (in/out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 GfxFontParseBfChar(Parser *parser, GfxFont *this, word *appliedCount)
 {
@@ -1405,26 +1395,25 @@ GfxFontParseBfChar(Parser *parser, GfxFont *this, word *appliedCount)
     ObjFree(&codeObj);
 }
 
-/***********************************************************************
- *      GfxFontParseBfRange
- ***********************************************************************
- * SYNOPSIS:        Parse bf range.
- * PARAMETERS:      Parser *parser    parser
- *                  GfxFont *this    this
- *                  word *appliedCount    applied count
+/********************************************************************
+ *                      GfxFontParseBfRange
+ ********************************************************************
+ * SYNOPSIS:      Read a bfrange section of /ToUnicode.
  *
- * RETURNS:         void
+ * PARAMETERS:    *parser               Ptr to the parser after "beginbfrange".
+ *                *this                 Ptr to the font.
+ *                *appliedCount         Ptr to the count of mapped codes
+ *                                      (in/out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Contiguous form (one start value, +1 per code) and array form.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 GfxFontParseBfRange(Parser *parser, GfxFont *this, word *appliedCount)
 {
@@ -1496,27 +1485,26 @@ GfxFontParseBfRange(Parser *parser, GfxFont *this, word *appliedCount)
     ObjFree(&loObj);
 }
 
-/***********************************************************************
- *      GfxFontReadToUnicode
- ***********************************************************************
- * SYNOPSIS:        Read to unicode.
- * PARAMETERS:      GfxFont *this    this
- *                  Dict *fontDict    font dict
- *                  XRef *xref    cross-reference table
- *                  word *appliedCount    applied count
+/********************************************************************
+ *                      GfxFontReadToUnicode
+ ********************************************************************
+ * SYNOPSIS:      Apply the /ToUnicode CMap of a simple font.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *fontDict             Ptr to the font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
+ *                *appliedCount         Ptr to the count of mapped codes (out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Parse the CMap with the normal parser; only bfchar and bfrange
+ *                sections are read.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxFontReadToUnicode(GfxFont *this, Dict *fontDict, XRef *xref,
     word *appliedCount)
 {
@@ -1578,29 +1566,24 @@ static void GfxFontReadToUnicode(GfxFont *this, Dict *fontDict, XRef *xref,
     ParserFree(&parser);
 }
 
-/* GfxFontDict */
-
-/***********************************************************************
- *      GfxFontDictInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      GfxFontDict *this    this
- *                  Dict *fontDict    font dict
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      GfxFontDictInit
+ ********************************************************************
+ * SYNOPSIS:      Load all fonts of a /Font resource dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font dictionary object.
+ *                *fontDict             Ptr to the /Font dictionary.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Fonts may be references or direct dictionaries.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxFontDictInit(GfxFontDict *this, Dict *fontDict, XRef *xref)
 {
     word i;
@@ -1653,25 +1636,22 @@ void GfxFontDictInit(GfxFontDict *this, Dict *fontDict, XRef *xref)
     }
 }
 
-/***********************************************************************
- *      GfxFontDictFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      GfxFontDict *this    this
+/********************************************************************
+ *                      GfxFontDictFree
+ ********************************************************************
+ * SYNOPSIS:      Free all fonts of a font dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the font dictionary object.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxFontDictFree(GfxFontDict *this)
 {
     word i;
@@ -1687,26 +1667,23 @@ void GfxFontDictFree(GfxFontDict *this)
     gfree(this->fonts);
 }
 
-/***********************************************************************
- *      GfxFontDictLookup
- ***********************************************************************
- * SYNOPSIS:        Look up.
- * PARAMETERS:      GfxFontDict *this    this
- *                  char *tag    tag
+/********************************************************************
+ *                      GfxFontDictLookup
+ ********************************************************************
+ * SYNOPSIS:      Find a font by its resource name.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *this                 Ptr to the font dictionary object.
+ *                *tag                  Ptr to the resource name.
  *
- * CONTEXT:
+ * RETURNS:       GfxFont *             Ptr to the font, NULL if not found.
  *
- * STRATEGY:
+ * STRATEGY:      The last font found is checked first.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag)
 {
     word i;
@@ -1728,13 +1705,23 @@ GfxFont *GfxFontDictLookup(GfxFontDict *this, char *tag)
     return NULL;
 }
 
-/***********************************************************************
- *      GfxFontDictLookupRef
- ***********************************************************************
- * SYNOPSIS:        Font of the dictionary with the given object reference.
- * RETURNS:         font or NULL
- ***********************************************************************/
-
+/********************************************************************
+ *                      GfxFontDictLookupRef
+ ********************************************************************
+ * SYNOPSIS:      Find a font by its object reference.
+ *
+ * PARAMETERS:    *this                 Ptr to the font dictionary object.
+ *                ref                   Object reference.
+ *
+ * RETURNS:       GfxFont *             Ptr to the font, NULL if not found.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GfxFont *GfxFontDictLookupRef(GfxFontDict *this, Ref ref)
 {
     word i;
@@ -1755,56 +1742,34 @@ static GBool GfxFontMatches(GfxFont *this, char *tag1)
     return !strcmp(GStrGetCString(&this->tag), tag1);
 }
 
-/***********************************************************************
- *      GfxFontIs16Bit
- ***********************************************************************
- * SYNOPSIS:        Process gfx font is16 bit.
- * PARAMETERS:      GfxFont *this    this
- *
- * RETURNS:         success flag
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 GBool GfxFontIs16Bit(GfxFont *this)
 {
     return this->is16;
 }
 
-
 #pragma code_seg("PdfText")
 
-/***********************************************************************
- *      PdfTextStringToGeos
- ***********************************************************************
- * SYNOPSIS:        Convert a PDF text string to the GEOS character set.
- * PARAMETERS:      GooString *str    PDF string (decrypted)
- *                  char *dst    output buffer
- *                  word dstSize    size of dst including the null
+/********************************************************************
+ *                      PdfTextStringToGeos
+ ********************************************************************
+ * SYNOPSIS:      Convert a PDF text string to the GEOS character set.
  *
- * RETURNS:         length of the converted string
+ * PARAMETERS:    *str                  Ptr to the text string (UTF-16BE or
+ *                                      PDFDocEncoding).
+ *                *dst                  Ptr to the result (out, NUL-terminated).
+ *                dstSize               Size of dst.
  *
- * STRATEGY:        UTF-16BE (BOM FE FF) or PDFDocEncoding -> Unicode ->
- *                  GEOS char via GfxUnicodeToGeosChar. UTF-16 language
- *                  escapes (U+001B ... U+001B) are skipped, surrogate
- *                  pairs become '?'. Tab/CR/LF become a space, other
- *                  control characters are dropped.
+ * RETURNS:       word                  Length of the result.
+ *
+ * STRATEGY:      UTF-16BE (BOM FE FF) or PDFDocEncoding to Unicode to GEOS.
+ *                Language escapes are skipped, surrogate pairs and chars
+ *                without a GEOS char become "?", tab/CR/LF a space.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      11/23/26    Initial version (B4)
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/23/26  JK        Initial version
+ *******************************************************************/
 word PdfTextStringToGeos(GooString *str, char *dst, word dstSize)
 {
     Guchar *s;
@@ -1890,26 +1855,28 @@ word PdfTextStringToGeos(GooString *str, char *dst, word dstSize)
     return n;
 }
 
-/***********************************************************************
- *      GfxFontReadBuiltinEncoding
- ***********************************************************************
- * SYNOPSIS:        Apply the encoding built into an embedded Type 1
- *                  font file (FontFile, clear text part).
- * PARAMETERS:      GfxFont *this           font, embFontID set
- *                  XRef *xref              cross-reference table
- *                  GBool hasWidthsArray    font has /Widths
- * RETURNS:         number of codes set (0 = none found, charMap kept)
- * STRATEGY:        The clear text part before "eexec" holds either
- *                  "/Encoding StandardEncoding def" (nothing to do) or
- *                  "dup <code> /<glyph> put" entries, one or more per
- *                  line. The first entry clears the charMap, then every
- *                  entry goes through GfxFontAddChar (glyph name -> GEOS
- *                  char). /Encoding and /Differences are applied after
- *                  this and override it.
- *                  ATTENTION: Only Type 1 (FontFile). The built-in
- *                  encoding of CFF (FontFile3) and TrueType fonts is not
- *                  read; those need /Encoding or /ToUnicode.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxFontReadBuiltinEncoding
+ ********************************************************************
+ * SYNOPSIS:      Apply the encoding built into an embedded Type 1 font file.
+ *
+ * PARAMETERS:    *this                 Ptr to the font.
+ *                *xref                 Ptr to the cross-reference table.
+ *                hasWidthsArray        TRUE if the font has /Widths (no
+ *                                      standard widths needed).
+ *
+ * RETURNS:       word                  Number of codes mapped, 0 if there is no
+ *                                      built-in encoding.
+ *
+ * STRATEGY:      Read "dup <code> /<glyph> put" entries in the clear text part
+ *                of /FontFile (before "eexec"). ATTENTION: CFF and TrueType
+ *                built-in encodings are not read.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word GfxFontReadBuiltinEncoding(GfxFont *this, XRef *xref,
     GBool hasWidthsArray)
 {
@@ -1984,24 +1951,27 @@ static word GfxFontReadBuiltinEncoding(GfxFont *this, XRef *xref,
     return count;
 }
 
-/***********************************************************************
- *      GfxFontSymbolChar
- ***********************************************************************
- * SYNOPSIS:        Character for a glyph name or Unicode value that the
- *                  GEOS character set does not have.
- * PARAMETERS:      name          glyph name, or NULL
- *                  unicodeVal    Unicode value (used if name is NULL)
- * RETURNS:         0x100 | Symbol font code (Greek letter), or a GEOS
- *                  char (TeX size variant), or 0
- * STRATEGY:        TeX names big operators "summationtext",
- *                  "integraldisplay" ...; without the suffix they are in
- *                  the GEOS character set. Greek letters come from the
- *                  GEOS Symbol font (Adobe Symbol encoding: alpha = 'a',
- *                  Gamma = 'G'), TeX variants theta1/phi1/sigma1/omega1
- *                  have own Symbol codes.
- *                  PM-TODO: A Unicode GEOS has the Greek letters in the
- *                  text fonts; remove the Symbol font detour then.
- ***********************************************************************/
+/********************************************************************
+ *                      GfxFontSymbolChar
+ ********************************************************************
+ * SYNOPSIS:      Return a char for a glyph name or Unicode value that GEOS does
+ *                not have.
+ *
+ * PARAMETERS:    *name                 Ptr to the glyph name, or NULL.
+ *                unicodeVal            Unicode value if name is NULL.
+ *
+ * RETURNS:       word                  GEOS char; with 0x100 set: a char of the
+ *                                      GEOS Symbol font; 0 if there is none.
+ *
+ * STRATEGY:      TeX size variants ("summationtext") become the base name;
+ *                Greek letters come from the Symbol font (Adobe Symbol
+ *                encoding).
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word GfxFontSymbolChar(const char *name, word unicodeVal)
 {
     char buf[24];
@@ -2111,12 +2081,6 @@ static word GfxFontSymbolChar(const char *name, word unicodeVal)
     return ch ? (word)(0x100 | ch) : 0;
 }
 
-/***********************************************************************
- *      GfxFontIsSymbolChar
- ***********************************************************************
- * SYNOPSIS:        TRUE if the mapped code is drawn with the GEOS Symbol
- *                  font (see GfxFontSymbolChar).
- ***********************************************************************/
 GBool GfxFontIsSymbolChar(GfxFont *this, byte code)
 {
     return (this->symChars[code >> 3] & (1 << (code & 7))) != 0;
