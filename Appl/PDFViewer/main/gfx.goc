@@ -71,7 +71,7 @@ static void GfxUpdateFont(Gfx *gfx);
 static void GfxDoImage(Gfx *gfx, Stream *str, GBool inlineImg);
 static void GfxDrawImageRows(GStateHandle gstring, VMFileHandle vmFile,
     VMBlockHandle bitmap, word sampledWidth, word sampledHeight,
-    word validRows);
+    word validRows, GBool fill);
 
 #define PDF_PAGE_RESOURCE_VM_BUDGET       0x00800000UL
 #define PDF_PAGE_RESOURCE_OBJECT_LIMIT    2048
@@ -5725,37 +5725,52 @@ static void _near opEndIgnoreUndef(Gfx *gfx, Obj args[], int numArgs)
  *                sampledWidth          Bitmap width.
  *                sampledHeight         Bitmap height.
  *                validRows             Number of complete rows (from the top).
+ *                fill                  gTrue: monochrome bitmap, fill its set
+ *                                      bits with the area color
+ *                                      (GrFillHugeBitmap).
  *
  * RETURNS:       void
  *
  * STRATEGY:      A truncated image is clipped to its complete rows.
- *                GrDrawHugeBitmap copies the bitmap into the GString: the
- *                caller can free it afterwards.
+ *                GrDrawHugeBitmap and GrFillHugeBitmap copy the bitmap into
+ *                the GString: the caller can free it afterwards.
  *
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      08/22/26  JK        Initial Revision
+ *      11/28/26  Claude/jkunze  Fill mode for stencil masks
  *******************************************************************/
 static void GfxDrawImageRows(GStateHandle gstring, VMFileHandle vmFile,
     VMBlockHandle bitmap, word sampledWidth, word sampledHeight,
-    word validRows)
+    word validRows, GBool fill)
 {
+    GBool clip;
+
     if (validRows == 0)
     {
         return;
     }
-    if (validRows >= sampledHeight)
+    clip = (validRows < sampledHeight);
+    if (clip)
+    {
+        GrSaveState(gstring);
+        GrSetClipRect(gstring, PCT_INTERSECTION,
+            0, (sword)(sampledHeight - validRows),
+            (sword)sampledWidth, (sword)sampledHeight);
+    }
+    if (fill)
+    {
+        GrFillHugeBitmap(gstring, 0, 0, vmFile, bitmap);
+    }
+    else
     {
         GrDrawHugeBitmap(gstring, 0, 0, vmFile, bitmap);
-        return;
     }
-    GrSaveState(gstring);
-    GrSetClipRect(gstring, PCT_INTERSECTION,
-        0, (sword)(sampledHeight - validRows),
-        (sword)sampledWidth, (sword)sampledHeight);
-    GrDrawHugeBitmap(gstring, 0, 0, vmFile, bitmap);
-    GrRestoreState(gstring);
+    if (clip)
+    {
+        GrRestoreState(gstring);
+    }
 }
 
 /********************************************************************
@@ -5861,14 +5876,17 @@ static void GfxImageMaskStream(Gfx *gfx, Obj *maskObj, GfxImageMask *m)
  *
  * RETURNS:       void
  *
- * STRATEGY:      A 24-bit bitmap in the fill color with a bitmap mask; /ca is
- *                dithered into the mask. Images over 1500 pixels are sampled.
- *                Progress and cancel are checked per row.
+ * STRATEGY:      A monochrome bitmap: GrFillHugeBitmap fills its set bits
+ *                with the area color (the fill color, see GfxSetFillRGB).
+ *                1 bit per pixel instead of 24 bits plus a 1-bit mask.
+ *                /ca is dithered into the bits. Images over 1500 pixels are
+ *                sampled. Progress and cancel are checked per row.
  *
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      5/21/99   mevissen  Initial Revision
+ *      11/28/26  Claude/jkunze  Monochrome bitmap and GrFillHugeBitmap
  *******************************************************************/
 static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GBool invert, GBool inlineImage)
@@ -5884,9 +5902,8 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     dword bitmapBytes;
     word size;
     Handle gstring = gfx->state->gstring;
-    word maskBytes, sx, k, alpha, dither;
+    word maskBytes, sx, alpha, dither;
     sdword fa;
-    byte *rgb;
     word xSamp, ySamp, xMod, yCount;
     word sampledWidth, sampledHeight, arrayInd;
     GBool useLine;
@@ -5918,13 +5935,12 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
     GrApplyScale(gstring,
         (1L << 16) / sampledWidth,
         (1L << 16) / sampledHeight);
-    /* Mask: 24-bit bitmap in the fill color with a bitmap mask */
+    /* Mask: monochrome bitmap, set bits are filled with the fill color */
     fa = (GrMulWWFixed(gfx->state->fillAlpha, IntToGdouble(255)) +
         0x8000L) >> 16;
     alpha = (fa < 0) ? 0 : (fa > 255) ? 255 : (word)fa;
     maskBytes = (sampledWidth + 7) >> 3;
-    bitmapBytes = ((dword)sampledWidth * 3UL + maskBytes) *
-        (dword)sampledHeight;
+    bitmapBytes = (dword)maskBytes * (dword)sampledHeight;
     if (!GfxCheckPageResourceBudget(gfx, bitmapBytes))
     {
         GrRestoreTransform(gstring);
@@ -5935,7 +5951,7 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
         return;
     }
 
-    bitmap = GrCreateBitmap(BMF_24BIT | BMT_MASK | BMT_COMPLEX,
+    bitmap = GrCreateBitmap(BMF_MONO | BMT_COMPLEX,
         sampledWidth,
         sampledHeight,
         gfx->vmFile,
@@ -5988,14 +6004,9 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
             }
             if (nElements & 0xffff0000)
             {
+                /* All bits clear: nothing is painted */
+                EC_ERROR_IF(size < maskBytes, -1);
                 memset(line, 0, maskBytes);
-                rgb = line + maskBytes;
-                for (k = 0; k < sampledWidth; ++k)
-                {
-                    *rgb++ = (byte)gfx->state->fillColor.r;
-                    *rgb++ = (byte)gfx->state->fillColor.g;
-                    *rgb++ = (byte)gfx->state->fillColor.b;
-                }
             }
 
             xMod = 0;
@@ -6071,7 +6082,7 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
             GrSetAreaMaskSys(gstring, SDM_100);
         }
         GfxDrawImageRows(gstring, gfx->vmFile, bitmap, sampledWidth,
-            sampledHeight, validRows);
+            sampledHeight, validRows, gTrue);
         if (alpha < 255)
         {
             GrSetAreaMaskSys(gstring, GfxAlphaMask(gfx->state->fillAlpha));
@@ -6528,7 +6539,7 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
             GrSetAreaMaskSys(gstring, SDM_100);
         }
         GfxDrawImageRows(gstring, gfx->vmFile, bitmap, sampledWidth,
-            sampledHeight, validRows);
+            sampledHeight, validRows, gFalse);
         if (fillAlpha < 255)
         {
             GrSetAreaMaskSys(gstring, GfxAlphaMask(gfx->state->fillAlpha));
