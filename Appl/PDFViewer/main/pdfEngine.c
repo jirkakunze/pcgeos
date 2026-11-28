@@ -60,11 +60,37 @@
 
 /* Internal layout behind the opaque handles (private to this file) */
 
+/* Page geometry: shared by PdfGetPageSize and PdfDrawPage */
+typedef struct {
+    word width; /* on-screen(post-rotation) width, points */
+    word height; /* on-screen(post-rotation) height, points */
+    sword clipX; /* pre-rotation crop/media origin X, points */
+    sword clipY; /* pre-rotation crop/media origin Y, points */
+    /*
+     * pre-rotation (native) width, points -- matches clipX/clipY's own
+     * coordinate space.
+     */
+    word clipWidth;
+    word clipHeight; /* same, for height */
+    sword rotate; /* normalized to 0/90/180/270 */
+    /*
+     * PageGetHeight(page), unrotated -- only needed for PdfDrawPage's
+     * printing- translation case
+     */
+    gdouble rawHeight;
+} PdfPageGeometry;
+
 typedef struct {
     word pageNum;
     VMBlockHandle gstringBlock;
     dword estimatedBytes; /* VM bytes of the page GString */
     dword lastUse; /* monotonically increasing LRU stamp */
+    /*
+     * Geometry of the page, set by PdfDecodePageContent from the page that
+     * it loads anyway. Thus a draw of a cached page does not search the
+     * page tree again.
+     */
+    PdfPageGeometry geom;
 } PdfPageCacheEntry;
 
 typedef struct {
@@ -91,37 +117,15 @@ typedef struct {
     GBool cancelRequested;
 } PdfDocInternal;
 
-/* Page geometry: shared by PdfGetPageSize and PdfDrawPage */
-typedef struct {
-    word width; /* on-screen(post-rotation) width, points */
-    word height; /* on-screen(post-rotation) height, points */
-    sword clipX; /* pre-rotation crop/media origin X, points */
-    sword clipY; /* pre-rotation crop/media origin Y, points */
-    /*
-     * pre-rotation (native) width, points -- matches clipX/clipY's own
-     * coordinate space.
-     */
-    word clipWidth;
-    word clipHeight; /* same, for height */
-    sword rotate; /* normalized to 0/90/180/270 */
-    /*
-     * PageGetHeight(page), unrotated -- only needed for PdfDrawPage's
-     * printing- translation case
-     */
-    gdouble rawHeight;
-} PdfPageGeometry;
-
 /********************************************************************
- *                      PdfComputePageGeometry
+ *                      PdfPageGeometryFromPage
  ********************************************************************
- * SYNOPSIS:      Compute the box, size and rotation of a page.
+ * SYNOPSIS:      Compute the box, size and rotation of a loaded page.
  *
- * PARAMETERS:    *catalog              Ptr to the catalog.
- *                *xref                 Ptr to the cross-reference table.
- *                pageNum               Page number (1-based).
+ * PARAMETERS:    *page                 Ptr to the loaded page.
  *                *geom                 Ptr to the geometry (out).
  *
- * RETURNS:       PdfError              PDF_OK or an error.
+ * RETURNS:       void
  *
  * STRATEGY:      CropBox, else MediaBox; for /Rotate 90 and 270 width and
  *                height are swapped for the screen size.
@@ -130,38 +134,33 @@ typedef struct {
  *      Date      Name      Description
  *      ----      ----      -----------
  *      08/22/26  JK        Initial Revision
+ *      11/28/26  Claude/jkunze  Use the loaded page (geometry cache)
  *******************************************************************/
-static PdfError
-PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
-    PdfPageGeometry *geom)
+static void PdfPageGeometryFromPage(Page *page, PdfPageGeometry *geom)
 {
-    Page page;
+    EC(ECCheckBounds(page));
+    EC(ECCheckBounds(geom));
 
-    if (!CatalogGetPage(catalog, pageNum, xref, &page))
+    if (PageIsCropped(page))
     {
-        return PDF_ERR_INVALID_PAGE;
-    }
-
-    if (PageIsCropped(&page))
-    {
-        geom->clipX = GdoubleToWord(PageGetCropX1(&page));
-        geom->clipY = GdoubleToWord(PageGetCropY1(&page));
-        geom->width = GdoubleToWord(PageGetCropX2(&page)) - geom->clipX;
-        geom->height = GdoubleToWord(PageGetCropY2(&page)) - geom->clipY;
+        geom->clipX = GdoubleToWord(PageGetCropX1(page));
+        geom->clipY = GdoubleToWord(PageGetCropY1(page));
+        geom->width = GdoubleToWord(PageGetCropX2(page)) - geom->clipX;
+        geom->height = GdoubleToWord(PageGetCropY2(page)) - geom->clipY;
     }
     else
     {
-        geom->clipX = GdoubleToWord(PageGetX1(&page));
-        geom->clipY = GdoubleToWord(PageGetY1(&page));
-        geom->width = GdoubleToWord(PageGetWidth(&page));
-        geom->height = GdoubleToWord(PageGetHeight(&page));
+        geom->clipX = GdoubleToWord(PageGetX1(page));
+        geom->clipY = GdoubleToWord(PageGetY1(page));
+        geom->width = GdoubleToWord(PageGetWidth(page));
+        geom->height = GdoubleToWord(PageGetHeight(page));
     }
 
     /* Native extent, before width and height are swapped for 90/270 */
     geom->clipWidth = geom->width;
     geom->clipHeight = geom->height;
 
-    geom->rotate = PageGetRotate(&page);
+    geom->rotate = PageGetRotate(page);
     if (geom->rotate == 90 || geom->rotate == 270)
     {
         word temp = geom->width;
@@ -173,9 +172,7 @@ PdfComputePageGeometry(Catalog *catalog, XRef *xref, word pageNum,
         geom->rotate = 0;
     }
 
-    geom->rawHeight = PageGetHeight(&page);
-    PageFree(&page);
-    return PDF_OK;
+    geom->rawHeight = PageGetHeight(page);
 }
 
 /********************************************************************
@@ -523,6 +520,55 @@ static PdfPageCacheEntry *
         }
     }
     return NULL;
+}
+
+/********************************************************************
+ *                      PdfComputePageGeometry
+ ********************************************************************
+ * SYNOPSIS:      Get the box, size and rotation of a page.
+ *
+ * PARAMETERS:    *pdoc                 Ptr to the locked document.
+ *                pageNum               Page number (1-based).
+ *                *geom                 Ptr to the geometry (out).
+ *
+ * RETURNS:       PdfError              PDF_OK or PDF_ERR_INVALID_PAGE.
+ *
+ * STRATEGY:      A cached page has its geometry in the cache entry. Only
+ *                for a page that is not cached, load the page from the
+ *                page tree. The LRU stamp does not change: a size query
+ *                is not a use of the page GString.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/28/26  Claude/jkunze  Initial version (geometry cache)
+ *******************************************************************/
+static PdfError PdfComputePageGeometry(PdfDocInternal *pdoc, word pageNum,
+    PdfPageGeometry *geom)
+{
+    Page page;
+    word i;
+
+    EC(ECCheckBounds(pdoc));
+    EC(ECCheckBounds(geom));
+
+    for (i = 0; i < PDF_MAX_CACHED_PAGES; ++i)
+    {
+        if (pdoc->pageCache[i].gstringBlock != NullHandle &&
+            pdoc->pageCache[i].pageNum == pageNum)
+        {
+            *geom = pdoc->pageCache[i].geom;
+            return PDF_OK;
+        }
+    }
+
+    if (!CatalogGetPage(&pdoc->catalog, pageNum, &pdoc->xref, &page))
+    {
+        return PDF_ERR_INVALID_PAGE;
+    }
+    PdfPageGeometryFromPage(&page, geom);
+    PageFree(&page);
+    return PDF_OK;
 }
 
 /********************************************************************
@@ -1072,7 +1118,7 @@ PdfError PdfGetPageSize(PdfDocHandle doc, word pageNum, Point *sizeOut)
         return PDF_ERR_INVALID_PAGE;
     }
 
-    err = PdfComputePageGeometry(&pdoc->catalog, &pdoc->xref, pageNum, &geom);
+    err = PdfComputePageGeometry(pdoc, pageNum, &geom);
     if (err == PDF_OK && sizeOut != NULL)
     {
         sizeOut->P_x = geom.width;
@@ -1150,6 +1196,8 @@ static PdfError PdfDecodePageContent(PdfDocInternal *pdoc, word pageNum,
         PdfFreePageCacheEntry(pdoc, cacheEntry);
         return GMemHadError() ? PDF_ERR_OUT_OF_MEMORY : PDF_ERR_INVALID_PAGE;
     }
+    /* Keep the geometry with the GString: draws do not load the page */
+    PdfPageGeometryFromPage(&page, &cacheEntry->geom);
     PageGetContents(&page, &pageObj, &pdoc->xref);
     if (GMemHadError())
     {
@@ -1365,7 +1413,6 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
 {
     PdfDocInternal *pdoc;
     PdfPageGeometry geom;
-    PdfError err;
     PdfPageCacheEntry *cacheEntry;
     VMBlockHandle gstringBlock;
     Handle gstring;
@@ -1392,12 +1439,8 @@ PdfError PdfDrawPage(PdfDocHandle doc, word pageNum, GStateHandle target,
         return PDF_ERR_INVALID_PAGE;
     }
 
-    err = PdfComputePageGeometry(&pdoc->catalog, &pdoc->xref, pageNum, &geom);
-    if (err != PDF_OK)
-    {
-        PdfUnlockDoc(doc);
-        return err;
-    }
+    /* A copy: the print fit changes the geometry */
+    geom = cacheEntry->geom;
 
     if (pageSizeOut != NULL)
     {
@@ -1540,8 +1583,7 @@ static GStateHandle PdfScreenState(PdfDocInternal *pdoc, word pageNum)
     PdfPageGeometry geom;
     GStateHandle gs;
 
-    if (PdfComputePageGeometry(&pdoc->catalog, &pdoc->xref, pageNum, &geom)
-        != PDF_OK)
+    if (PdfComputePageGeometry(pdoc, pageNum, &geom) != PDF_OK)
     {
         return 0;
     }
