@@ -856,6 +856,23 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
             this->lookup[i][2] = color.b;
         }
     }
+    else if (this->colorSpace->hasFunction)
+    {
+        /*
+         * Tint function: one input value (Separation), at most 256 sample
+         * values. Evaluate the function here once per sample value, not
+         * for each pixel: the table holds the components of the alternate
+         * space (0-255).
+         */
+        EC_ERROR_IF(this->numComps != 1, -1);
+        for (i = 0; i <= maxPixel; ++i)
+        {
+            GfxEvalType2Function(this->colorSpace,
+                (short)GdoubleToWord(255 * (this->decodeLow[0] +
+                (i * this->decodeRange[0]) / maxPixel)),
+                this->lookup[i]);
+        }
+    }
     else
     {
         for (i = 0; i <= maxPixel; ++i)
@@ -919,18 +936,19 @@ short GfxImageColorMapGetBits(GfxImageColorMap *this)
  *
  * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Identity: the samples. Otherwise from the lookup table; for
+ *                a tint function the table holds the function result.
  *
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      08/18/26  JK        Initial Revision
+ *      11/28/26  Claude/jkunze  Tint function from the lookup table
  *******************************************************************/
 void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4],
     GfxColor *color)
 {
     short *p;
-    short y[4];
 
     if (this->isIdentity)
     {
@@ -951,18 +969,18 @@ void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4],
 
     if (this->colorSpace->hasFunction)
     {
-        /* Tint value through its decode curve, like all other components */
-        GfxEvalType2Function(this->colorSpace, this->lookup[x[0]][0], y);
+        /* Tint function result from the table (GfxImageColorMapInit) */
+        p = this->lookup[x[0]];
         switch (this->colorSpace->altMode)
         {
             case colorGray:
-                GfxColorSetGray(color, y[0]);
+                GfxColorSetGray(color, p[0]);
                 break;
             case colorCMYK:
-                GfxColorSetCMYK(color, y[0], y[1], y[2], y[3]);
+                GfxColorSetCMYK(color, p[0], p[1], p[2], p[3]);
                 break;
             case colorRGB:
-                GfxColorSetRGB(color, y[0], y[1], y[2]);
+                GfxColorSetRGB(color, p[0], p[1], p[2]);
                 break;
         }
         return;

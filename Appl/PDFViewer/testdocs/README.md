@@ -31,7 +31,8 @@ documents by hand; change the generator and make them again.
   group. Shadings and patterns (the viewer uses one replacement color).
 
 05_images.pdf (3 pages)
-: Images with 1 to 16 bits per component, Indexed, /Decode, inline images.
+: Images with 1 to 16 bits per component, Indexed, /Decode, inline images,
+  Separation images with a tint function (8 bit, 4 bit with /Decode).
   Stencil masks, color key masks, /Mask stream, /SMask, image with ca 0.5.
   JPEG in gray, RGB, CMYK and progressive, and a large JPEG that the
   viewer decodes at a reduced size.
