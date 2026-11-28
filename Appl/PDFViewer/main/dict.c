@@ -33,7 +33,6 @@
 
 #include <Ansi/string.h>
 #include "obj.h"
-#include "xref.h"
 #include "dict.h"
 #include "gmem.h"
 
@@ -131,14 +130,10 @@ void DictAdd(Dict *dict, char *key, Obj *val)
         /* Grow by 50 %, but at least by 8 entries */
         growBy = dict->size >> 1;
         if (growBy < 8)
-        {
             growBy = 8;
-        }
 
         if (growBy > DICT_MAX_ENTRIES - dict->size)
-        {
             growBy = DICT_MAX_ENTRIES - dict->size;
-        }
 
         newSize = dict->size + growBy;
         newEntries = (DictEntry *)grealloc(dict->entries,
@@ -192,9 +187,7 @@ static DictEntry *DictFind(Dict *dict, char *key)
     for (i = 0; i < dict->length; ++i)
     {
         if (!strcmp(key, dict->entries[i].key))
-        {
             return & dict->entries[i];
-        }
     }
 
     return NULL;

@@ -82,9 +82,8 @@ void ArrayFree(Array *arr)
     word i;
 
     for (i = 0; i < arr->length; ++i)
-    {
         ObjFree(&arr->elems[i]);
-    }
+
     gfree(arr->elems);
 }
 
@@ -125,21 +124,15 @@ void ArrayAdd(Array *arr, Obj *elem)
         /* Grow by 50 %, but at least by 8 elements */
         growBy = arr->size >> 1;
         if (growBy < 8)
-        {
             growBy = 8;
-        }
 
         if (growBy > ARRAY_MAX_ELEMS - arr->size)
-        {
             growBy = ARRAY_MAX_ELEMS - arr->size;
-        }
 
         newSize = arr->size + growBy;
         newElems = (Obj *)grealloc(arr->elems, (long)newSize * sizeof(Obj));
         if (!newElems)
-        {
             return;
-        }
 
         arr->elems = newElems;
         arr->size = newSize;

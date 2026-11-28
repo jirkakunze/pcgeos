@@ -76,9 +76,7 @@ GBool PdfCheckedAdd(long a, long b, long *result)
     EC(ECCheckBounds(result));
 
     if (a < 0 || b < 0 || a > PDF_SIGNED_LONG_MAX - b)
-    {
         return gFalse;
-    }
 
     *result = a + b;
     return gTrue;
@@ -108,9 +106,7 @@ GBool PdfCheckedMul(long a, long b, long *result)
     EC(ECCheckBounds(result));
 
     if (a < 0 || b < 0 || (a != 0 && b > PDF_SIGNED_LONG_MAX / a))
-    {
         return gFalse;
-    }
 
     *result = a *b;
     return gTrue;
@@ -140,9 +136,8 @@ void *gmalloc(long size)
     void *p;
 
     if (size == 0)
-    {
         return NULL;
-    }
+
     p = malloc(size);
     if (!p)
     {
@@ -177,9 +172,8 @@ void *grealloc(void *p, long size)
     if (size == 0)
     {
         if (p)
-        {
             free(p);
-        }
+
         return NULL;
     }
     q = p ? realloc(p, size) : malloc(size);
@@ -210,9 +204,7 @@ void *grealloc(void *p, long size)
 void gfree(void *p)
 {
     if (p)
-    {
         free(p);
-    }
 }
 
 /********************************************************************
@@ -238,9 +230,8 @@ char *copyString(char *s)
 
     s1 = (char *)gmalloc(strlen(s) + 1);
     if (!s1)
-    {
         return NULL;
-    }
+
     strcpy(s1, s);
     return s1;
 }

@@ -125,9 +125,8 @@ void GStrInit(GooString *gstr)
 {
     gstr->s = NULL;
     if (!resize(gstr, (gstr->length = 0)))
-    {
         return;
-    }
+
     gstr->s[0] = '\0';
 }
 
@@ -232,9 +231,8 @@ void GStrFree(GooString *gstr)
 void GStrAppendChar(GooString *gstr, char c)
 {
     if (!resize(gstr, gstr->length + 1))
-    {
         return;
-    }
+
     gstr->s[gstr->length++] = c;
     gstr->s[gstr->length] = '\0';
 }
@@ -261,9 +259,8 @@ void GStrAppendString(GooString *gstr, char *str)
     long n = strlen(str);
 
     if (!resize(gstr, gstr->length + n))
-    {
         return;
-    }
+
     memcpy(gstr->s + gstr->length, str, n + 1);
     gstr->length += n;
 }
@@ -289,9 +286,8 @@ void GStrAppendString(GooString *gstr, char *str)
 void GStrAppendStringN(GooString *gstr, char *str, long length1)
 {
     if (!resize(gstr, gstr->length + length1))
-    {
         return;
-    }
+
     memcpy(gstr->s + gstr->length, str, length1);
     gstr->length += length1;
     gstr->s[gstr->length] = '\0';

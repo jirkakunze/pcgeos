@@ -174,9 +174,8 @@ static void _pascal _export DCTSrcSkip(j_decompress_ptr cinfo, long numBytes)
     DCTDecoder *dec = (DCTDecoder *)cinfo;
 
     if (numBytes <= 0)
-    {
         return;
-    }
+
     while (numBytes > (long)dec->src.bytes_in_buffer)
     {
         numBytes -= (long)dec->src.bytes_in_buffer;
@@ -288,9 +287,8 @@ void DCTStreamReset(Stream *str)
 
     dec = gmalloc(sizeof(DCTDecoder));
     if (!dec)
-    {
         return;
-    }
+
     memset(dec, 0, sizeof(DCTDecoder));
     dec->in = str->str;
     d->dec = dec;
@@ -324,13 +322,11 @@ void DCTStreamReset(Stream *str)
 static GBool DCTStreamHaveData(DCTData *d)
 {
     if (d->eof)
-    {
         return gFalse;
-    }
+
     if (d->dec->bufIdx < d->dec->bufCount)
-    {
         return gTrue;
-    }
+
     if (!DCTStreamFill(d->dec))
     {
         /* last row delivered (or error): give the memory back now */
@@ -361,9 +357,8 @@ short DCTStreamGetChar(Stream *str)
     DCTData *d = str->u.dct;
 
     if (!DCTStreamHaveData(d))
-    {
         return EOF;
-    }
+
     return d->dec->buf[d->dec->bufIdx++];
 }
 
@@ -388,9 +383,8 @@ short DCTStreamLookChar(Stream *str)
     DCTData *d = str->u.dct;
 
     if (!DCTStreamHaveData(d))
-    {
         return EOF;
-    }
+
     return d->dec->buf[d->dec->bufIdx];
 }
 
@@ -421,9 +415,8 @@ word DCTStreamRead(Stream *str, Guchar *buf, word size)
     {
         chunk = d->dec->bufCount - d->dec->bufIdx;
         if (chunk > size - done)
-        {
             chunk = size - done;
-        }
+
         memcpy(buf + done, d->dec->buf + d->dec->bufIdx, chunk);
         d->dec->bufIdx += chunk;
         done += chunk;
@@ -453,9 +446,8 @@ static void DCTStreamEnd(DCTData *d)
 
     d->eof = gTrue;
     if (!dec)
-    {
         return;
-    }
+
     if (dec->created)
     {
         /* safe after error_exit too: libjpeg checks cinfo->mem */
@@ -463,9 +455,8 @@ static void DCTStreamEnd(DCTData *d)
         dec->created = gFalse;
     }
     if (dec->bufHan)
-    {
         MemFree(dec->bufHan);
-    }
+
     gfree(dec);
     d->dec = NULL;
 }
@@ -490,9 +481,8 @@ static void DCTStreamFailed(DCTDecoder *dec)
 {
     jpeg_set_error_handler_context((j_common_ptr)&dec->cinfo, 0);
     if (dec->jerr.msg_code == DCT_JERR_OUT_OF_MEMORY)
-    {
         GMemSetError();
-    }
+
     EC_WARNING(-1);
 }
 
@@ -532,15 +522,12 @@ static GBool DCTStreamSizeOk(struct jpeg_decompress_struct *cinfo)
     cinfo->scale_denom = (unsigned int)d;
 
     if (((w + d - 1) / d) * nc > DCT_MAX_ROW_BYTES)
-    {
         return gFalse;
-    }
+
     /* Full-size coefficients: compare by division, no long overflow */
-    if (cinfo->progressive_mode &&
-        w * nc * 2 > DCT_MAX_PROGRESSIVE_COEF / h)
-    {
+    if (cinfo->progressive_mode && w * nc * 2 > DCT_MAX_PROGRESSIVE_COEF / h)
         return gFalse;
-    }
+
     return gTrue;
 }
 
@@ -570,9 +557,7 @@ word DCTStreamScaleFor(long w, long h)
     {
         if ((w + d - 1) / d <= DCT_TARGET_DIMENSION &&
             (h + d - 1) / d <= DCT_TARGET_DIMENSION)
-        {
             break;
-        }
     }
     return d;
 }
@@ -653,13 +638,9 @@ static GBool DCTStreamStart(DCTDecoder *dec)
     dec->rowBytes = (word)rowBytes;
     dec->linesPerFill = DCT_FILL_BYTES / dec->rowBytes;
     if (dec->linesPerFill < 1)
-    {
         dec->linesPerFill = 1;
-    }
     else if (dec->linesPerFill > DCT_MAX_LINES_PER_FILL)
-    {
         dec->linesPerFill = DCT_MAX_LINES_PER_FILL;
-    }
 
     /* Row buffer in a movable block, locked while decoding */
     dec->bufHan = MemAlloc((word)dec->rowBytes * dec->linesPerFill,
@@ -696,14 +677,11 @@ static GBool DCTStreamFill(DCTDecoder *dec)
     word ctx, i, lines;
 
     if (dec->cinfo.output_scanline >= dec->cinfo.output_height)
-    {
         return gFalse;
-    }
+
     /* Truncated baseline JPEG: stop after the delivered rows */
     if (dec->inputEnded && !dec->cinfo.progressive_mode)
-    {
         return gFalse;
-    }
 
     if (set_error_handler(&ctx))
     {
@@ -720,17 +698,15 @@ static GBool DCTStreamFill(DCTDecoder *dec)
     jpeg_set_error_handler_context((j_common_ptr)&dec->cinfo, ctx);
 
     for (i = 0; i < dec->linesPerFill; ++i)
-    {
         dec->rowPtr[i] = dec->buf + i * dec->rowBytes;
-    }
+
     lines = jpeg_read_scanlines(&dec->cinfo, dec->rowPtr, dec->linesPerFill);
 
     jpeg_set_error_handler_context((j_common_ptr)&dec->cinfo, 0);
 
     if (lines == 0)
-    {
         return gFalse;
-    }
+
     dec->bufIdx = 0;
     dec->bufCount = lines * dec->rowBytes;
     return gTrue;
