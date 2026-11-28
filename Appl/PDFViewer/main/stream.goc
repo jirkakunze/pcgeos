@@ -48,14 +48,7 @@
 #include <hugearr.h>
 #include <zlib.h>
 
-/*
- * FlateStream: thin wrapper around the zlib library. The z_stream and both
- * buffers live in one heap block (process stack is only 3000 bytes);
- * zlib's own state (32 KB window + tables, fixed malloc memory) is only
- * held while the stream is actually being read: the parser creates a
- * filter chain for every stream object it meets, most of them are never
- * read or only briefly.
- */
+/* Flate: zlib wrapper; the zlib state exists only while it is read */
 #define flateInBufSize 1024     /* compressed bytes per StreamRead */
 #define flateReadBufSize 256    /* GetChar/LookChar cache */
 #define flateWindowBits 15      /* PDF writers use the full 32 KB window */
@@ -75,8 +68,7 @@ typedef struct FlateData
 #define PDF_MAX_CCITT_COLUMNS 32765L
 #define PDF_MAX_PREDICTOR_VALUES 32760L
 
-#define headerSearchSize 1024  /* read this many bytes at beginning of */
-/* file to look for '%PDF' */
+#define headerSearchSize 1024  /* bytes searched for "%PDF" */
 
 static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
     XRef *xref);
@@ -162,28 +154,24 @@ static short CCITTFaxStreamGetWhiteCode(Stream *str);
 static short CCITTFaxStreamGetBlackCode(Stream *str);
 static short CCITTFaxStreamLook13Bits(Stream *str);
 
-
 static Dict *SubStreamGetDict(Stream *str);
 
-/***********************************************************************
- *      StreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *stream    stream
+/********************************************************************
+ *                      StreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize the common fields of a stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *stream               Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void StreamInit(Stream *stream)
 {
 
@@ -197,25 +185,23 @@ void StreamInit(Stream *stream)
     stream->pixLine = NULL;
 }
 
-/***********************************************************************
- *      StreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free a stream and the streams it wraps.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      File streams and substreams end the chain; all other kinds
+ *                also free the stream in str->str.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void StreamFree(Stream *str)
 {
 
@@ -226,25 +212,16 @@ void StreamFree(Stream *str)
 
     switch (str->kind)
     {
-        /*
-         * File Streams don't wrap other streams, so we return here and skip
-         * freeing the stream pointed to by str->str.
-         */
+        /* File streams wrap no other stream */
         case strFile:
             FStreamFree(str);
             return;
-            /*
-             * SubStreams are tacked onto streams then freed without freeing
-             * the base stream.
-             */
+            /* Substreams do not own their base stream */
         case strSubStream:
             SubStreamFree(str);
             return;
 
-            /*
-             * Other streams wrap other streams that must also be freed; use
-             * "break" instead of "return".
-             */
+            /* All other streams free the stream they wrap */
         case strLZW:
             LZWStreamFree(str);
             break;
@@ -290,25 +267,22 @@ void StreamFree(Stream *str)
     gfree(str->str);
 }
 
-/***********************************************************************
- *      StreamGetFile
- ***********************************************************************
- * SYNOPSIS:        Get file.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamGetFile
+ ********************************************************************
+ * SYNOPSIS:      Return the file handle of the base file stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       FileHandle            File handle.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 FileHandle StreamGetFile(Stream *str)
 {
 
@@ -320,25 +294,22 @@ FileHandle StreamGetFile(Stream *str)
     return StreamGetFile(str->str);
 }
 
-/***********************************************************************
- *      StreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next byte of a stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 short StreamGetChar(Stream *str)
 {
 
@@ -386,27 +357,26 @@ short StreamGetChar(Stream *str)
     return EOF;
 }
 
-/***********************************************************************
- *      StreamRead
- ***********************************************************************
- * SYNOPSIS:        Read.
- * PARAMETERS:      Stream *str    string
- *                  Guchar *buf    buffer
- *                  word size    size
+/********************************************************************
+ *                      StreamRead
+ ********************************************************************
+ * SYNOPSIS:      Read a block of bytes.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *buf                  Ptr to the destination buffer.
+ *                size                  Number of bytes.
  *
- * CONTEXT:
+ * RETURNS:       word                  Number of bytes read, less at the end of
+ *                                      the data.
  *
- * STRATEGY:
+ * STRATEGY:      Flate, predictor, DCT, file, LZW, RunLength and RC4 streams
+ *                copy blocks; the other kinds read byte by byte.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 word StreamRead(Stream *str, Guchar *buf, word size)
 {
     word n;
@@ -432,10 +402,7 @@ word StreamRead(Stream *str, Guchar *buf, word size)
         return DCTStreamRead(str, buf, size);
     }
 
-    /*
-     * Buffered streams: copy blocks from their buffer instead of one
-     * StreamGetChar per byte (H3a). Flate reads its input this way.
-     */
+    /* Buffered streams: copy blocks, not one byte at a time */
     if (str->kind == strFile)
     {
         return StreamReadFromBuf(str, buf, size, &str->u.fs->bufPtr,
@@ -476,33 +443,30 @@ word StreamRead(Stream *str, Guchar *buf, word size)
     return n;
 }
 
-/***********************************************************************
- *      StreamReadFromBuf
- ***********************************************************************
- * SYNOPSIS:        Read a block from a stream that keeps its data in a
- *                  private buffer (file, LZW, RunLength).
- * PARAMETERS:      Stream *str             the stream
- *                  Guchar *buf             destination
- *                  word size               bytes wanted
- *                  char **bufPtr, **bufEnd the stream's buffer pointers
+/********************************************************************
+ *                      StreamReadFromBuf
+ ********************************************************************
+ * SYNOPSIS:      Read a block from the buffer of a buffered stream.
  *
- * RETURNS:         bytes read, less than size only at the end of data
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *buf                  Ptr to the destination buffer.
+ *                size                  Number of bytes.
+ *                *bufPtr               Ptr to the read pointer of the stream
+ *                                      buffer.
+ *                *bufEnd               Ptr to the end pointer of the stream
+ *                                      buffer.
  *
- * STRATEGY:
- *      Copy what is in the buffer with memcpy, refill, repeat. Gives the
- *      same bytes as calling the stream's GetChar size times.
- *      The fill function is called directly, not through a function
- *      pointer: a pointer to code in a movable resource is a virtual far
- *      pointer and can not be called directly (only with
- *      ProcCallFixedOrMovable).
+ * RETURNS:       word                  Number of bytes read, less at the end of
+ *                                      the data.
+ *
+ * STRATEGY:      Refill through a switch on the stream kind (the fill functions
+ *                are in other segments: no function pointer).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      11/25/26    Initial version (H3a)
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/25/26  JK        Initial version
+ *******************************************************************/
 static word StreamReadFromBuf(Stream *str, Guchar *buf, word size,
     char **bufPtr, char **bufEnd)
 {
@@ -548,25 +512,22 @@ static word StreamReadFromBuf(Stream *str, Guchar *buf, word size,
     return n;
 }
 
-/***********************************************************************
- *      StreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process stream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 short StreamLookChar(Stream *str)
 {
 
@@ -614,25 +575,23 @@ short StreamLookChar(Stream *str)
     return EOF;
 }
 
-/***********************************************************************
- *      FlateStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      FlateStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next byte of a Flate stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
- * STRATEGY:
+ * STRATEGY:      Bytes come from a small read-ahead buffer. In this segment, so
+ *                that StreamGetChar calls it directly.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short FlateStreamGetChar(Stream *str)
 {
     FlateData *pflate = str->u.flate;
@@ -651,27 +610,25 @@ static short FlateStreamGetChar(Stream *str)
     return pflate->readBuf[pflate->readIndex++];
 }
 
-/***********************************************************************
- *      FlateStreamRead
- ***********************************************************************
- * SYNOPSIS:        Read.
- * PARAMETERS:      Stream *str    string
- *                  Guchar *buf    buffer
- *                  word size    size
+/********************************************************************
+ *                      FlateStreamRead
+ ********************************************************************
+ * SYNOPSIS:      Read a block from a Flate stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *buf                  Ptr to the destination buffer.
+ *                size                  Number of bytes.
  *
- * CONTEXT:
+ * RETURNS:       word                  Number of bytes read, less at the end of
+ *                                      the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word FlateStreamRead(Stream *str, Guchar *buf, word size)
 {
     FlateData *pflate = str->u.flate;
@@ -693,25 +650,22 @@ static word FlateStreamRead(Stream *str, Guchar *buf, word size)
     return total;
 }
 
-/***********************************************************************
- *      StreamGetDict
- ***********************************************************************
- * SYNOPSIS:        Get dictionary.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamGetDict
+ ********************************************************************
+ * SYNOPSIS:      Return the stream dictionary of the base stream.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       Dict *                Ptr to the dictionary.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Dict *StreamGetDict(Stream *str)
 {
 
@@ -727,25 +681,23 @@ Dict *StreamGetDict(Stream *str)
     return StreamGetDict(str->str);
 }
 
-/***********************************************************************
- *      StreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start reading the stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Each filter resets the stream it wraps first. Readers must
+ *                reset a chain before they read it.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void StreamReset(Stream *str)
 {
 
@@ -808,26 +760,22 @@ void StreamReset(Stream *str)
     }
 }
 
-/* Gets the length of the base file stream */
-/***********************************************************************
- *      StreamGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamGetLength
+ ********************************************************************
+ * SYNOPSIS:      Return the length of the base file stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       long                  Length, -1 if not known.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 long StreamGetLength(Stream *str)
 {
 
@@ -839,25 +787,22 @@ long StreamGetLength(Stream *str)
     return StreamGetLength(str->str);
 }
 
-/***********************************************************************
- *      StreamGetPos
- ***********************************************************************
- * SYNOPSIS:        Get position.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      StreamGetPos
+ ********************************************************************
+ * SYNOPSIS:      Return the file position of the base file stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       long                  File position.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 long StreamGetPos(Stream *str)
 {
 
@@ -869,26 +814,24 @@ long StreamGetPos(Stream *str)
     return StreamGetPos(str->str);
 }
 
-/***********************************************************************
- *      StreamSetPos
- ***********************************************************************
- * SYNOPSIS:        Set position.
- * PARAMETERS:      Stream *str    string
- *                  long pos1    pos1
+/********************************************************************
+ *                      StreamSetPos
+ ********************************************************************
+ * SYNOPSIS:      Set the file position of the base file stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                pos1                  New position; negative: from the end of
+ *                                      the file.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void StreamSetPos(Stream *str, long pos1)
 {
 
@@ -904,27 +847,24 @@ void StreamSetPos(Stream *str, long pos1)
     }
 }
 
-/***********************************************************************
- *      StreamGetLine
- ***********************************************************************
- * SYNOPSIS:        Get line.
- * PARAMETERS:      Stream *str    string
- *                  char *buf    buffer
- *                  long size    size
+/********************************************************************
+ *                      StreamGetLine
+ ********************************************************************
+ * SYNOPSIS:      Read one line (LF, CR or CR LF).
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *buf                  Ptr to the destination buffer.
+ *                size                  Size of buf, with the NUL.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void StreamGetLine(Stream *str, char *buf, word size)
 {
     word i;
@@ -955,28 +895,27 @@ void StreamGetLine(Stream *str, char *buf, word size)
     buf[i] = '\0';
 }
 
-/***********************************************************************
- *      StreamResetImage
- ***********************************************************************
- * SYNOPSIS:        Reset image.
- * PARAMETERS:      Stream *stream    stream
- *                  long width1    width1
- *                  short nComps1    n comps1
- *                  short nBits1    n bits1
+/********************************************************************
+ *                      StreamResetImage
+ ********************************************************************
+ * SYNOPSIS:      Reset a stream for reading image pixels.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *stream               Ptr to the stream.
+ *                width1                Image width in pixels.
+ *                nComps1               Components per pixel.
+ *                nBits1                Bits per component.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if the row is too large or there
+ *                                      is no memory.
  *
- * STRATEGY:
+ * STRATEGY:      The raw and the unpacked row buffers are allocated with the
+ *                row size.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GBool StreamResetImage(Stream *stream, word width1, short nComps1, short nBits1)
 {
     long nVals, rowBytes;
@@ -1018,23 +957,25 @@ GBool StreamResetImage(Stream *stream, word width1, short nComps1, short nBits1)
     return gTrue;
 }
 
-/***********************************************************************
- *      StreamGetImagePixel
- ***********************************************************************
- * SYNOPSIS:        Get the next pixel of an image stream.
- * PARAMETERS:      Stream *this    stream set up by StreamResetImage
- *                  Guchar *pix     receives nComps component values
+/********************************************************************
+ *                      StreamGetImagePixel
+ ********************************************************************
+ * SYNOPSIS:      Return the components of the next pixel.
  *
- * RETURNS:         gTrue, or EOF at the end of the data
+ * PARAMETERS:    *this                 Ptr to the stream.
+ *                *pix                  Ptr to the components (out), one byte
+ *                                      each.
  *
- * STRATEGY:
- *      Read one row of packed samples and unpack it into one byte per
- *      component. Predictors are already undone by the PredictorStream
- *      in the filter chain. 16-bit samples are reduced to their high
- *      byte, so callers always get values of at most 8 bits.
+ * RETURNS:       GBool                 gTrue, EOF at the end of the data.
  *
- ***********************************************************************/
-
+ * STRATEGY:      Read and unpack one row at a time. 16-bit samples keep the
+ *                high byte; truncated rows are filled with 0.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GBool StreamGetImagePixel(Stream *this, Guchar *pix)
 {
     Gulong buf, bitMask;
@@ -1085,6 +1026,7 @@ GBool StreamGetImagePixel(Stream *this, Guchar *pix)
         }
         else
         {
+            /* Other bit depths: unpack from a bit buffer */
             bitMask = (1 << this->nBits) - 1;
             buf = 0;
             bits = 0;
@@ -1112,27 +1054,27 @@ GBool StreamGetImagePixel(Stream *this, Guchar *pix)
     return gTrue;
 }
 
-/***********************************************************************
- *      StreamAddFilters
- ***********************************************************************
- * SYNOPSIS:        Add filters.
- * PARAMETERS:      Stream *str1    str1
- *                  Obj *dict    dictionary
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      StreamAddFilters
+ ********************************************************************
+ * SYNOPSIS:      Add the filters of a stream dictionary to a stream.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *str1                 Ptr to the base stream.
+ *                *dict                 Ptr to the stream dictionary.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       Stream *              Ptr to the last filter (str1 if there
+ *                                      are none).
  *
- * STRATEGY:
+ * STRATEGY:      /Filter and /DecodeParms (also /F and /DP), one name or an
+ *                array. An unknown filter gives an EOF stream. The filters are
+ *                not reset here.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref)
 {
     Obj obj, obj2;
@@ -1206,28 +1148,26 @@ Stream *StreamAddFilters(Stream *str1, Obj *dict, XRef *xref)
     return str;
 }
 
-/***********************************************************************
- *      StreamValidPredictorParams
- ***********************************************************************
- * SYNOPSIS:        Process stream valid predictor params.
- * PARAMETERS:      long pred    pred
- *                  long columns    columns
- *                  long colors    colors
- *                  long bits    bits
+/********************************************************************
+ *                      StreamValidPredictorParams
+ ********************************************************************
+ * SYNOPSIS:      Check predictor parameters.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    pred                  /Predictor.
+ *                columns               /Columns.
+ *                colors                /Colors.
+ *                bits                  /BitsPerComponent.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gTrue if the values are valid and the
+ *                                      two rows fit into one block.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool StreamValidPredictorParams(long pred, long columns, long colors,
     long bits)
 {
@@ -1250,10 +1190,7 @@ static GBool StreamValidPredictorParams(long pred, long columns, long colors,
         return gFalse;
     }
 
-    /*
-     * Validate every size expression used later by StreamResetImage before any
-     * multiplication/addition can wrap a signed 32-bit long.
-     */
+    /* Check all sizes before a product can overflow a long */
     if (!PdfCheckedMul(columns, colors, &nVals) ||
         nVals > PDF_MAX_PREDICTOR_VALUES ||
         !PdfCheckedMul(nVals, bits, &rowBits) ||
@@ -1276,32 +1213,32 @@ static GBool StreamValidPredictorParams(long pred, long columns, long colors,
     return gTrue;
 }
 
-/***********************************************************************
- *      StreamMakeFilter
- ***********************************************************************
- * SYNOPSIS:        Create filter.
- * PARAMETERS:      Stream *str1    str1
- *                  char *name    name
- *                  Obj *params    params
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      StreamMakeFilter
+ ********************************************************************
+ * SYNOPSIS:      Make one filter stream.
  *
- * RETURNS:         result pointer
+ * PARAMETERS:    *str1                 Ptr to the stream to decode.
+ *                *name                 Ptr to the filter name (also the short
+ *                                      names).
+ *                *params               Ptr to the /DecodeParms object.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       Stream *              Ptr to the new stream, str1 if there is
+ *                                      no memory.
  *
- * STRATEGY:
+ * STRATEGY:      Bad parameters or an unknown filter give an EOF stream. Flate
+ *                and LZW get a predictor stream if /Predictor > 1.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
     XRef *xref)
 {
-    long pred; /* parameters */
+    long pred;
     long colors;
     long bits;
     long early;
@@ -1492,25 +1429,27 @@ static Stream *StreamMakeFilter(Stream *str1, char *name, Obj *params,
     return str;
 }
 
-/* PredictorStream */
-
-/***********************************************************************
- *      PredictorStreamWrap
- ***********************************************************************
- * SYNOPSIS:        Put a PredictorStream on top of a decoded stream.
- * PARAMETERS:      Stream *str1    Flate/LZW stream to wrap
- *                  long pred, columns, colors, bits    /DecodeParms
- *                                  (already checked by
- *                                  StreamValidPredictorParams)
+/********************************************************************
+ *                      PredictorStreamWrap
+ ********************************************************************
+ * SYNOPSIS:      Put a predictor stream on top of a Flate or LZW stream.
  *
- * RETURNS:         the new stream, or str1 itself for predictor 1
+ * PARAMETERS:    *str1                 Ptr to the decoded stream.
+ *                pred                  /Predictor.
+ *                columns               /Columns.
+ *                colors                /Colors.
+ *                bits                  /BitsPerComponent.
+ *
+ * RETURNS:       Stream *              Ptr to the predictor stream, str1 for
+ *                                      predictor 1 or if there is no memory.
  *
  * STRATEGY:
- *      Out of memory: return an EOF stream instead of handing out the
- *      still-predicted bytes as if they were plain data.
  *
- ***********************************************************************/
-
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     long colors, long bits)
 {
@@ -1536,11 +1475,7 @@ static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     rowBytes = (columns * colors * bits + 7) >> 3;
     pixBytes = (colors * bits + 7) >> 3;
 
-    /*
-     * The row buffers are allocated on the first reset (H3c): the parser
-     * builds the filter chain of every stream object it reads, also of
-     * streams that are never decoded.
-     */
+    /* Row buffers come with the first reset: most streams are not read */
     pd = str->u.pred = gmalloc(sizeof(PredictorData));
     if (!pd)
     {
@@ -1555,20 +1490,28 @@ static Stream *PredictorStreamWrap(Stream *str1, long pred, long columns,
     pd->pixBytes = (short)pixBytes;
     pd->width = columns;
     pd->rowBytes = (word)rowBytes;
-    /*
-     * Do not reset str1 here: the filter is built while the parser is
-     * still reading the stream object, and resetting would move the
-     * shared file position. The caller resets the chain before reading.
-     */
+    /* No reset here: the parser still reads the stream object */
     pd->lineIdx = pd->rowBytes;
     pd->eof = gTrue;            /* nothing to read until the first reset */
     return str;
 }
 
-/***********************************************************************
- *      PredictorStreamFree
- ***********************************************************************/
-
+/********************************************************************
+ *                      PredictorStreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free the predictor data and its rows.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PredictorStreamFree(Stream *str)
 {
     if (str->u.pred)
@@ -1579,13 +1522,23 @@ static void PredictorStreamFree(Stream *str)
     }
 }
 
-/***********************************************************************
- *      PredictorStreamReset
- ***********************************************************************
- * SYNOPSIS:        Restart at the first row; the row above the first
- *                  one counts as all zero.
- ***********************************************************************/
-
+/********************************************************************
+ *                      PredictorStreamResetLines
+ ********************************************************************
+ * SYNOPSIS:      Allocate and clear the two row buffers.
+ *
+ * PARAMETERS:    *pd                   Ptr to the predictor data.
+ *
+ * RETURNS:       GBool                 gFalse if there is no memory (the stream
+ *                                      is at EOF).
+ *
+ * STRATEGY:      The row above the first row counts as all 0.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool PredictorStreamResetLines(PredictorData *pd)
 {
     if (!pd->lines)
@@ -1605,29 +1558,47 @@ static GBool PredictorStreamResetLines(PredictorData *pd)
     return gTrue;
 }
 
+/********************************************************************
+ *                      PredictorStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the predictor stream from the beginning.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void PredictorStreamReset(Stream *str)
 {
     StreamReset(str->str);
     (void)PredictorStreamResetLines(str->u.pred);
 }
 
-/***********************************************************************
- *      PredictorStreamFillLine
- ***********************************************************************
- * SYNOPSIS:        Read and un-predict the next row.
- * RETURNS:         gFalse at the end of the data
+/********************************************************************
+ *                      PredictorStreamFillLine
+ ********************************************************************
+ * SYNOPSIS:      Read and decode the next row.
  *
- * STRATEGY:
- *      PNG (10-15): every row starts with its own filter type byte --
- *      the /Predictor value only says "PNG", it does not pick the
- *      filter. a = byte one pixel to the left, b = byte above,
- *      c = byte above-left (0 outside the image).
- *      TIFF (2): each component is the difference to the same
- *      component of the previous pixel; for 1/2/4 bits the samples are
- *      unpacked, summed per component and packed again in place.
- *      Same algorithm as xpdf's StreamPredictor::getNextLine.
- ***********************************************************************/
-
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       GBool                 gFalse at the end of the data.
+ *
+ * STRATEGY:      PNG predictors (10-15): each row starts with its own filter
+ *                type. TIFF predictor 2: each component adds the same component
+ *                of the pixel on the left; 1, 2 and 4 bits are unpacked, added
+ *                and packed again.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool PredictorStreamFillLine(Stream *str)
 {
     PredictorData *pd = str->u.pred;
@@ -1788,10 +1759,22 @@ static GBool PredictorStreamFillLine(Stream *str)
     return gTrue;
 }
 
-/***********************************************************************
- *      PredictorStreamGetChar / PredictorStreamLookChar
- ***********************************************************************/
-
+/********************************************************************
+ *                      PredictorStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       short                 Byte, EOF at the end of the data.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short PredictorStreamGetChar(Stream *str)
 {
     PredictorData *pd = str->u.pred;
@@ -1803,6 +1786,22 @@ static short PredictorStreamGetChar(Stream *str)
     return pd->curLine[pd->lineIdx++];
 }
 
+/********************************************************************
+ *                      PredictorStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next decoded byte but do not read it.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       short                 Byte, EOF at the end of the data.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short PredictorStreamLookChar(Stream *str)
 {
     PredictorData *pd = str->u.pred;
@@ -1814,12 +1813,25 @@ static short PredictorStreamLookChar(Stream *str)
     return pd->curLine[pd->lineIdx];
 }
 
-/***********************************************************************
- *      PredictorStreamRead
- ***********************************************************************
- * SYNOPSIS:        Bulk read; copies whole row pieces at once.
- ***********************************************************************/
-
+/********************************************************************
+ *                      PredictorStreamRead
+ ********************************************************************
+ * SYNOPSIS:      Read a block of decoded bytes.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *buf                  Ptr to the destination buffer.
+ *                size                  Number of bytes.
+ *
+ * RETURNS:       word                  Number of bytes read, less at the end of
+ *                                      the data.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word PredictorStreamRead(Stream *str, Guchar *buf, word size)
 {
     PredictorData *pd = str->u.pred;
@@ -1843,8 +1855,6 @@ static word PredictorStreamRead(Stream *str, Guchar *buf, word size)
     return done;
 }
 
-/* Shared file read cache (OPT-17) */
-
 /*
  * Keyed by FileHandle. GEOS reuses file handles, so XRefInit() and XRefFree()
  * invalidate the cache for their file. The buffer is a movable block that is
@@ -1862,25 +1872,23 @@ typedef struct FStreamSharedCache {
 
 static FStreamSharedCache fStreamSharedCache = { 0, 0, 0, NullHandle };
 
-/***********************************************************************
- *      FStreamInvalidateReadCache
- ***********************************************************************
- * SYNOPSIS:        Forget cached data of a file and free the buffer.
- * PARAMETERS:      FileHandle file    file (0 = any file)
+/********************************************************************
+ *                      FStreamInvalidateReadCache
+ ********************************************************************
+ * SYNOPSIS:      Clear the shared file read cache and free its buffer.
  *
- * RETURNS:         void
+ * PARAMETERS:    file                  File handle, 0 for any file.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      GEOS reuses file handles: XRefInit and XRefFree call this for
+ *                their file.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void FStreamInvalidateReadCache(FileHandle file)
 {
     if (file == 0 || fStreamSharedCache.file == file)
@@ -1896,28 +1904,26 @@ void FStreamInvalidateReadCache(FileHandle file)
     }
 }
 
-/***********************************************************************
- *      FStreamReadCached
- ***********************************************************************
- * SYNOPSIS:        Read cached.
- * PARAMETERS:      FileHandle file    file
- *                  long pos    file position
- *                  Guchar *dst    dst
- *                  word n    count
+/********************************************************************
+ *                      FStreamReadCached
+ ********************************************************************
+ * SYNOPSIS:      Read file bytes through the shared read cache.
  *
- * RETURNS:         result value
+ * PARAMETERS:    file                  File handle.
+ *                pos                   File position.
+ *                *dst                  Ptr to the destination.
+ *                n                     Number of bytes.
  *
- * CONTEXT:
+ * RETURNS:       word                  Number of bytes read.
  *
- * STRATEGY:
+ * STRATEGY:      The cache holds one 2 KB block of one file in a movable block,
+ *                locked only while copying. Without memory read directly.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
 {
     long cacheEnd;
@@ -1932,6 +1938,7 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
     }
 
     cacheEnd = fStreamSharedCache.pos + (long)fStreamSharedCache.count;
+    /* Hit: all n bytes are in the cache */
     if (fStreamSharedCache.buf && fStreamSharedCache.file == file &&
         pos >= fStreamSharedCache.pos && pos < cacheEnd)
     {
@@ -1946,7 +1953,6 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
         }
     }
 
-    /* Cache miss. */
     FilePos(file, pos, FILE_POS_START);
     if (!fStreamSharedCache.buf)
     {
@@ -1978,32 +1984,28 @@ static word FStreamReadCached(FileHandle file, long pos, Guchar *dst, word n)
     return readCount;
 }
 
-/* FileStream */
-
-/***********************************************************************
- *      FStreamInitWithStorage
- ***********************************************************************
- * SYNOPSIS:        Initialize with storage.
- * PARAMETERS:      Stream *this    this
- *                  FStream *storage    storage
- *                  FileHandle f1    f1
- *                  long start1    start1
- *                  long length1    length1
- *                  Obj *dict1    dict1
+/********************************************************************
+ *                      FStreamInitWithStorage
+ ********************************************************************
+ * SYNOPSIS:      Initialize a file stream with given storage.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the stream.
+ *                *storage              Ptr to the FStream data.
+ *                f1                    File handle; the caller owns it.
+ *                start1                Start position.
+ *                length1               Length, -1 up to the end of the file.
+ *                *dict1                Ptr to the stream dictionary; it is
+ *                                      moved into the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1,
     long start1, long length1, Obj *dict1)
 {
@@ -2013,7 +2015,7 @@ static void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1
     this->kind = strFile;
     myfs = this->u.fs = storage;
 
-    /* Keep the caller-owned source handle. */
+    /* The caller owns the file handle */
     myfs->f = f1;
     myfs->start = myfs->bufPos = start1;
     myfs->length = length1;
@@ -2024,29 +2026,27 @@ static void FStreamInitWithStorage(Stream *this, FStream *storage, FileHandle f1
     /* Physical seeking is deferred to FStreamReadCached() on a miss. */
 }
 
-/***********************************************************************
- *      FStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *this    this
- *                  FileHandle f1    f1
- *                  long start1    start1
- *                  long length1    length1
- *                  Obj *dict1    dict1
+/********************************************************************
+ *                      FStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a stream on a part of a file.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the stream.
+ *                f1                    File handle; the caller owns it.
+ *                start1                Start position.
+ *                length1               Length, -1 up to the end of the file.
+ *                *dict1                Ptr to the stream dictionary; it is
+ *                                      moved into the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      No memory: an EOF stream.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void FStreamInit(Stream *this, FileHandle f1, long start1, long length1,
     Obj *dict1)
 {
@@ -2062,59 +2062,50 @@ void FStreamInit(Stream *this, FileHandle f1, long start1, long length1,
     FStreamInitWithStorage(this, myfs, f1, start1, length1, dict1);
 }
 
-/***********************************************************************
- *      FStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *this    this
+/********************************************************************
+ *                      FStreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free a file stream (not the file).
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FStreamFree(Stream *this)
 {
     FStream *fs = this->u.fs;
 
-    /*
-     * Note: FStream shouldn't wrap another stream, so no need to free
-     * this->str.
-     */
+    /* FStream wraps no other stream */
 
     ObjFree(&fs->dict);
-    /* fs->f is caller-owned; FStream no longer duplicates the handle. */
+    /* The caller owns fs->f */
     gfree(fs);
 
 }
 
-/***********************************************************************
- *      FStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      FStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Go back to the start of the file stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FStreamReset(Stream *str)
 {
     FStream *this = str->u.fs;
@@ -2124,36 +2115,28 @@ static void FStreamReset(Stream *str)
     this->bufPos = this->start;
 }
 
-/***********************************************************************
- *      FStreamFillBuf
- ***********************************************************************
- * SYNOPSIS:        Fill buffer.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      FStreamFillBuf
+ ********************************************************************
+ * SYNOPSIS:      Read the next block of the file stream.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse at the end of the stream.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool FStreamFillBuf(Stream *str)
 {
     FStream *this = str->u.fs;
     word n;
 
     this->bufPos += this->bufEnd - this->buf;
-    /*
-     * I originally implemented streams using 'FileDuplicateHandle' because I
-     * thought each handle would maintain its own independent file position as
-     * reads were made.
-     */
     /* FStreamReadCached() performs FilePos() only on a shared-cache miss. */
     this->bufPtr = this->bufEnd = this->buf;
 
@@ -2179,26 +2162,25 @@ static GBool FStreamFillBuf(Stream *str)
     return gTrue;
 }
 
-/***********************************************************************
- *      FStreamSetPos
- ***********************************************************************
- * SYNOPSIS:        Set position.
- * PARAMETERS:      Stream *str    string
- *                  long pos1    pos1
+/********************************************************************
+ *                      FStreamSetPos
+ ********************************************************************
+ * SYNOPSIS:      Set the position of a file stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                pos1                  New position; negative: from the end of
+ *                                      the file.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Only the position is stored; the file is read on the next
+ *                cache miss.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FStreamSetPos(Stream *str, long pos1)
 {
     FStream *this = str->u.fs;
@@ -2221,25 +2203,22 @@ static void FStreamSetPos(Stream *str, long pos1)
     this->bufPtr = this->bufEnd = this->buf;
 }
 
-/***********************************************************************
- *      FStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      FStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next byte of a file stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 short FStreamGetChar(Stream *str)
 {
     FStream *this = str->u.fs;
@@ -2248,25 +2227,22 @@ short FStreamGetChar(Stream *str)
         !FStreamFillBuf(str)) ? EOF : (*this->bufPtr++ & 0xff);
 }
 
-/***********************************************************************
- *      FStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process fstream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      FStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next byte of a file stream but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short FStreamLookChar(Stream *str)
 {
     FStream *this = str->u.fs;
@@ -2275,49 +2251,27 @@ static short FStreamLookChar(Stream *str)
         !FStreamFillBuf(str)) ? EOF : (*this->bufPtr & 0xff);
 }
 
-/***********************************************************************
- *      FStreamGetLength
- ***********************************************************************
- * SYNOPSIS:        Get length.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static long FStreamGetLength(Stream *str)
 {
     return str->u.fs->length;
 }
 
-/***********************************************************************
- *      FStreamGetPos
- ***********************************************************************
- * SYNOPSIS:        Get position.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      FStreamGetPos
+ ********************************************************************
+ * SYNOPSIS:      Return the file position of a file stream.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       long                  File position.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 long FStreamGetPos(Stream *str)
 {
     FStream *this = str->u.fs;
@@ -2325,77 +2279,34 @@ long FStreamGetPos(Stream *str)
     return this->bufPos + (this->bufPtr - this->buf);
 }
 
-/***********************************************************************
- *      FStreamGetFile
- ***********************************************************************
- * SYNOPSIS:        Get file.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static FileHandle FStreamGetFile(Stream *str)
 {
     return str->u.fs->f;
 }
-
-/***********************************************************************
- *      FStreamGetDict
- ***********************************************************************
- * SYNOPSIS:        Get dictionary.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static Dict *FStreamGetDict(Stream *str)
 {
     return getDict(&str->u.fs->dict);
 }
 
-/* SubStream */
-
-/***********************************************************************
- *      SubStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
- *                  Obj *dict1    dict1
+/********************************************************************
+ *                      SubStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a substream with its own dictionary.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the base stream (not owned).
+ *                *dict1                Ptr to the dictionary to copy.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void SubStreamInit(Stream *str, Stream *str1, Obj *dict1)
 {
     StreamInit(str);
@@ -2407,100 +2318,39 @@ void SubStreamInit(Stream *str, Stream *str1, Obj *dict1)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      SubStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void SubStreamFree(Stream *str)
 {
     ObjFree(&str->dict);
 }
-
-/***********************************************************************
- *      SubStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static void SubStreamReset(Stream *str)
 {
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      SubStreamGetDict
- ***********************************************************************
- * SYNOPSIS:        Get dictionary.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static Dict *SubStreamGetDict(Stream *str)
 {
     return getDict(&str->dict);
 }
 
-/* EOFStream */
-
-/***********************************************************************
- *      EOFStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str2    str2
+/********************************************************************
+ *                      EOFStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Make a stream that is always at its end.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str2                 Ptr to the wrapped stream; it is freed
+ *                                      with this stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Used for unknown filters, bad parameters and no memory.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void EOFStreamInit(Stream *str, Stream *str2)
 {
     StreamInit(str);
@@ -2508,72 +2358,15 @@ void EOFStreamInit(Stream *str, Stream *str2)
     str->kind = strEOF;
 }
 
-/***********************************************************************
- *      EOFStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void EOFStreamFree(Stream *str)
 {
     (void)str;
 }
 
-/***********************************************************************
- *      EOFStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void EOFStreamReset(Stream *str)
 {
     (void)str;
 }
-
-/***********************************************************************
- *      EOFStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
 
 static short EOFStreamGetChar(Stream *str)
 {
@@ -2581,32 +2374,11 @@ static short EOFStreamGetChar(Stream *str)
     return EOF;
 }
 
-/***********************************************************************
- *      EOFStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process eofstream look char.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static short EOFStreamLookChar(Stream *str)
 {
     (void)str;
     return EOF;
 }
-
-/* ASCIIHexStream */
 
 #ifdef __BORLANDC__
 #pragma codeseg ASCIIHexStream
@@ -2615,26 +2387,23 @@ static short EOFStreamLookChar(Stream *str)
 #pragma code_seg("ASCIIHexStream")
 #endif
 
-/***********************************************************************
- *      ASCIIHexStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
+/********************************************************************
+ *                      ASCIIHexStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an ASCIIHex filter stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the encoded stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void ASCIIHexStreamInit(Stream *str, Stream *str1)
 {
     StreamInit(str);
@@ -2646,49 +2415,27 @@ static void ASCIIHexStreamInit(Stream *str, Stream *str1)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      ASCIIHexStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void ASCIIHexStreamFree(Stream *str)
 {
     (void)str;
 }
 
-/***********************************************************************
- *      ASCIIHexStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      ASCIIHexStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the ASCIIHex stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void ASCIIHexStreamReset(Stream *str)
 {
     StreamReset(str->str);
@@ -2696,25 +2443,23 @@ static void ASCIIHexStreamReset(Stream *str)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      ASCIIHexStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process asciihex stream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      ASCIIHexStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Decode the next byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
- * STRATEGY:
+ * STRATEGY:      White space is skipped; ">" ends the data. An odd last digit
+ *                is followed by 0.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short ASCIIHexStreamLookChar(Stream *str)
 {
     short c1, c2, x;
@@ -2798,25 +2543,22 @@ static short ASCIIHexStreamLookChar(Stream *str)
     return str->buf;
 }
 
-/***********************************************************************
- *      ASCIIHexStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      ASCIIHexStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short ASCIIHexStreamGetChar(Stream *str)
 {
     short c = ASCIIHexStreamLookChar(str);
@@ -2824,28 +2566,23 @@ static short ASCIIHexStreamGetChar(Stream *str)
     return c;
 }
 
-/* ASCII85Stream */
-
-/***********************************************************************
- *      ASCII85StreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
+/********************************************************************
+ *                      ASCII85StreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an ASCII85 filter stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the encoded stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void ASCII85StreamInit(Stream *str, Stream *str1)
 {
     StreamInit(str);
@@ -2863,49 +2600,27 @@ static void ASCII85StreamInit(Stream *str, Stream *str1)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      ASCII85StreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void ASCII85StreamFree(Stream *str)
 {
     gfree(str->u.a85);
 }
 
-/***********************************************************************
- *      ASCII85StreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      ASCII85StreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the ASCII85 stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void ASCII85StreamReset(Stream *str)
 {
     StreamReset(str->str);
@@ -2913,25 +2628,23 @@ static void ASCII85StreamReset(Stream *str)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      ASCII85StreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process ascii85 stream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      ASCII85StreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Decode the next byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
- * STRATEGY:
+ * STRATEGY:      Decode one group of five chars into four bytes; "z" is four 0
+ *                bytes, "~" ends the data.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short ASCII85StreamLookChar(Stream *str)
 {
     short k;
@@ -2976,6 +2689,7 @@ static short ASCII85StreamLookChar(Stream *str)
                 }
             }
             p85->n = k - 1;
+            /* Short last group: pad with "u" */
             if (k < 5 && (p85->c[k] == '~' || p85->c[k] == EOF))
             {
                 for (++k; k < 5; ++k)
@@ -2984,6 +2698,7 @@ static short ASCII85StreamLookChar(Stream *str)
                 }
                 str->eof = gTrue;
             }
+            /* Five base-85 digits make four bytes */
             t = 0;
             for (k = 0; k < 5; ++k)
             {
@@ -2999,33 +2714,28 @@ static short ASCII85StreamLookChar(Stream *str)
     return p85->b[p85->index];
 }
 
-/***********************************************************************
- *      ASCII85StreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      ASCII85StreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short ASCII85StreamGetChar(Stream *str)
 {
     short ch = ASCII85StreamLookChar(str);
     ++str->u.a85->index;
     return ch;
 }
-
-/* LZWStream */
 
 #ifdef __BORLANDC__
 #pragma codeseg LZWStream
@@ -3039,29 +2749,24 @@ static short ASCII85StreamGetChar(Stream *str)
 static short LZWStreamGetCode(Stream *str);
 static GBool LZWStreamDecode(Stream *str, LZWTables *tab);
 
-/* Code */
-
-/***********************************************************************
- *      LZWStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str2    str2
- *                  long early1    early1
+/********************************************************************
+ *                      LZWStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an LZW filter stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str2                 Ptr to the encoded stream.
+ *                early1                /EarlyChange (0 or 1).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      The string table is allocated in the first reset.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void LZWStreamInit(Stream *str, Stream *str2, short early1)
 {
 
@@ -3081,25 +2786,22 @@ static void LZWStreamInit(Stream *str, Stream *str2, short early1)
     str->u.lzw->tabH = NullHandle; /* allocated by LZWStreamReset */
 }
 
-/***********************************************************************
- *      LZWStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      LZWStreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free the LZW data and its string table.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void LZWStreamFree(Stream *str)
 {
 
@@ -3110,25 +2812,23 @@ static void LZWStreamFree(Stream *str)
     gfree(str->u.lzw);
 }
 
-/***********************************************************************
- *      LZWStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      LZWStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the LZW stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      The string table (12 KB) is a swapable block; it is allocated
+ *                here and locked only while it is used.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void LZWStreamReset(Stream *str)
 {
     short code;
@@ -3177,25 +2877,23 @@ static void LZWStreamReset(Stream *str)
     plzw->bufEnd = &plzw->buf[1];
 }
 
-/***********************************************************************
- *      LZWStreamGetCode
- ***********************************************************************
- * SYNOPSIS:        Get code.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      LZWStreamGetCode
+ ********************************************************************
+ * SYNOPSIS:      Read the next LZW code.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Code (9 to 12 bits), EOF at the end of
+ *                                      the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short LZWStreamGetCode(Stream *str)
 {
     short c;
@@ -3220,28 +2918,23 @@ static short LZWStreamGetCode(Stream *str)
     return code;
 }
 
-/***********************************************************************
- *      LZWStreamFillBuf
- ***********************************************************************
- * SYNOPSIS:        Fill buffer.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      LZWStreamFillBuf
+ ********************************************************************
+ * SYNOPSIS:      Decode the next code into the buffer.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse at the end of the data.
  *
- * STRATEGY:        Lock the string table only while one code is decoded
- *                  (H3c). Between the calls the table can move or be
- *                  swapped out. LZWStreamDecode is in the same segment,
- *                  so the call is direct.
+ * STRATEGY:      Lock the string table only for one code; between calls it can
+ *                move or be swapped out.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool LZWStreamFillBuf(Stream *str)
 {
     LZWData *plzw = str->u.lzw;
@@ -3260,15 +2953,23 @@ static GBool LZWStreamFillBuf(Stream *str)
     return ret;
 }
 
-/***********************************************************************
- *      LZWStreamDecode
- ***********************************************************************
- * SYNOPSIS:        Decode the next code into the buffer.
- * PARAMETERS:      Stream *str       string
- *                  LZWTables *tab    locked string table
- * RETURNS:         gFalse at the end of the data
- ***********************************************************************/
-
+/********************************************************************
+ *                      LZWStreamDecode
+ ********************************************************************
+ * SYNOPSIS:      Decode the next code with the locked string table.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *tab                  Ptr to the locked string table.
+ *
+ * RETURNS:       GBool                 gFalse at the end of the data.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool LZWStreamDecode(Stream *str, LZWTables *tab)
 {
     short code, incode, count;
@@ -3283,11 +2984,7 @@ static GBool LZWStreamDecode(Stream *str, LZWTables *tab)
         plzw->inCodeBits = 9;
         while ((code = LZWStreamGetCode(str)) == 256);
 
-        /*
-         * The first code after a clear code makes no table entry (as at
-         * the start of the stream, see LZWStreamReset). Before, it added
-         * an entry here and all later codes were off by one entry.
-         */
+        /* The first code after a clear code makes no table entry */
         if (code != EOF && code != 257)
         {
             plzw->buf[0] = (char)code;
@@ -3315,8 +3012,7 @@ static GBool LZWStreamDecode(Stream *str, LZWTables *tab)
         code = plzw->oldcode;
     }
 
-    /* Generate output characters */
-    /* traverse tables in reverse order. */
+    /* Write the string backwards from the end of buf */
 
     while (code >= 256)
     {
@@ -3325,7 +3021,6 @@ static GBool LZWStreamDecode(Stream *str, LZWTables *tab)
         if (count == 0)
         {
             EC_WARNING(-1);
-            /* error(getPos(), "LZW buffer overflow"); */
             plzw->bufPtr = plzw->buf;
             plzw->bufEnd = &plzw->buf[sizeof(plzw->buf) - 1];
             return gTrue;
@@ -3361,25 +3056,22 @@ static GBool LZWStreamDecode(Stream *str, LZWTables *tab)
     return gTrue;
 }
 
-/***********************************************************************
- *      LZWStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      LZWStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short LZWStreamGetChar(Stream *str)
 {
     LZWData *plzw = str->u.lzw;
@@ -3388,25 +3080,22 @@ static short LZWStreamGetChar(Stream *str)
         EOF : (*plzw->bufPtr++ & 0xff);
 }
 
-/***********************************************************************
- *      LZWStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process lzwstream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      LZWStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next decoded byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short LZWStreamLookChar(Stream *str)
 {
     LZWData *plzw = str->u.lzw;
@@ -3415,8 +3104,6 @@ static short LZWStreamLookChar(Stream *str)
         EOF : (*plzw->bufPtr & 0xff);
 }
 
-/* RunLengthStream */
-
 #ifdef __BORLANDC__
 #pragma codeseg RunLengthStream
 #endif
@@ -3424,26 +3111,23 @@ static short LZWStreamLookChar(Stream *str)
 #pragma code_seg("RunLengthStream")
 #endif
 
-/***********************************************************************
- *      RunLengthStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
+/********************************************************************
+ *                      RunLengthStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a RunLength filter stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the encoded stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void RunLengthStreamInit(Stream *str, Stream *str1)
 {
     StreamInit(str);
@@ -3461,49 +3145,27 @@ static void RunLengthStreamInit(Stream *str, Stream *str1)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      RunLengthStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void RunLengthStreamFree(Stream *str)
 {
     gfree(str->u.runLength);
 }
 
-/***********************************************************************
- *      RunLengthStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RunLengthStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the RunLength stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void RunLengthStreamReset(Stream *str)
 {
     StreamReset(str->str);
@@ -3512,25 +3174,23 @@ static void RunLengthStreamReset(Stream *str)
     str->eof = gFalse;
 }
 
-/***********************************************************************
- *      RunLengthStreamFillBuf
- ***********************************************************************
- * SYNOPSIS:        Fill buffer.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RunLengthStreamFillBuf
+ ********************************************************************
+ * SYNOPSIS:      Decode the next run into the buffer.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse at the end of the data (code
+ *                                      128).
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static GBool RunLengthStreamFillBuf(Stream *str)
 {
     RunLengthData *pRun = str->u.runLength;
@@ -3547,6 +3207,7 @@ static GBool RunLengthStreamFillBuf(Stream *str)
         str->eof = gTrue;
         return gFalse;
     }
+    /* Literal run of c + 1 bytes */
     if (c < 0x80)
     {
         n = c + 1;
@@ -3557,6 +3218,7 @@ static GBool RunLengthStreamFillBuf(Stream *str)
     }
     else
     {
+        /* Repeat run: 257 - c copies of the next byte */
         n = 0x101 - c;
         c = StreamGetChar(str->str);
         for (i = 0; i < n; ++i)
@@ -3569,25 +3231,22 @@ static GBool RunLengthStreamFillBuf(Stream *str)
     return gTrue;
 }
 
-/***********************************************************************
- *      RunLengthStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RunLengthStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short RunLengthStreamGetChar(Stream *str)
 {
     RunLengthData *pRun = str->u.runLength;
@@ -3596,25 +3255,22 @@ static short RunLengthStreamGetChar(Stream *str)
         EOF : (*pRun->bufPtr++ & 0xff);
 }
 
-/***********************************************************************
- *      RunLengthStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process run length stream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RunLengthStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next decoded byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short RunLengthStreamLookChar(Stream *str)
 {
     RunLengthData *pRun = str->u.runLength;
@@ -3623,8 +3279,6 @@ static short RunLengthStreamLookChar(Stream *str)
         EOF : (*pRun->bufPtr & 0xff);
 }
 
-/* CCITTFaxStream */
-
 #ifdef __BORLANDC__
 #pragma codeseg CCITTFaxStream
 #endif
@@ -3632,31 +3286,28 @@ static short RunLengthStreamLookChar(Stream *str)
 #pragma code_seg("CCITTFaxStream")
 #endif
 
-/***********************************************************************
- *      CCITTFaxStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
- *                  long encoding1    encoding1
- *                  GBool byteAlign1    byte align1
- *                  long columns1    columns1
- *                  long rows1    rows1
- *                  GBool black1    black1
+/********************************************************************
+ *                      CCITTFaxStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a CCITT fax filter stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the encoded stream.
+ *                encoding1             /K: < 0 G4, 0 G3 1-D, > 0 G3 2-D.
+ *                byteAlign1            /EncodedByteAlign.
+ *                columns1              /Columns.
+ *                rows1                 /Rows.
+ *                black1                /BlackIs1.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      The line buffers are allocated in the first reset.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
     GBool byteAlign1, long columns1, long rows1, GBool black1)
 {
@@ -3680,11 +3331,7 @@ static void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
     pfax->rows = rows1;
     pfax->black = black1;
 
-    /*
-     * The line buffers (up to 2 x 64 KB) are allocated on the first reset
-     * (H3c): the parser builds the filter chain of every stream object it
-     * reads, also of streams that are never decoded.
-     */
+    /* Line buffers (up to 2 x 64 KB) come with the first reset */
     pfax->refLine = NULL;
     pfax->codingLine = NULL;
     str->eof = gTrue;           /* nothing to read until the first reset */
@@ -3695,25 +3342,22 @@ static void CCITTFaxStreamInit(Stream *str, Stream *str1, long encoding1,
     pfax->buf = EOF;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free the CCITT data and its line buffers.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CCITTFaxStreamFree(Stream *str)
 {
     gfree(str->u.fax->refLine);
@@ -3721,25 +3365,23 @@ static void CCITTFaxStreamFree(Stream *str)
     gfree(str->u.fax);
 }
 
-/***********************************************************************
- *      CCITTFaxStreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the CCITT stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      Allocate the two line buffers (up to 2 x 64 KB) on the first
+ *                reset. No memory: the stream is at EOF.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void CCITTFaxStreamReset(Stream *str)
 {
     CCITTFaxData *pfax = str->u.fax;
@@ -3776,25 +3418,24 @@ static void CCITTFaxStreamReset(Stream *str)
     pfax->buf = EOF;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process ccittfax stream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Decode the next byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
- * STRATEGY:
+ * STRATEGY:      A line is decoded into codingLine (positions where the color
+ *                changes), with 2-D modes relative to refLine or with white and
+ *                black runs. Output bytes are made from these runs.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short CCITTFaxStreamLookChar(Stream *str)
 {
     CCITTFaxData *pfax = str->u.fax;
@@ -3812,6 +3453,7 @@ static short CCITTFaxStreamLookChar(Stream *str)
         return EOF;
     }
 
+    /* Line done: decode the next line into codingLine */
     if (pfax->codingLine[pfax->a0] >= pfax->columns)
     {
 
@@ -3823,7 +3465,7 @@ static short CCITTFaxStreamLookChar(Stream *str)
             return EOF;
         }
 
-        /* 2-D encoding */
+        /* Two-dimensional line: modes relative to refLine */
         if (pfax->nextLine2D)
         {
             for (i = 0; pfax->codingLine[i] < pfax->columns; ++i)
@@ -3999,7 +3641,7 @@ static short CCITTFaxStreamLookChar(Stream *str)
             }
             while (pfax->codingLine[pfax->a0] < pfax->columns);
 
-            /* 1-D encoding */
+            /* One-dimensional line: white and black runs */
         }
         else
         {
@@ -4040,6 +3682,7 @@ static short CCITTFaxStreamLookChar(Stream *str)
             EC_WARNING(-1);
         }
 
+        /* EOL code; with K > 0 a tag bit selects 1-D or 2-D */
         code1 = CCITTFaxStreamLook13Bits(str);
         if ((code1 >> 1) == 0x001)
         {
@@ -4055,6 +3698,7 @@ static short CCITTFaxStreamLookChar(Stream *str)
         pfax->outputBits = pfax->codingLine[1] - pfax->codingLine[0];
     }
 
+    /* Make the next output byte from the runs */
     if (pfax->outputBits >= 8)
     {
         ret = ((pfax->a0 & 1) == 0) ? 0xff : 0x00;
@@ -4108,25 +3752,22 @@ static short CCITTFaxStreamLookChar(Stream *str)
     return pfax->buf;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decoded byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short CCITTFaxStreamGetChar(Stream *str)
 {
     short c = CCITTFaxStreamLookChar(str);
@@ -4134,52 +3775,27 @@ static short CCITTFaxStreamGetChar(Stream *str)
     return c;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamEatBits
- ***********************************************************************
- * SYNOPSIS:        Process ccittfax stream eat bits.
- * PARAMETERS:      Stream *str    string
- *                  short bits    bits
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void CCITTFaxStreamEatBits(Stream *str, short bits)
 {
     str->u.fax->inputBits -= bits;
 }
 
-/* Cache these locked pointers in CCITTFaxData during initialization. */
-
-/***********************************************************************
- *      CCITTFaxStreamGetTwoDimCode
- ***********************************************************************
- * SYNOPSIS:        Get two dim code.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamGetTwoDimCode
+ ********************************************************************
+ * SYNOPSIS:      Read the next 2-D mode code.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 twoDim mode, EOF on a bad code.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short CCITTFaxStreamGetTwoDimCode(Stream *str)
 {
     short code, code0;
@@ -4230,25 +3846,23 @@ static short CCITTFaxStreamGetTwoDimCode(Stream *str)
     return EOF;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamGetWhiteCode
- ***********************************************************************
- * SYNOPSIS:        Get white code.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamGetWhiteCode
+ ********************************************************************
+ * SYNOPSIS:      Read the next white run length.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Run length (>= 64: a make-up code
+ *                                      follows), 1 on a bad code.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short CCITTFaxStreamGetWhiteCode(Stream *str)
 {
     short code, retval;
@@ -4282,25 +3896,23 @@ static short CCITTFaxStreamGetWhiteCode(Stream *str)
     return EOF;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamGetBlackCode
- ***********************************************************************
- * SYNOPSIS:        Get black code.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamGetBlackCode
+ ********************************************************************
+ * SYNOPSIS:      Read the next black run length.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Run length (>= 64: a make-up code
+ *                                      follows), 1 on a bad code.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short CCITTFaxStreamGetBlackCode(Stream *str)
 {
     short code, retval;
@@ -4339,25 +3951,23 @@ static short CCITTFaxStreamGetBlackCode(Stream *str)
     return EOF;
 }
 
-/***********************************************************************
- *      CCITTFaxStreamLook13Bits
- ***********************************************************************
- * SYNOPSIS:        Process ccittfax stream look13 bits.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      CCITTFaxStreamLook13Bits
+ ********************************************************************
+ * SYNOPSIS:      Return the next 13 bits but do not read them.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 13 bits (0 bits after the end), EOF if
+ *                                      no bits are left.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short CCITTFaxStreamLook13Bits(Stream *str)
 {
     short c;
@@ -4386,31 +3996,28 @@ static short CCITTFaxStreamLook13Bits(Stream *str)
 #pragma code_seg("stream")
 #endif
 
-/* RC4Stream -- decrypts an encrypted PDF's raw stream bytes on the fly, */
-/* before any other filter (Flate/DCT/...) sees them. */
+/* RC4Stream: decrypt raw stream bytes before any other filter */
 
-/***********************************************************************
- *      RC4StreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      Stream *str    string
- *                  Stream *str1    str1
- *                  Guchar *key    key
- *                  short keyLen    key len
+/********************************************************************
+ *                      RC4StreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize an RC4 decryption stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the encrypted stream.
+ *                *key                  Ptr to the object key.
+ *                keyLen                Key length in bytes.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      RC4 is the first filter: it decrypts the raw stream bytes
+ *                before any other filter.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen)
 {
     RC4Data *prc4;
@@ -4431,49 +4038,27 @@ void RC4StreamInit(Stream *str, Stream *str1, Guchar *key, short keyLen)
     prc4->peeked = gFalse;
 }
 
-/***********************************************************************
- *      RC4StreamFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      Stream *str    string
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
 static void RC4StreamFree(Stream *str)
 {
     gfree(str->u.rc4);
 }
 
-/***********************************************************************
- *      RC4StreamReset
- ***********************************************************************
- * SYNOPSIS:        Reset.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RC4StreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the RC4 stream from the beginning.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void RC4StreamReset(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
@@ -4485,25 +4070,22 @@ static void RC4StreamReset(Stream *str)
     prc4->peeked = gFalse;
 }
 
-/***********************************************************************
- *      RC4StreamAdvance
- ***********************************************************************
- * SYNOPSIS:        Advance.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RC4StreamAdvance
+ ********************************************************************
+ * SYNOPSIS:      Read and decrypt the next byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short RC4StreamAdvance(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
@@ -4518,27 +4100,25 @@ static short RC4StreamAdvance(Stream *str)
         &prc4->rc4j));
 }
 
-/***********************************************************************
- *      RC4StreamRead
- ***********************************************************************
- * SYNOPSIS:        Read and decrypt a block.
- * PARAMETERS:      Stream *str    RC4 stream
- *                  Guchar *buf    destination
- *                  word size      bytes wanted
+/********************************************************************
+ *                      RC4StreamRead
+ ********************************************************************
+ * SYNOPSIS:      Read and decrypt a block of bytes.
  *
- * RETURNS:         bytes read
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *buf                  Ptr to the destination buffer.
+ *                size                  Number of bytes.
+ *
+ * RETURNS:       word                  Number of bytes read, less at the end of
+ *                                      the data.
  *
  * STRATEGY:
- *      Hand out a peeked byte first, then read the rest of the block
- *      from the source stream in one call and decrypt it in place (H3a).
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      11/25/26    Initial version (H3a)
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/25/26  JK        Initial version
+ *******************************************************************/
 static word RC4StreamRead(Stream *str, Guchar *buf, word size)
 {
     RC4Data *prc4 = str->u.rc4;
@@ -4562,25 +4142,22 @@ static word RC4StreamRead(Stream *str, Guchar *buf, word size)
     return n;
 }
 
-/***********************************************************************
- *      RC4StreamGetChar
- ***********************************************************************
- * SYNOPSIS:        Get char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RC4StreamGetChar
+ ********************************************************************
+ * SYNOPSIS:      Read the next decrypted byte.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short RC4StreamGetChar(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
@@ -4593,25 +4170,22 @@ static short RC4StreamGetChar(Stream *str)
     return RC4StreamAdvance(str);
 }
 
-/***********************************************************************
- *      RC4StreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Process rc4 stream look char.
- * PARAMETERS:      Stream *str    string
+/********************************************************************
+ *                      RC4StreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next decrypted byte but do not read it.
  *
- * RETURNS:         result value
+ * PARAMETERS:    *str                  Ptr to the stream.
  *
- * CONTEXT:
+ * RETURNS:       short                 Byte, EOF at the end of the data.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short RC4StreamLookChar(Stream *str)
 {
     RC4Data *prc4 = str->u.rc4;
@@ -4624,8 +4198,6 @@ static short RC4StreamLookChar(Stream *str)
     return prc4->peekedChar;
 }
 
-/* FlateStream */
-
 #ifdef __BORLANDC__
 #pragma codeseg FlateStream
 #endif
@@ -4633,12 +4205,22 @@ static short RC4StreamLookChar(Stream *str)
 #pragma code_seg("FlateStream")
 #endif
 
-/***********************************************************************
- *      FlateStreamEndZlib
- ***********************************************************************
- * SYNOPSIS:        Free zlib's state (window), if it is allocated.
- ***********************************************************************/
-
+/********************************************************************
+ *                      FlateStreamEndZlib
+ ********************************************************************
+ * SYNOPSIS:      Free the zlib state of a Flate stream.
+ *
+ * PARAMETERS:    *fd                   Ptr to the Flate data.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FlateStreamEndZlib(FlateData *fd)
 {
     if (fd->zInit)
@@ -4648,22 +4230,24 @@ static void FlateStreamEndZlib(FlateData *fd)
     }
 }
 
-/***********************************************************************
- *      FlateStreamInit
- ***********************************************************************
- * SYNOPSIS:        Initialize a zlib based Flate decoder.
- * PARAMETERS:      Stream *str     stream to set up
- *                  Stream *str1    compressed data
+/********************************************************************
+ *                      FlateStreamInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a Flate filter stream.
  *
- * RETURNS:         void
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *str1                 Ptr to the compressed stream.
  *
- * STRATEGY:
- *      Only the wrapper data is allocated here; zlib itself is set up by
- *      FlateStreamReset when the stream is really read.
- *      No StreamReset here: the parser builds the filter chain before it
- *      has read "endstream" (see PredictorStreamWrap).
- ***********************************************************************/
-
+ * RETURNS:       void
+ *
+ * STRATEGY:      The zlib state is made in the first reset: most streams of a
+ *                file are never read.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FlateStreamInit(Stream *str, Stream *str1)
 {
     FlateData *fd;
@@ -4684,12 +4268,22 @@ static void FlateStreamInit(Stream *str, Stream *str1)
     str->u.flate = fd;
 }
 
-/***********************************************************************
- *      FlateStreamFree
- ***********************************************************************
- * SYNOPSIS:        Release the zlib state and the wrapper data.
- ***********************************************************************/
-
+/********************************************************************
+ *                      FlateStreamFree
+ ********************************************************************
+ * SYNOPSIS:      Free the Flate data and the zlib state.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FlateStreamFree(Stream *str)
 {
     if (str->u.flate)
@@ -4700,12 +4294,23 @@ static void FlateStreamFree(Stream *str)
     }
 }
 
-/***********************************************************************
- *      FlateStreamReset
- ***********************************************************************
- * SYNOPSIS:        Restart decoding at the beginning of the data.
- ***********************************************************************/
-
+/********************************************************************
+ *                      FlateStreamReset
+ ********************************************************************
+ * SYNOPSIS:      Start the Flate stream from the beginning.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      New zlib state for every pass. 15 window bits: PDF writers use
+ *                the full 32 KB window.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void FlateStreamReset(Stream *str)
 {
     FlateData *fd = str->u.flate;
@@ -4714,13 +4319,7 @@ static void FlateStreamReset(Stream *str)
 
     StreamReset(str->str);
 
-    /*
-     * Fresh zlib state for every pass (inflateReset would keep the old
-     * window around between passes). 15 window bits: the zlib library is
-     * built with MAX_WBITS=14 (that only limits its own compressor), but
-     * almost all PDF writers use the full 32 KB window, which plain
-     * inflateInit() would reject as "invalid window size".
-     */
+    /* New zlib state per pass (inflateReset keeps the old window) */
     FlateStreamEndZlib(fd);
     fd->eof = gTrue;
     fd->readIndex = 0;
@@ -4749,13 +4348,22 @@ static void FlateStreamReset(Stream *str)
 
 /* FlateStreamGetChar moved above into StreamGetChar's code segment. */
 
-/***********************************************************************
- *      FlateStreamLookChar
- ***********************************************************************
- * SYNOPSIS:        Peek at the next decoded byte.
- * RETURNS:         byte value or EOF
- ***********************************************************************/
-
+/********************************************************************
+ *                      FlateStreamLookChar
+ ********************************************************************
+ * SYNOPSIS:      Return the next decoded byte but do not read it.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *
+ * RETURNS:       short                 Byte, EOF at the end of the data.
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static short FlateStreamLookChar(Stream *str)
 {
     FlateData *fd = str->u.flate;
@@ -4774,24 +4382,26 @@ static short FlateStreamLookChar(Stream *str)
     return fd->readBuf[fd->readIndex];
 }
 
-/***********************************************************************
- *      FlateStreamReadRaw
- ***********************************************************************
- * SYNOPSIS:        Inflate up to size bytes straight into out.
- * PARAMETERS:      Stream *str     Flate stream
- *                  Guchar *out     destination
- *                  word size       bytes wanted
+/********************************************************************
+ *                      FlateStreamReadRaw
+ ********************************************************************
+ * SYNOPSIS:      Decompress a block with zlib.
  *
- * RETURNS:         bytes delivered; less than size only at the end
+ * PARAMETERS:    *str                  Ptr to the stream.
+ *                *out                  Ptr to the destination buffer.
+ *                size                  Number of bytes.
  *
- * STRATEGY:
- *      Refill the input buffer from the underlying stream whenever zlib
- *      has used it up. Stop at Z_STREAM_END, on any zlib error (what was
- *      decoded so far is still returned, like xpdf does with damaged
- *      data), or when the input is exhausted and zlib makes no progress
- *      (truncated stream).
- ***********************************************************************/
-
+ * RETURNS:       word                  Number of bytes read, less at the end of
+ *                                      the data.
+ *
+ * STRATEGY:      Read compressed input in flateInBufSize blocks. At the end of
+ *                the data (or on an error) the zlib state is freed at once.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static word FlateStreamReadRaw(Stream *str, Guchar *out, word size)
 {
     FlateData *fd = str->u.flate;
