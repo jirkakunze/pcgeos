@@ -418,11 +418,24 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                     break;
                 }
                 LexerSkipLookedChar(lexer);
-                tmp = tmp * 10 + (c - '0');
-                scale *= 10;
+                /*
+                 * 5 digits are more than WWFixed (1/65536) can hold. Read
+                 * the other digits but ignore them. Thus scale stays small
+                 * and does not overflow after 9 digits.
+                 */
+                if (scale < 100000L)
+                {
+                    tmp = tmp * 10 + (c - '0');
+                    scale *= 10;
+                }
             }
 #ifdef USE_NATIVE_FLOAT_TYPE
-            /* (tmp << 16) / scale bit by bit: tmp << 16 overflows */
+            /*
+             * WWFixed fraction (tmp << 16) / scale bit by bit: tmp << 16
+             * overflows. Do not use GrUDivWWFixed: its fast path (two div)
+             * needs scale <= 65535, that is 4 digits only (0.00012 becomes
+             * 0.0001). With scale 100000 it uses a 48 step loop.
+             */
             {
                 long fracRemainder, fracResult, fracBit;
                 fracRemainder = tmp;

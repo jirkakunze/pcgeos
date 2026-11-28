@@ -680,13 +680,21 @@ static short FlateStreamGetChar(Stream *str)
 static word FlateStreamRead(Stream *str, Guchar *buf, word size)
 {
     FlateData *pflate = str->u.flate;
-    word total = 0;
+    word total;
     word n;
 
+    EC(ECCheckBounds(buf));
+
     /* Consume bytes already prefetched for GetChar/LookChar first. */
-    while (total < size && pflate->readIndex < pflate->readCount)
+    total = 0;
+    if (pflate->readIndex < pflate->readCount)
     {
-        buf[total++] = pflate->readBuf[pflate->readIndex++];
+        total = pflate->readCount - pflate->readIndex;
+        if (total > size)
+            total = size;
+
+        memcpy(buf, pflate->readBuf + pflate->readIndex, total);
+        pflate->readIndex += total;
     }
 
     if (total < size)
