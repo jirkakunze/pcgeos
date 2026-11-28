@@ -1330,7 +1330,14 @@ static void GfxApplyLineWidth(GfxState *state)
     {
         width = MakeWWFixed(GFX_MAX_LINE_WIDTH);
     }
+
+    /* Same width as in the GString: no new element (each cm calls this) */
+    if (width == state->geosLineWidth)
+    {
+        return;
+    }
     GrSetLineWidth(state->gstring, width);
+    state->geosLineWidth = width;
 }
 
 /********************************************************************

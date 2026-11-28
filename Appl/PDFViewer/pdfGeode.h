@@ -351,7 +351,16 @@ typedef struct GfxState
      */
     gdouble lineWidth;
 
+    /*
+     * GEOS line width last written to the GString (GfxApplyLineWidth). An
+     * equal width is not written again. q/Q save it with the GState.
+     * GFX_LINE_WIDTH_UNKNOWN: always write the next width.
+     */
+    WWFixedAsDWord geosLineWidth;
+
 } GfxState;
+
+#define GFX_LINE_WIDTH_UNKNOWN 0xFFFFFFFFUL
 
 typedef struct GfxFontDict
 {

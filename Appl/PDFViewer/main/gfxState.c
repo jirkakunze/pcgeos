@@ -1091,6 +1091,7 @@ void GfxStateInit(GfxState *state, Handle gstring)
 
     /* PDF default line width is 1.0 (same as the GEOS default) */
     state->lineWidth = IntToGdouble(1);
+    state->geosLineWidth = GFX_LINE_WIDTH_UNKNOWN;
 }
 
 /********************************************************************
@@ -1203,6 +1204,15 @@ void GfxStateRestore(GfxState *state)
         oldState->saved = NULL;
         GfxStateFree(oldState);
         gfree(oldState);
+    }
+    else
+    {
+        /*
+         * No saved state (GfxStateSave had no memory): GrRestoreState of
+         * the caller still restores the GEOS line width. Thus the width
+         * that we remember is not known to be correct.
+         */
+        state->geosLineWidth = GFX_LINE_WIDTH_UNKNOWN;
     }
 }
 
