@@ -349,6 +349,36 @@ void initString(Obj *obj, GooString *string1)
 }
 
 /********************************************************************
+ *                      initStringTake
+ ********************************************************************
+ * SYNOPSIS:      Make a string object that takes the buffer of a string.
+ *
+ * PARAMETERS:    *obj                  Ptr to the object to fill.
+ *                *string1              Ptr to the string. It is empty
+ *                                      after the call (no buffer).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      No copy and no allocation (the lexer builds each string
+ *                once): the object gets the buffer, the string is set to
+ *                empty. GStrFree of the empty string does nothing.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/28/26  Claude/jkunze  Initial version
+ *******************************************************************/
+void initStringTake(Obj *obj, GooString *string1)
+{
+    EC(ECCheckBounds(string1));
+
+    initObj(objString);
+    obj->u.string = *string1;
+    string1->s = NULL;
+    string1->length = 0;
+}
+
+/********************************************************************
  *                      initName
  ********************************************************************
  * SYNOPSIS:      Make a name object with a copy of a name.

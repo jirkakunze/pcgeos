@@ -58,5 +58,11 @@ extern void ArrayGet(Array *arr, word i, Obj *obj, XRef *xref);
 /* Fetch an array element without resolving indirect references. */
 extern void ArrayGetNF(Array *arr, word i, Obj *obj);
 
+/*
+ * Ptr to an array element, no copy: read only, valid while the array is
+ * not changed. Indirect references are not resolved (use ArrayGet).
+ */
+#define ArrayElemPtr(arr, i) (&(arr)->elems[i])
+
 #endif  /* ARRAY_H */
 

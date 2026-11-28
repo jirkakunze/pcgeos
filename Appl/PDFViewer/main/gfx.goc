@@ -4247,6 +4247,8 @@ static void _near opShowSpaceText(Gfx *gfx, Obj args[], int numArgs)
 {
     Array *a;
     Obj obj;
+    Obj *elem;
+    GBool fetched;
     word i;
     GfxState *state = gfx->state;
 
@@ -4260,23 +4262,36 @@ static void _near opShowSpaceText(Gfx *gfx, Obj args[], int numArgs)
     setTextTransform(gfx);
     for (i = 0; i < ArrayGetLength(a); ++i)
     {
-        ArrayGet(a, i, &obj, gfx->xref);
-        if (isNum(&obj))
+        /*
+         * Direct elements (numbers and strings) are read in the array: no
+         * copy of each string. Only an indirect reference is fetched.
+         */
+        elem = ArrayElemPtr(a, i);
+        fetched = isRef(elem);
+        if (fetched)
+        {
+            ArrayGet(a, i, &obj, gfx->xref);
+            elem = &obj;
+        }
+        if (isNum(elem))
         {
             GfxStateTextShift(state,
-                -(getNum(&obj) / 1000) *
+                -(getNum(elem) / 1000) *
                 GdoubleToWord(GfxStateGetFontSize(state)));
 
         }
-        else if (isString(&obj))
+        else if (isString(elem))
         {
-            doShowText(gfx, getString(&obj));
+            doShowText(gfx, getString(elem));
         }
         else
         {
             EC_WARNING(-1);
         }
-        GfxObjFree(&obj);
+        if (fetched)
+        {
+            GfxObjFree(&obj);
+        }
     }
     resetTextTransform(gfx);
     (void)numArgs;

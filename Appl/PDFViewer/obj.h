@@ -52,6 +52,10 @@ void initReal(Obj *obj, gdouble real1);
 extern
 void initString(Obj *obj, GooString *string1);
 
+/* Initialize string with the buffer of string1 (no copy, string1 empty). */
+extern
+void initStringTake(Obj *obj, GooString *string1);
+
 /* Initialize name. */
 extern
 void initName(Obj *obj, char *name1);

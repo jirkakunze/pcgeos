@@ -570,8 +570,8 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                 initError(obj);
                 break;
             }
-            initString(obj, &s);
-            GStrFree(&s);
+            /* The object takes the buffer: no copy */
+            initStringTake(obj, &s);
             break;
 
             /* Name: #xx is a hex escape */
@@ -721,8 +721,8 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                     initError(obj);
                     break;
                 }
-                initString(obj, &s);
-                GStrFree(&s);
+                /* The object takes the buffer: no copy */
+                initStringTake(obj, &s);
             }
             break;
 
