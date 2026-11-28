@@ -864,6 +864,39 @@ GfxFontAddChar(GfxFont *this, word code, char *name, GBool hasWidthsArray)
         return;
     }
 
+    /*
+     * Type 3 "c###": Ghostscript (pdfwrite) gives the glyphs of its Type 3
+     * fonts the names "c" plus the decimal char code of the source font.
+     * We do not draw the glyph procedures (/CharProcs). Thus we read the
+     * number as a MacRoman code and show the char in a GEOS font.
+     * ATTENTION: This is a heuristic. It is correct for Ghostscript output
+     * of Mac and Latin text. Other producers can use the names freely,
+     * then the text is wrong. The GEOS font is selected without a font
+     * name (Type 3 has no /BaseFont), thus the face can differ. The glyph
+     * widths assume a /FontMatrix of 0.001 (see doShowText). Upgrade
+     * path: run the /CharProcs as content streams (d0, d1).
+     */
+    if (this->type == fontType3 && name[0] == 'c' && name[1] != '\0' &&
+        strlen(name) <= 4 && strspn(name + 1, "0123456789") ==
+        strlen(name + 1))
+    {
+        int value = atoi(name + 1);
+
+        if (value < 256)
+        {
+            MemLock(OptrToHandle(@macRomanToGeosMap));
+            this->charMap[code] =
+                ((byte *)LMemDeref(@macRomanToGeosMap))[value];
+            MemUnlock(OptrToHandle(@macRomanToGeosMap));
+        }
+        else
+        {
+            this->charMap[code] = 0;
+        }
+        /* Type 3 fonts always have /Widths: no standard widths here */
+        return;
+    }
+
     /* "H###": an embedded char code, not decoded */
     if (name[0] == 'H' && name[1] >= '0' && name[1] <= '9')
     {
