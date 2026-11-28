@@ -414,9 +414,6 @@ static void _near opMarkPoint(Gfx *gfx, Obj args[], int numArgs);
  *******************************************************************/
 static void _near GfxObjFree(Obj *obj)
 {
-#ifdef DEBUG_MEM
-    ObjFree(obj);
-#else
     switch (obj->type)
     {
         case objBool:
@@ -433,7 +430,6 @@ static void _near GfxObjFree(Obj *obj)
             ObjFree(obj);
             break;
     }
-#endif
 }
 
 /********************************************************************

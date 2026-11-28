@@ -33,28 +33,6 @@
 #include <ec.h>
 #include "gmem.h"
 
-#ifdef DEBUG_MEM
-typedef struct _GMemHdr {
-    long size;
-    long index;
-    struct _GMemHdr *next;
-} GMemHdr;
-
-#define gMemHdrSize ((sizeof(GMemHdr)+ 7) & ~7)
-#define gMemTrlSize (sizeof(long))
-
-/* the trailer is a long, which is 4 bytes on GEOS */
-#define gMemDeadVal 0xdeadbeefL
-
-/* round data size so trailer will be aligned */
-#define gMemDataSize(size) \
-    ((((size) + gMemTrlSize - 1) / gMemTrlSize) * gMemTrlSize)
-
-static GMemHdr *gMemList = NULL;
-static long gMemIndex = 0;
-static long gMemAlloc = 0;
-#endif
-
 static GBool gMemOutOfMemory = gFalse;
 
 void GMemClearError(void)
@@ -150,8 +128,7 @@ GBool PdfCheckedMul(long a, long b, long *result)
  *                                      size 0.
  *
  * STRATEGY:      malloc() memory is fixed in the GEOS heap: use it only for
- *                small or short-lived data. DEBUG_MEM: header and trailer for
- *                checks.
+ *                small or short-lived data.
  *
  * REVISION HISTORY:
  *      Date      Name      Description
@@ -160,39 +137,6 @@ GBool PdfCheckedMul(long a, long b, long *result)
  *******************************************************************/
 void *gmalloc(long size)
 {
-#ifdef DEBUG_MEM
-    long size1;
-    char *mem;
-    GMemHdr *hdr;
-    void *data;
-    long *trl, *p;
-
-    if (size == 0)
-    {
-        return NULL;
-    }
-    size1 = gMemDataSize(size);
-    if (!(mem = (char *)malloc(size1 + gMemHdrSize + gMemTrlSize)))
-    {
-        gMemOutOfMemory = gTrue;
-        EC_WARNING(-1);
-        return NULL;
-    }
-    hdr = (GMemHdr *)mem;
-    data = (void *)(mem + gMemHdrSize);
-    trl = (long *)(mem + gMemHdrSize + size1);
-    hdr->size = size;
-    hdr->index = gMemIndex++;
-    hdr->next = gMemList;
-    gMemList = hdr;
-    ++gMemAlloc;
-    /* Fill data and trailer with a pattern to find overruns */
-    for (p = (long *)data; p <= trl; ++p)
-    {
-        *p = gMemDeadVal;
-    }
-    return data;
-#else
     void *p;
 
     if (size == 0)
@@ -206,7 +150,6 @@ void *gmalloc(long size)
         EC_WARNING(-1);
     }
     return p;
-#endif
 }
 
 /********************************************************************
@@ -229,37 +172,6 @@ void *gmalloc(long size)
  *******************************************************************/
 void *grealloc(void *p, long size)
 {
-#ifdef DEBUG_MEM
-    GMemHdr *hdr;
-    void *q;
-    long oldSize;
-
-    if (size == 0)
-    {
-        if (p)
-        {
-            gfree(p);
-        }
-        return NULL;
-    }
-    if (p)
-    {
-        hdr = (GMemHdr *)((char *)p - gMemHdrSize);
-        oldSize = hdr->size;
-        q = gmalloc(size);
-        if (!q)
-        {
-            return NULL;
-        }
-        memcpy(q, p, size < oldSize ? size : oldSize);
-        gfree(p);
-    }
-    else
-    {
-        q = gmalloc(size);
-    }
-    return q;
-#else
     void *q;
 
     if (size == 0)
@@ -277,7 +189,6 @@ void *grealloc(void *p, long size)
         EC_WARNING(-1);
     }
     return q;
-#endif
 }
 
 /********************************************************************
@@ -289,7 +200,7 @@ void *grealloc(void *p, long size)
  *
  * RETURNS:       void
  *
- * STRATEGY:      DEBUG_MEM: check the trailer and the block list.
+ * STRATEGY:
  *
  * REVISION HISTORY:
  *      Date      Name      Description
@@ -298,59 +209,10 @@ void *grealloc(void *p, long size)
  *******************************************************************/
 void gfree(void *p)
 {
-#ifdef DEBUG_MEM
-    long size;
-    GMemHdr *hdr;
-    GMemHdr *prevHdr, *q;
-    long *trl, *clr;
-
-    if (p)
-    {
-        hdr = (GMemHdr *)((char *)p - gMemHdrSize);
-        for (prevHdr = NULL, q = gMemList; q; prevHdr = q, q = q->next)
-        {
-            if (q == hdr)
-            {
-                break;
-            }
-        }
-        if (q)
-        {
-            if (prevHdr)
-            {
-                prevHdr->next = hdr->next;
-            }
-            else
-            {
-                gMemList = hdr->next;
-            }
-            --gMemAlloc;
-            size = gMemDataSize(hdr->size);
-            trl = (long *)((char *)hdr + gMemHdrSize + size);
-            if (*trl != gMemDeadVal)
-            {
-                /* Block overrun: the trailer is changed */
-                EC_WARNING(-1);
-            }
-            /* Destroy the block to find use after free */
-            for (clr = (long *)hdr; clr <= trl; ++clr)
-            {
-                *clr = gMemDeadVal;
-            }
-            free(hdr);
-        }
-        else
-        {
-            /* Not a gmalloc() block */
-            EC_WARNING(-1);
-        }
-    }
-#else
     if (p)
     {
         free(p);
     }
-#endif
 }
 
 /********************************************************************

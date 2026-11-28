@@ -50,16 +50,7 @@
  */
 typedef char ObjCmdBufFitsCheck[(sizeof(Ref) >= OBJ_CMD_HEAP + 1) ? 1 : -1];
 
-#ifdef DEBUG_MEM
-long Object::numAlloc[numObjTypes] =
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-#endif
-
-#ifdef DEBUG_MEM
-#define initObj(t) ++numAlloc[obj->type = t]
-#else
 #define initObj(t) obj->type = t
-#endif
 
 /********************************************************************
  *                      initArray
@@ -404,13 +395,6 @@ void initName(Obj *obj, char *name1)
         initError(obj);
     }
 }
-
-#ifdef DEBUG_MEM
-void initNull(Obj *obj)
-{ 
-    initObj(objNull);
-}
-#endif
 
 /********************************************************************
  *                      initDictData

@@ -60,13 +60,7 @@ void initStringTake(Obj *obj, GooString *string1);
 extern
 void initName(Obj *obj, char *name1);
 
-#ifdef DEBUG_MEM
-/* Initialize null. */
-extern
-void initNull(Obj *obj);
-#else
 #define initNull(obj) ((void)((obj)->type = objNull))
-#endif
 
 /* Initialize ref. */
 extern
@@ -232,11 +226,6 @@ Ref getRef(Obj *obj);
 
 #define ObjStreamGetLine(obj, buf, size) \
 	StreamGetLine((obj)->u.stream, (buf), (size))
-
-#ifdef DEBUG_MEM
-static long /* number of each type of object */
-numAlloc[numObjTypes]; /* currently allocated */
-#endif
 
 #endif  /* OBJ_H */
 
