@@ -261,6 +261,33 @@ static short LexerLookChar(Lexer *lexer)
 }
 
 /********************************************************************
+ *                      LexerSkipLookedChar
+ ********************************************************************
+ * SYNOPSIS:      Read the character that LexerLookChar returned last.
+ *
+ * PARAMETERS:    *lexer                Ptr to the lexer. The last call must
+ *                                      be a LexerLookChar that did not
+ *                                      return EOF.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Same result as LexerGetChar. After a look that is not EOF
+ *                the current stream holds the character, thus no stream
+ *                change is necessary, and StreamSkipLookedChar only moves
+ *                the read position of the stream buffer.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/28/26  Claude/jkunze  Initial version
+ *******************************************************************/
+static void LexerSkipLookedChar(Lexer *lexer)
+{
+    EC_ERROR_IF(isNone(&lexer->curStr), -1);
+    StreamSkipLookedChar(getStream(&lexer->curStr));
+}
+
+/********************************************************************
  *                      LexerGetObj
  ********************************************************************
  * SYNOPSIS:      Read the next token as an object.
@@ -354,12 +381,12 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                 c = LexerLookChar(lexer);
                 if (isdigit(c))
                 {
-                    LexerGetChar(lexer);
+                    LexerSkipLookedChar(lexer);
                     uxi = uxi * 10 + (c - '0');
                 }
                 else if (c == '.')
                 {
-                    LexerGetChar(lexer);
+                    LexerSkipLookedChar(lexer);
                     xi = (long)uxi;
                     goto doReal;
                 }
@@ -390,7 +417,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                 {
                     break;
                 }
-                LexerGetChar(lexer);
+                LexerSkipLookedChar(lexer);
                 tmp = tmp * 10 + (c - '0');
                 scale *= 10;
             }
@@ -488,12 +515,12 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                                 c = LexerLookChar(lexer);
                                 if (c >= '0' && c <= '7')
                                 {
-                                    LexerGetChar(lexer);
+                                    LexerSkipLookedChar(lexer);
                                     c2 = (c2 << 3) + (c - '0');
                                     c = LexerLookChar(lexer);
                                     if (c >= '0' && c <= '7')
                                     {
-                                        LexerGetChar(lexer);
+                                        LexerSkipLookedChar(lexer);
                                         c2 = (c2 << 3) + (c - '0');
                                     }
                                 }
@@ -502,7 +529,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                                 c = LexerLookChar(lexer);
                                 if (c == '\n')
                                 {
-                                    LexerGetChar(lexer);
+                                    LexerSkipLookedChar(lexer);
                                 }
                                 break;
                             case '\n':
@@ -554,7 +581,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             while ((c = LexerLookChar(lexer)) != EOF && !(c < 128
                 && endOfNameChars[c]))
             {
-                LexerGetChar(lexer);
+                LexerSkipLookedChar(lexer);
                 if (c == C_NUMBER_SIGN)
                 {
                     c2 = LexerLookChar(lexer);
@@ -574,7 +601,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
                     {
                         goto notEscChar;
                     }
-                    LexerGetChar(lexer);
+                    LexerSkipLookedChar(lexer);
                     c <<= 4;
                     c2 = LexerGetChar(lexer);
                     if (c2 >= '0' && c2 <= '9')
@@ -619,7 +646,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
 
             if (c == '<')
             {
-                LexerGetChar(lexer);
+                LexerSkipLookedChar(lexer);
                 tokBuf[0] = tokBuf[1] = '<';
                 tokBuf[2] = '\0';
                 initCmd(obj, tokBuf);
@@ -704,7 +731,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             c = LexerLookChar(lexer);
             if (c == '>')
             {
-                LexerGetChar(lexer);
+                LexerSkipLookedChar(lexer);
                 tokBuf[0] = tokBuf[1] = '>';
                 tokBuf[2] = '\0';
                 initCmd(obj, tokBuf);
@@ -731,7 +758,7 @@ void LexerGetObj(Lexer *lexer, Obj *obj)
             while ((c = LexerLookChar(lexer)) != EOF && !(c < 128
                 && endOfNameChars[c]))
             {
-                LexerGetChar(lexer);
+                LexerSkipLookedChar(lexer);
                 if (++n == tokBufSize)
                 {
                     EC_WARNING(-1);
@@ -791,7 +818,7 @@ void LexerSkipToNextLine(Lexer *lexer)
         {
             if (LexerLookChar(lexer) == '\n')
             {
-                LexerGetChar(lexer);
+                LexerSkipLookedChar(lexer);
             }
             return;
         }

@@ -136,6 +136,10 @@ GBool isNameSame(Obj *obj, char *name1);
 extern
 GBool isCmdSame(Obj *obj, char *cmd1);
 
+/* Command name of a command object (in the object or on the heap). */
+#define getCmd(obj) ((obj)->u.cmdBuf[OBJ_CMD_HEAP] ? \
+    (obj)->u.cmd : (obj)->u.cmdBuf)
+
 /* Accessors. */
 #define getBool(obj)   ((obj)->u.booln)
 #define getInt(obj)    ((obj)->u.intg)

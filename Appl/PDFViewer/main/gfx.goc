@@ -881,7 +881,7 @@ static void GfxExecOp(Gfx *gfx, Obj *cmd, Obj args[], int numArgs, Operator *pOp
     EC(ECCheckBounds(args));
     EC(ECCheckBounds(pOpTab));
 
-    name = getName(cmd);
+    name = getCmd(cmd);
     if (!(op = GfxFindOp(name, pOpTab)))
     {
 

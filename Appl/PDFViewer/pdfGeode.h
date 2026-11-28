@@ -81,6 +81,14 @@ typedef enum ObjType
 
 #define numObjTypes 14  /* total number of object types */
 
+/*
+ * Commands with at most OBJ_CMD_HEAP chars are kept in Obj.u.cmdBuf. The
+ * last byte cmdBuf[OBJ_CMD_HEAP] is 0 for them (the NUL or the padding).
+ * Longer commands are on the heap (Obj.u.cmd), cmdBuf[OBJ_CMD_HEAP] is 1.
+ * 8 bytes: the union has this size already (Ref, GooString).
+ */
+#define OBJ_CMD_HEAP 7
+
 typedef struct Obj
 {
 
@@ -96,7 +104,13 @@ typedef struct Obj
         struct Dict *dict; /* dictionary */
         struct Stream *stream; /* stream */
         Ref ref; /* indirect reference */
-        char *cmd; /* command */
+        char *cmd; /* command on the heap (cmdBuf[OBJ_CMD_HEAP] != 0) */
+        /*
+         * Short command (up to OBJ_CMD_HEAP chars) in the object: no heap
+         * block for each operator of a content stream. Do not read u.cmd
+         * or u.cmdBuf directly, use getCmd.
+         */
+        char cmdBuf[OBJ_CMD_HEAP + 1];
     } u;
 } Obj;
 

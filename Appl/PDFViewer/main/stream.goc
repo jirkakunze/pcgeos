@@ -513,6 +513,54 @@ static word StreamReadFromBuf(Stream *str, Guchar *buf, word size,
 }
 
 /********************************************************************
+ *                      StreamSkipLookedChar
+ ********************************************************************
+ * SYNOPSIS:      Read the byte that StreamLookChar returned last.
+ *
+ * PARAMETERS:    *str                  Ptr to the stream. The last call for
+ *                                      it must be a StreamLookChar that did
+ *                                      not return EOF.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      Same result as StreamGetChar, but faster for the lexer
+ *                (look at a char, then take it): Flate and file streams
+ *                have the byte in their buffer after the look, thus only
+ *                move the read position. Other streams use StreamGetChar.
+ *                Sub-streams pass the call to their base stream, as
+ *                StreamGetChar does.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/28/26  Claude/jkunze  Initial version
+ *******************************************************************/
+void StreamSkipLookedChar(Stream *str)
+{
+    EC(ECCheckBounds(str));
+
+    while (str->kind == strSubStream)
+    {
+        str = str->str;
+    }
+    if (str->kind == strFlate)
+    {
+        /* FlateStreamLookChar filled the buffer */
+        EC_ERROR_IF(str->u.flate->readIndex >= str->u.flate->readCount, -1);
+        ++str->u.flate->readIndex;
+        return;
+    }
+    if (str->kind == strFile)
+    {
+        /* FStreamLookChar filled the buffer */
+        EC_ERROR_IF(str->u.fs->bufPtr >= str->u.fs->bufEnd, -1);
+        ++str->u.fs->bufPtr;
+        return;
+    }
+    (void)StreamGetChar(str);
+}
+
+/********************************************************************
  *                      StreamLookChar
  ********************************************************************
  * SYNOPSIS:      Return the next byte but do not read it.

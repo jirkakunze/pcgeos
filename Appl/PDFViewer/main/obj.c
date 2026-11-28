@@ -41,6 +41,14 @@
 #include "gmem.h"
 #include "gstr.h"
 #include "pdfGeode.h"
+#include <ec.h>
+
+/*
+ * Short commands use the 8 bytes of the union that Ref needs anyway: the
+ * size of Obj must not grow (arrays and dictionaries hold many objects).
+ * The array size is negative (compile error) if cmdBuf is larger.
+ */
+typedef char ObjCmdBufFitsCheck[(sizeof(Ref) >= OBJ_CMD_HEAP + 1) ? 1 : -1];
 
 #ifdef DEBUG_MEM
 long Object::numAlloc[numObjTypes] =
@@ -215,10 +223,14 @@ void ObjCopy(Obj *obj, Obj *obj2)
             StreamIncRef(obj->u.stream);
             break;
         case objCmd:
-            obj->u.cmd = copyString(obj2->u.cmd);
-            if (!obj->u.cmd)
+            /* A short command was copied with the object (memcpy) */
+            if (obj2->u.cmdBuf[OBJ_CMD_HEAP])
             {
-                initError(obj);
+                obj->u.cmd = copyString(obj2->u.cmd);
+                if (!obj->u.cmd)
+                {
+                    initError(obj);
+                }
             }
             break;
         default:
@@ -282,7 +294,10 @@ void ObjFree(Obj *obj)
             }
             break;
         case objCmd:
-            gfree(obj->u.cmd);
+            if (obj->u.cmdBuf[OBJ_CMD_HEAP])
+            {
+                gfree(obj->u.cmd);
+            }
             break;
         default:
             break;
@@ -426,21 +441,39 @@ void initRef(Obj *obj, long num1, long gen1)
  *
  * RETURNS:       void
  *
- * STRATEGY:      Out of memory: an error object.
+ * STRATEGY:      Up to OBJ_CMD_HEAP chars (all operators of content streams)
+ *                in the object, padded with 0: no heap block. Longer
+ *                commands (keywords such as "beginbfchar") on the heap,
+ *                marked with cmdBuf[OBJ_CMD_HEAP] = 1. Out of memory: an
+ *                error object.
  *
  * REVISION HISTORY:
  *      Date      Name      Description
  *      ----      ----      -----------
  *      08/18/26  JK        Initial Revision
+ *      11/28/26  Claude/jkunze  Short commands in the object
  *******************************************************************/
 void initCmd(Obj *obj, char *cmd1)
 {
+    word len;
+
+    EC(ECCheckBounds(cmd1));
+
     initObj(objCmd);
+    len = strlen(cmd1);
+    if (len <= OBJ_CMD_HEAP)
+    {
+        memset(obj->u.cmdBuf, 0, sizeof(obj->u.cmdBuf));
+        memcpy(obj->u.cmdBuf, cmd1, len);
+        return;
+    }
     obj->u.cmd = copyString(cmd1);
     if (!obj->u.cmd)
     {
         initError(obj);
+        return;
     }
+    obj->u.cmdBuf[OBJ_CMD_HEAP] = 1;
 }
 
 void initError(Obj *obj)
@@ -460,7 +493,7 @@ GBool isNameSame(Obj *obj, char *name1)
     
 GBool isCmdSame(Obj *obj, char *cmd1)
 {
-    return obj->type == objCmd && !strcmp(obj->u.cmd, cmd1);
+    return obj->type == objCmd && !strcmp(getCmd(obj), cmd1);
 }
 
 gdouble getNum(Obj *obj)

@@ -64,6 +64,10 @@ word StreamRead(Stream *str, Guchar *buf, word size);
 extern
 short StreamLookChar(Stream *str);
 
+/* Read the byte that StreamLookChar returned last (fast for the lexer). */
+extern
+void StreamSkipLookedChar(Stream *str);
+
 /* Get dictionary. */
 extern
 Dict *StreamGetDict(Stream *str);
