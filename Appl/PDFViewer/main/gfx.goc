@@ -1282,7 +1282,8 @@ static void GfxConcatCtm(GfxState *state, const gdouble *m)
  *                The scale is the average length of the transformed unit
  *                vectors, with the same length approximation as the
  *                kernel: (|dx| + |dy| + max(|dx|, |dy|)) / 2. This is
- *                exact for a CTM without rotation.
+ *                exact for a CTM without rotation. A width equal to the
+ *                width last written (geosLineWidth) is not written again.
  *
  * KNOWN BUGS/SIDE EFFECTS/CAVEATS/IDEAS:
  *                ATTENTION: The text matrix and the font scale are also in
@@ -1434,7 +1435,7 @@ static void GfxDisplayNested(Gfx *gfx, Obj *obj)
     GfxDisplay(gfx, obj);
     while (gfx->saveDepth > 0)
     {
-        gfx->saveDepth--;
+        --gfx->saveDepth;
         GfxStateRestore(gfx->state);
         GrRestoreState(gfx->state->gstring);
     }
@@ -4579,7 +4580,7 @@ static void doShowText(Gfx *gfx, GooString *s)
         {
 
             cp = GStrGetCString(s);
-            for (i = 0; i < len; i++, cp++)
+            for (i = 0; i < len; ++i, ++cp)
             {
                 char c = GfxFontMapChar(font, *cp, ' ');
 
@@ -6013,7 +6014,7 @@ static void GfxDrawImageMask(Gfx *gfx, Stream *str, word width, word height,
             }
             if (useLine)
             {
-                arrayInd--;
+                --arrayInd;
                 nElements = HugeArrayLock(gfx->vmFile,
                     bitmap,
                     arrayInd,
@@ -6155,7 +6156,7 @@ static void GfxImageRowToRGB(GfxImageColorMap *cm, Guchar *src, byte *dst,
 
     if (cm->indexed)
     {
-        while (count--)
+        for (; count > 0; --count)
         {
             p = cm->lookup[*src];
             dst[0] = (byte)p[0];
@@ -6167,7 +6168,7 @@ static void GfxImageRowToRGB(GfxImageColorMap *cm, Guchar *src, byte *dst,
     }
     else if (nComps == 1)
     {
-        while (count--)
+        for (; count > 0; --count)
         {
             dst[0] = dst[1] = dst[2] = *src;
             dst += 3;
@@ -6180,7 +6181,7 @@ static void GfxImageRowToRGB(GfxImageColorMap *cm, Guchar *src, byte *dst,
     }
     else
     {
-        while (count--)
+        for (; count > 0; --count)
         {
             dst[0] = src[0];
             dst[1] = src[1];
@@ -6365,7 +6366,7 @@ static void GfxDrawImage(Gfx *gfx, Stream *str, word width, word height,
             }
             if (useLine)
             {
-                arrayInd--;
+                --arrayInd;
             }
 
             if (m->str)

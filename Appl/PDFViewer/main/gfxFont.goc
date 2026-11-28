@@ -418,7 +418,7 @@ static void GfxFontInit(GfxFont *this, char *tag1, Ref id1, Dict *fontDict, XRef
 
     if (this->flags & fontSymbolic)
     {
-        for (code = 0; code < 256; code ++)
+        for (code = 0; code < 256; ++code)
         {
             this->charMap[code] = code;
         }

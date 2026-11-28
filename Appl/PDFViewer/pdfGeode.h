@@ -537,7 +537,7 @@ typedef struct Stream
     word nVals; /* components per line, max. 65528 */
     word rowBytes; /* bytes per line */
     Guchar *rawLine; /* raw line buffer */
-    Guchar *pixLine; /* pixel line buffer */
+    Guchar *pixLine; /* pixel line buffer, NULL for 8-bit images */
     word pixIdx; /* current index in line buffer */
 
     short buf; /* asciiHex data: char or EOF */

@@ -2591,7 +2591,7 @@ PDFUpdateSaveDirText(void)
     }
     {
 	TCHAR *p;
-	for (p = fullPath; p < end; p++) {
+	for (p = fullPath; p < end; ++p) {
 	    if (*p == '\\' && p + 1 < end) {
 		name = p + 1;
 	    }

@@ -1060,7 +1060,7 @@ static long XRefParseDigits(const char *p, int count)
 {
     long value = 0;
 
-    while (count--)
+    for (; count > 0; --count)
     {
         value = value * 10 + (*p++ - '0');
     }
