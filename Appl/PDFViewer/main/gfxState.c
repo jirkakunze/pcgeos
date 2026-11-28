@@ -746,6 +746,8 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
     short i, j;
 
     this->ok = gTrue;
+    /* NULL until allocated: GfxImageColorMapFree also runs after errors */
+    this->lookup = NULL;
 
     this->bits = bits1;
     /* StreamGetImagePixel delivers 16-bit samples as their high byte */
@@ -824,6 +826,16 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
                 break;
             }
         }
+    }
+
+    /*
+     * An identity map needs no table: GfxImageColorMapGetColor returns
+     * the samples, and GfxImageRowToRGB uses the table only for indexed
+     * images. This saves 2 KB and 1024 computations for each image.
+     */
+    if (this->isIdentity)
+    {
+        return;
     }
 
     /* Lookup table: sample value to color component (0-255) */
