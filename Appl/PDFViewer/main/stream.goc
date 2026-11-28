@@ -1011,7 +1011,17 @@ GBool StreamGetImagePixel(Stream *this, Guchar *pix)
             memset(this->rawLine + n, 0, (word)this->rowBytes - n);
         }
 
-        if (this->nBits == 1)
+        /* Only 8-bit images may be without the unpacked row buffer */
+        EC_ERROR_IF(this->nBits != 8 && this->pixLine == NULL, -1);
+
+        if (this->nBits == 8)
+        {
+            /*
+             * Nothing to unpack: the pixels are read from rawLine below.
+             * This branch is necessary: 8-bit images have no pixLine.
+             */
+        }
+        else if (this->nBits == 1)
         {
             for (i = 0, j = 0; i < this->nVals; i += 8, ++j)
             {
