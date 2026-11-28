@@ -50,33 +50,26 @@ static void GfxColorSpaceSetMode(GfxColorSpace *this, Obj *colorSpace,
 GBool GfxParseType2Function(Obj *funcObj, XRef *xref,
     gdouble c0[4], gdouble c1[4], gdouble *n);
 
-/*
- * GfxColor
- */
-
-/***********************************************************************
- *      GfxColorSetCMYK
- ***********************************************************************
- * SYNOPSIS:        Set cmyk.
- * PARAMETERS:      GfxColor *this    this
- *                  short c    c
- *                  short m    m
- *                  short y    y
- *                  short k    k
+/********************************************************************
+ *                      GfxColorSetCMYK
+ ********************************************************************
+ * SYNOPSIS:      Set a color from CMYK values.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the color.
+ *                c                     Cyan 0-255.
+ *                m                     Magenta 0-255.
+ *                y                     Yellow 0-255.
+ *                k                     Black 0-255.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Convert via the standard r=255-(c+k) etc. formula, clamped to 0.
+ * STRATEGY:      Simple conversion: r = 255 - (c + k) and so on, not below 0.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k)
 {
     if ((this->r = 255 - (c + k)) < 0)
@@ -93,53 +86,30 @@ static void GfxColorSetCMYK(GfxColor *this, short c, short m, short y, short k)
     }
 }
 
-/***********************************************************************
- *      GfxColorSetGray
- ***********************************************************************
- * SYNOPSIS:        Set gray.
- * PARAMETERS:      GfxColor *this    this
- *                  short gray    gray
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Assign gray to all three RGB channels.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 static void GfxColorSetGray(GfxColor *this, short gray)
 {
     this->r = this->g = this->b = gray;
 }
 
-/***********************************************************************
- *      GfxColorSetRGB
- ***********************************************************************
- * SYNOPSIS:        Set rgb.
- * PARAMETERS:      GfxColor *this    this
- *                  short r1    r1
- *                  short g1    g1
- *                  short b1    b1
+/********************************************************************
+ *                      GfxColorSetRGB
+ ********************************************************************
+ * SYNOPSIS:      Set a color from RGB values.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the color.
+ *                r1                    Red 0-255.
+ *                g1                    Green 0-255.
+ *                b1                    Blue 0-255.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Assign each component directly.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxColorSetRGB(GfxColor *this, short r1, short g1, short b1)
 {
     this->r = r1;
@@ -147,32 +117,26 @@ static void GfxColorSetRGB(GfxColor *this, short r1, short g1, short b1)
     this->b = b1;
 }
 
-/*
- * GfxColorSpace
- */
-
-/***********************************************************************
- *      GfxParseCoordArray
- ***********************************************************************
- * SYNOPSIS:        Parse coord array.
- * PARAMETERS:      Dict *dict    dictionary
- *                  const char *key    key
- *                  XRef *xref    cross-reference table
- *                  gdouble coords[4]    coords
+/********************************************************************
+ *                      GfxParseCoordArray
+ ********************************************************************
+ * SYNOPSIS:      Read up to four numbers of an array entry.
  *
- * RETURNS:         void
+ * PARAMETERS:    *dict                 Ptr to the dictionary.
+ *                *key                  Ptr to the key.
+ *                *xref                 Ptr to the cross-reference table.
+ *                *coords               Ptr to the values (out); missing values
+ *                                      stay unchanged.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 GfxParseCoordArray(Dict *dict, const char *key, XRef *xref, gdouble coords[4])
 {
@@ -201,30 +165,27 @@ GfxParseCoordArray(Dict *dict, const char *key, XRef *xref, gdouble coords[4])
     ObjFree(&arrObj);
 }
 
-
-/***********************************************************************
- *      GfxParseType2Function
- ***********************************************************************
- * SYNOPSIS:        Parse type2 function.
- * PARAMETERS:      Obj *funcObj    func obj
- *                  XRef *xref    cross-reference table
- *                  gdouble c0[4]    c0
- *                  gdouble c1[4]    c1
- *                  gdouble *n    count
+/********************************************************************
+ *                      GfxParseType2Function
+ ********************************************************************
+ * SYNOPSIS:      Read a type 2 (exponential) PDF function.
  *
- * RETURNS:         success flag
+ * PARAMETERS:    *funcObj              Ptr to the function dictionary or
+ *                                      stream.
+ *                *xref                 Ptr to the cross-reference table.
+ *                *c0                   Ptr to C0 (out, default 0).
+ *                *c1                   Ptr to C1 (out, default 1).
+ *                *n                    Ptr to N (out).
  *
- * CONTEXT:
+ * RETURNS:       GBool                 gFalse if it is not a type 2 function.
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GBool
 GfxParseType2Function(Obj *funcObj, XRef *xref, gdouble c0[4], gdouble c1[4],
     gdouble *n)
@@ -274,28 +235,27 @@ GfxParseType2Function(Obj *funcObj, XRef *xref, gdouble c0[4], gdouble c1[4],
     return gTrue;
 }
 
-/***********************************************************************
- *      GfxColorSpaceInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      GfxColorSpace *this    this
- *                  Obj *colorSpace    color space
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      GfxColorSpaceInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a color space from a PDF color space object.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the color space.
+ *                *colorSpace           Ptr to the color space object.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Detect Separation/DeviceN and try to resolve a real Type 2 tint-
- *      transform Function for the 1-colorant case;...
+ * STRATEGY:      Separation and 1-colorant DeviceN use their tint function if
+ *                it is type 2; other DeviceN spaces become a gray
+ *                approximation. Indexed spaces read their lookup table. On
+ *                error this->ok is gFalse.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref)
 {
     Obj csObj;
@@ -336,11 +296,7 @@ void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref)
                 goto err1;
             }
 
-            /*
-             * Try the real tint-transform Function -- only meaningful for a
-             * single input value, which covers every Separation and the
-             * (fairly rare) 1-colorant DeviceN case.
-             */
+            /* Real tint function only for one input value */
             if (tintComps == 1)
             {
                 ObjArrayGet(colorSpace, 2, &altObj, xref);
@@ -371,10 +327,7 @@ void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref)
             }
             else
             {
-                /*
-                 * Fallback: DeviceN with >1 colorant, or a Function we can't
-                 * evaluate.
-                 */
+                /* Fallback: gray approximation */
                 ObjFree(&csObj);
                 initName(&csObj, "DeviceGray");
             }
@@ -416,10 +369,7 @@ void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref)
         }
         if (tintComps > 0)
         {
-            /*
-             * override the numComps GfxColorSpaceSetMode just set for our
-             * placeholder DeviceGray (1) with the real colorant count
-             */
+            /* The placeholder DeviceGray has 1 comp: use the colorant count */
             this->numComps = tintComps;
             this->tintApprox = gTrue;
         }
@@ -485,50 +435,30 @@ void GfxColorSpaceInit(GfxColorSpace *this, Obj *colorSpace, XRef *xref)
     EC_WARNING(-1);
 }
 
-/***********************************************************************
- *      GfxColorSpaceFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      GfxColorSpace *this    this
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxColorSpaceFree(GfxColorSpace *this)
 {
     gfree(this->lookup);
 }
 
-/***********************************************************************
- *      GfxColorSpaceSetMode
- ***********************************************************************
- * SYNOPSIS:        Set mode.
- * PARAMETERS:      GfxColorSpace *this    this
- *                  Obj *colorSpace    color space
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      GfxColorSpaceSetMode
+ ********************************************************************
+ * SYNOPSIS:      Set the mode and the component count of a base color space.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the color space.
+ *                *colorSpace           Ptr to the color space object.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      CalGray, CalRGB, CalCMYK and ICCBased map to the device spaces
+ *                (ICCBased by /N). Unknown spaces set this->ok to gFalse.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxColorSpaceSetMode(GfxColorSpace *this, Obj *colorSpace,
     XRef *xref)
 {
@@ -593,10 +523,7 @@ static void GfxColorSpaceSetMode(GfxColorSpace *this, Obj *colorSpace,
                             this->numComps = 4;
                             break;
                         default:
-                            /*
-                             * /N is required to be 1, 3, or 4 -- anything else
-                             * means a malformed file.
-                             */
+                            /* /N must be 1, 3 or 4 */
                             this->ok = gFalse;
                             break;
                     }
@@ -625,27 +552,26 @@ static void GfxColorSpaceSetMode(GfxColorSpace *this, Obj *colorSpace,
     }
 }
 
-/***********************************************************************
- *      GfxEvalType2Function
- ***********************************************************************
- * SYNOPSIS:        Process gfx eval type2 function.
- * PARAMETERS:      GfxColorSpace *this    this
- *                  short tint    tint
- *                  short out[4]    out
+/********************************************************************
+ *                      GfxEvalType2Function
+ ********************************************************************
+ * SYNOPSIS:      Evaluate the type 2 tint function of a color space.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the color space.
+ *                tint                  Tint 0-255.
+ *                *out                  Ptr to the components of the alternate
+ *                                      space (out, 0-255).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
+ * STRATEGY:      WWFixed arithmetic; integer exponents 2-8 are computed, other
+ *                exponents count as 1.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/22/26    Style cleanup
- *
- ***********************************************************************/
-
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 static void
 GfxEvalType2Function(GfxColorSpace *this, short tint, short out[4])
 {
@@ -688,28 +614,26 @@ GfxEvalType2Function(GfxColorSpace *this, short tint, short out[4])
     }
 }
 
-/***********************************************************************
- *      GfxColorSpaceGetColor
- ***********************************************************************
- * SYNOPSIS:        Get color.
- * PARAMETERS:      GfxColorSpace *this    this
- *                  short x[4]    x
- *                  GfxColor *color    color
+/********************************************************************
+ *                      GfxColorSpaceGetColor
+ ********************************************************************
+ * SYNOPSIS:      Convert color components to an RGB color.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the color space.
+ *                *x                    Ptr to the components (0-255, index for
+ *                                      Indexed).
+ *                *color                Ptr to the color (out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      If a real tint-transform Function is available, evaluate it.
- *      Otherwise pass components through (Indexed via palette...
+ * STRATEGY:      Tint function, Indexed lookup or device conversion. The gray
+ *                approximation of DeviceN uses the inverted average.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxColorSpaceGetColor(GfxColorSpace *this, short x[4], GfxColor *color)
 {
     short y[4];
@@ -786,59 +710,32 @@ void GfxColorSpaceGetColor(GfxColorSpace *this, short x[4], GfxColor *color)
     }
 }
 
-/***********************************************************************
- *      GfxColorSpaceGetNumPixelComps
- ***********************************************************************
- * SYNOPSIS:        Get number pixel comps.
- * PARAMETERS:      GfxColorSpace *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Indexed colorspaces always store a single palette index per
- *      pixel regardless of the palette's own component count.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 short GfxColorSpaceGetNumPixelComps(GfxColorSpace *this)
 {
     return this->indexed ? 1 : this->numComps;
 }
 
-/*
- * GfxImageColorMap
- */
-
-/***********************************************************************
- *      GfxImageColorMapInit
- ***********************************************************************
- * SYNOPSIS:        Map init.
- * PARAMETERS:      GfxImageColorMap *this    this
- *                  short bits1    bits1
- *                  Obj *decode    decode
- *                  GfxColorSpace *colorSpace1    color space1
- *                  XRef *xref    cross-reference table
+/********************************************************************
+ *                      GfxImageColorMapInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize the color map of an image.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the image color map.
+ *                bits1                 Bits per component.
+ *                *decode               Ptr to the /Decode array or null.
+ *                *colorSpace1          Ptr to the color space; the map owns it.
+ *                *xref                 Ptr to the cross-reference table.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Resolve /Decode (or spec defaults), detect the identity mapping
- *      fast path (8-bit, non-Indexed, default decode, no...
+ * STRATEGY:      Make a lookup table from sample value to color component, and
+ *                mark the map as identity if the samples can be used directly.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
     GfxColorSpace *colorSpace1, XRef *xref)
 {
@@ -850,7 +747,6 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
 
     this->ok = gTrue;
 
-    /* bits per component and colorspace */
     this->bits = bits1;
     /* StreamGetImagePixel delivers 16-bit samples as their high byte */
     maxPixel = (1 << ((bits1 > 8) ? 8 : bits1)) - 1;
@@ -913,11 +809,7 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
         goto err1;
     }
 
-    /*
-     * Identity fast-path check: must run after bits/indexed/numComps/
-     * decodeLow/decodeRange are all finalized, and before the lookup table is
-     * built below .
-     */
+    /* Identity check: after the decode values, before the lookup table */
     this->isIdentity = !this->indexed && this->bits >= 8 &&
         !this->colorSpace->hasFunction &&
         !this->colorSpace->tintApprox;
@@ -934,7 +826,7 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
         }
     }
 
-    /* construct lookup table */
+    /* Lookup table: sample value to color component (0-255) */
     this->lookup = (short(*)[4])gmalloc((maxPixel + 1) * 4 * sizeof(short));
     if (!this->lookup)
     {
@@ -972,98 +864,56 @@ void GfxImageColorMapInit(GfxImageColorMap *this, short bits1, Obj *decode,
     this->ok = gFalse;
 }
 
-/***********************************************************************
- *      GfxImageColorMapFree
- ***********************************************************************
- * SYNOPSIS:        Map free.
- * PARAMETERS:      GfxImageColorMap *this    this
+/********************************************************************
+ *                      GfxImageColorMapFree
+ ********************************************************************
+ * SYNOPSIS:      Free the color map and its color space.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the image color map.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxImageColorMapFree(GfxImageColorMap *this)
 {
     GfxColorSpaceFree(this->colorSpace);
     gfree(this->lookup);
 }
 
-/***********************************************************************
- *      GfxImageColorMapGetNumPixelComps
- ***********************************************************************
- * SYNOPSIS:        Map get number pixel comps.
- * PARAMETERS:      GfxImageColorMap *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 short GfxImageColorMapGetNumPixelComps(GfxImageColorMap *this)
 {
     return this->numComps;
 }
 
-/***********************************************************************
- *      GfxImageColorMapGetBits
- ***********************************************************************
- * SYNOPSIS:        Map get bits.
- * PARAMETERS:      GfxImageColorMap *this    this
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 short GfxImageColorMapGetBits(GfxImageColorMap *this)
 {
     return this->bits;
 }
 
-/***********************************************************************
- *      GfxImageColorMapGetColor
- ***********************************************************************
- * SYNOPSIS:        Map get color.
- * PARAMETERS:      GfxImageColorMap *this    this
- *                  Guchar x[4]    x
- *                  GfxColor *color    color
+/********************************************************************
+ *                      GfxImageColorMapGetColor
+ ********************************************************************
+ * SYNOPSIS:      Convert the components of one pixel to an RGB color.
  *
- * RETURNS:         void
+ * PARAMETERS:    *this                 Ptr to the image color map.
+ *                *x                    Ptr to the sample values.
+ *                *color                Ptr to the color (out).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Take the isIdentity fast path when possible (raw sample used
- *      directly, no lookup). Otherwise evaluate a tint...
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4],
     GfxColor *color)
 {
@@ -1089,10 +939,7 @@ void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4],
 
     if (this->colorSpace->hasFunction)
     {
-        /*
-         * real tint value, through its (usually identity) decode curve first,
-         * same as every other component below
-         */
+        /* Tint value through its decode curve, like all other components */
         GfxEvalType2Function(this->colorSpace, this->lookup[x[0]][0], y);
         switch (this->colorSpace->altMode)
         {
@@ -1150,31 +997,23 @@ void GfxImageColorMapGetColor(GfxImageColorMap *this, Guchar x[4],
     }
 }
 
-/*
- * GfxState
- */
-
-/***********************************************************************
- *      GfxStateInit
- ***********************************************************************
- * SYNOPSIS:        Initialize.
- * PARAMETERS:      GfxState *state    graphics state
- *                  Handle gstring    gstring
+/********************************************************************
+ *                      GfxStateInit
+ ********************************************************************
+ * SYNOPSIS:      Initialize a graphics state with the PDF defaults.
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
+ *                gstring               Handle of the GString to draw into.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Zero/default all text and path parameters to PDF spec defaults,
- *      including an identity text matrix. Fill/stroke...
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateInit(GfxState *state, Handle gstring)
 {
     state->gstring = gstring;
@@ -1196,10 +1035,7 @@ void GfxStateInit(GfxState *state, Handle gstring)
     state->saved = NULL;
     state->pathType = PATH_NONE;
 
-    /*
-     * PDF spec default: DeviceGray, color 0 (black), until a cs/CS sets
-     * something else.
-     */
+    /* PDF default: DeviceGray, black */
     state->fillColorSpace.mode = colorGray;
     state->fillColorSpace.indexed = gFalse;
     state->fillColorSpace.numComps = 1;
@@ -1224,33 +1060,26 @@ void GfxStateInit(GfxState *state, Handle gstring)
     state->clipBox[2] = state->clipBox[3] = 2000L << 16;
 }
 
-/***********************************************************************
- *      GfxStateFree
- ***********************************************************************
- * SYNOPSIS:        Release.
- * PARAMETERS:      GfxState *state    graphics state
+/********************************************************************
+ *                      GfxStateFree
+ ********************************************************************
+ * SYNOPSIS:      Free the saved states of unclosed q levels.
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      If a saved state exists, restore the GEOS transform stack via
- *      GrRestoreState() and recursively free it. (Open...
+ * STRATEGY:      A loop, not a recursion: the stack is small.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateFree(GfxState *state)
 {
     GfxState *saved, *next;
 
-    /*
-     * Unclosed q levels: iterate, not recurse (stack 5000 bytes).
-     */
     for (saved = state->saved; saved != NULL; saved = next)
     {
         GrRestoreState(state->gstring);
@@ -1260,53 +1089,45 @@ void GfxStateFree(GfxState *state)
     state->saved = NULL;
 }
 
-/***********************************************************************
- *      GfxStateCopy
- ***********************************************************************
- * SYNOPSIS:        Copy.
- * PARAMETERS:      GfxState *dest    destination
- *                  GfxState *state    graphics state
+/********************************************************************
+ *                      GfxStateCopy
+ ********************************************************************
+ * SYNOPSIS:      Copy a graphics state without its save chain.
  *
- * RETURNS:         void
+ * PARAMETERS:    *dest                 Ptr to the copy.
+ *                *state                Ptr to the graphics state.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      memcpy() the whole struct, then clear dest->saved so the copy
- *      doesn't inherit the source's saved-state chain.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 static void GfxStateCopy(GfxState *dest, GfxState *state)
 {
     memcpy(dest, state, sizeof(GfxState));
     dest->saved = NULL;
 }
 
-/***********************************************************************
- *      GfxStateSave
- ***********************************************************************
- * SYNOPSIS:        Save.
- * PARAMETERS:      GfxState *state    graphics state
+/********************************************************************
+ *                      GfxStateSave
+ ********************************************************************
+ * SYNOPSIS:      Save the graphics state (q).
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Allocate a copy of the current state and link it in as
- *      state->saved, so state itself always remains the top of the...
+ * STRATEGY:      The copy goes into a heap block at the head of the save chain.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateSave(GfxState *state)
 {
     GfxState *newState;
@@ -1321,24 +1142,22 @@ void GfxStateSave(GfxState *state)
     state->saved = newState;
 }
 
-/***********************************************************************
- *      GfxStateRestore
- ***********************************************************************
- * SYNOPSIS:        Process gfx state restore.
- * PARAMETERS:      GfxState *state    graphics state
+/********************************************************************
+ *                      GfxStateRestore
+ ********************************************************************
+ * SYNOPSIS:      Restore the last saved graphics state (Q).
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateRestore(GfxState *state)
 {
     GfxState *oldState;
@@ -1354,249 +1173,100 @@ void GfxStateRestore(GfxState *state)
     }
 }
 
-/***********************************************************************
- *      GfxStateGetFont
- ***********************************************************************
- * SYNOPSIS:        Get font.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result pointer
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 GfxFont *GfxStateGetFont(GfxState *state)
 {
     return state->font;
 }
 
-/***********************************************************************
- *      GfxStateGetFontSize
- ***********************************************************************
- * SYNOPSIS:        Get font size.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 gdouble GfxStateGetFontSize(GfxState *state)
 {
     return state->fontSize;
 }
 
-/***********************************************************************
- *      GfxStateGetCharSpace
- ***********************************************************************
- * SYNOPSIS:        Get char space.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 sdword GfxStateGetCharSpace(GfxState *state)
 {
     return state->charSpace;
 }
 
-/***********************************************************************
- *      GfxStateGetWordSpace
- ***********************************************************************
- * SYNOPSIS:        Get word space.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 gdouble GfxStateGetWordSpace(GfxState *state)
 {
     return state->wordSpace;
 }
 
-/***********************************************************************
- *      GfxStateGetHorizScaling
- ***********************************************************************
- * SYNOPSIS:        Get horiz scaling.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 sdword GfxStateGetHorizScaling(GfxState *state)
 {
     return state->horizScaling;
 }
 
-/***********************************************************************
- *      GfxStateGetLeading
- ***********************************************************************
- * SYNOPSIS:        Get leading.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 gdouble GfxStateGetLeading(GfxState *state)
 {
     return state->leading;
 }
 
-/***********************************************************************
- *      GfxStateGetRise
- ***********************************************************************
- * SYNOPSIS:        Get rise.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 sdword GfxStateGetRise(GfxState *state)
 {
     return state->rise;
 }
 
-/***********************************************************************
- *      GfxStateGetRender
- ***********************************************************************
- * SYNOPSIS:        Get render.
- * PARAMETERS:      GfxState *state    graphics state
- *
- * RETURNS:         result value
- *
- * CONTEXT:
- *
- * STRATEGY:
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 short GfxStateGetRender(GfxState *state)
 {
     return state->render;
 }
 
-/***********************************************************************
- *      GfxStateSetFont
- ***********************************************************************
- * SYNOPSIS:        Set font.
- * PARAMETERS:      GfxState *state    graphics state
- *                  GfxFont *font1    font1
- *                  gdouble fontSize1    font size1
+/********************************************************************
+ *                      GfxStateSetFont
+ ********************************************************************
+ * SYNOPSIS:      Set the font and the font size.
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
+ *                *font1                Ptr to the font.
+ *                fontSize1             Font size.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Assign both fields directly.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateSetFont(GfxState *state, GfxFont *font1, gdouble fontSize1)
 {
     state->font = font1;
     state->fontSize = fontSize1;
 }
 
-/***********************************************************************
- *      GfxStateSetTextMat
- ***********************************************************************
- * SYNOPSIS:        Set text mat.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble a    a
- *                  gdouble b    b
- *                  gdouble c    c
- *                  gdouble d    d
- *                  gdouble e    e
- *                  gdouble f    f
+/********************************************************************
+ *                      GfxStateSetTextMat
+ ********************************************************************
+ * SYNOPSIS:      Set the text matrix (Tm).
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
+ *                a                     Matrix a.
+ *                b                     Matrix b.
+ *                c                     Matrix c.
+ *                d                     Matrix d.
+ *                e                     Matrix e (x).
+ *                f                     Matrix f (y).
  *
- * CONTEXT:
+ * RETURNS:       void
  *
- * STRATEGY:
- *      Restore the GEOS transform stack to the pre-text-matrix state,
- *      then apply the new matrix. GEOS's TransMatrix packs...
+ * STRATEGY:      Go back to the saved transform of the text object and apply
+ *                the new matrix to the GString.
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateSetTextMat(GfxState *state, gdouble a, gdouble b, gdouble c,
     gdouble d, gdouble e, gdouble f)
 {
     TransMatrix tm;
     sdword tmp;
 
+    /* Back to the transform of the text object, then the new matrix */
     GrRestoreTransform(state->gstring);
     GrSaveTransform(state->gstring);
 
@@ -1627,178 +1297,54 @@ void GfxStateSetTextMat(GfxState *state, gdouble a, gdouble b, gdouble c,
     GrApplyTransform(state->gstring, &tm);
 }
 
-/***********************************************************************
- *      GfxStateSetCharSpace
- ***********************************************************************
- * SYNOPSIS:        Set char space.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble space    space
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Convert to WWFixed and assign.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxStateSetCharSpace(GfxState *state, gdouble space)
 {
     state->charSpace = GdoubleToWWFixed(space);
 }
 
-/***********************************************************************
- *      GfxStateSetWordSpace
- ***********************************************************************
- * SYNOPSIS:        Set word space.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble space    space
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Assign directly.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxStateSetWordSpace(GfxState *state, gdouble space)
 {
     state->wordSpace = space;
 }
 
-/***********************************************************************
- *      GfxStateSetHorizScaling
- ***********************************************************************
- * SYNOPSIS:        Set horiz scaling.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble scale    scale
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Convert the percentage to a 0-1 WWFixed fraction and assign.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxStateSetHorizScaling(GfxState *state, gdouble scale)
 {
     state->horizScaling = GdoubleToWWFixed(0.01 * scale);
 }
 
-/***********************************************************************
- *      GfxStateSetLeading
- ***********************************************************************
- * SYNOPSIS:        Set leading.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble leading1    leading1
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Assign directly.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxStateSetLeading(GfxState *state, gdouble leading1)
 {
     state->leading = leading1;
 }
 
-/***********************************************************************
- *      GfxStateSetRise
- ***********************************************************************
- * SYNOPSIS:        Set rise.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble rise1    rise1
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Convert to WWFixed and assign.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxStateSetRise(GfxState *state, gdouble rise1)
 {
     state->rise = GdoubleToWWFixed(rise1);
 }
 
-/***********************************************************************
- *      GfxStateSetRender
- ***********************************************************************
- * SYNOPSIS:        Set render.
- * PARAMETERS:      GfxState *state    graphics state
- *                  short render1    render1
- *
- * RETURNS:         void
- *
- * CONTEXT:
- *
- * STRATEGY:
- *      Assign directly.
- *
- * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
 void GfxStateSetRender(GfxState *state, short render1)
 {
     state->render = render1;
 }
 
-/***********************************************************************
- *      GfxStateTextMoveTo
- ***********************************************************************
- * SYNOPSIS:        Move to.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble tx    tx
- *                  gdouble ty    ty
+/********************************************************************
+ *                      GfxStateTextMoveTo
+ ********************************************************************
+ * SYNOPSIS:      Move to the start of a text line.
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
+ *                tx                    x in text space.
+ *                ty                    y in text space.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Store the text-space coordinates, convert to WWFixed, and move
- *      the GEOS drawing position via GrMoveToWWFixed().
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateTextMoveTo(GfxState *state, gdouble tx, gdouble ty)
 {
     sdword x, y;
@@ -1813,27 +1359,23 @@ void GfxStateTextMoveTo(GfxState *state, gdouble tx, gdouble ty)
     GrMoveToWWFixed(state->gstring, x, y);
 }
 
-/***********************************************************************
- *      GfxStateTextShift
- ***********************************************************************
- * SYNOPSIS:        Process gfx state text shift.
- * PARAMETERS:      GfxState *state    graphics state
- *                  gdouble tx    tx
+/********************************************************************
+ *                      GfxStateTextShift
+ ********************************************************************
+ * SYNOPSIS:      Move the text position to the right.
  *
- * RETURNS:         void
+ * PARAMETERS:    *state                Ptr to the graphics state.
+ *                tx                    Distance in text space.
  *
- * CONTEXT:
+ * RETURNS:       void
  *
  * STRATEGY:
- *      Track the shift in curTextX and move the GEOS drawing position
- *      by the same amount, scaled from WWFixed to GEOS's...
  *
  * REVISION HISTORY:
- *  Name    Date        Description
- *  ----    ----        -----------
- *  JK      08/18/26    Initial Revision
- *
- ***********************************************************************/
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/18/26  JK        Initial Revision
+ *******************************************************************/
 void GfxStateTextShift(GfxState *state, gdouble tx)
 {
     state->curTextX += GdoubleToWWFixed(tx);
@@ -1848,7 +1390,24 @@ void GfxStateTextShift(GfxState *state, gdouble tx)
  * (Moved here from main/shading.c, which was removed in I1.)
  ***********************************************************************/
 
-/* out = a x b (first a, then b); out may alias neither */
+/********************************************************************
+ *                      GfxMatMul
+ ********************************************************************
+ * SYNOPSIS:      Multiply two matrices (first a, then b).
+ *
+ * PARAMETERS:    *a                    Ptr to the first matrix.
+ *                *b                    Ptr to the second matrix.
+ *                *out                  Ptr to the result; must not be a or b.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxMatMul(const gdouble *a, const gdouble *b, gdouble *out)
 {
     out[0] = GrMulWWFixed(a[0], b[0]) + GrMulWWFixed(a[1], b[2]);
@@ -1864,11 +1423,24 @@ static gdouble GfxMatAbs(gdouble x)
     return (x < 0) ? -x : x;
 }
 
-/*
- * The determinant of a matrix with entries around 200 (a unit square
- * scaled to a page) overflows 16.16, so the linear part is normalized
- * by its largest entry first.
- */
+/********************************************************************
+ *                      GfxMatInvert
+ ********************************************************************
+ * SYNOPSIS:      Invert a matrix.
+ *
+ * PARAMETERS:    *m                    Ptr to the matrix.
+ *                *out                  Ptr to the inverse (out).
+ *
+ * RETURNS:       GBool                 gFalse if the matrix is degenerate.
+ *
+ * STRATEGY:      The determinant of entries around 200 overflows 16.16:
+ *                normalize the linear part by its largest entry first.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 GBool GfxMatInvert(const gdouble *m, gdouble *out)
 {
     gdouble s, a, b, c, d, det, ds;
@@ -1909,6 +1481,26 @@ GBool GfxMatInvert(const gdouble *m, gdouble *out)
     return gTrue;
 }
 
+/********************************************************************
+ *                      GfxMatApply
+ ********************************************************************
+ * SYNOPSIS:      Transform a point with a matrix.
+ *
+ * PARAMETERS:    *m                    Ptr to the matrix.
+ *                x                     x.
+ *                y                     y.
+ *                *ox                   Ptr to the new x (out).
+ *                *oy                   Ptr to the new y (out).
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxMatApply(const gdouble *m, gdouble x, gdouble y, gdouble *ox,
     gdouble *oy)
 {
@@ -1916,7 +1508,24 @@ void GfxMatApply(const gdouble *m, gdouble x, gdouble y, gdouble *ox,
     *oy = GrMulWWFixed(x, m[1]) + GrMulWWFixed(y, m[3]) + m[5];
 }
 
-/* bounding box [x0 y0 x1 y1] of box transformed by m (out may be box) */
+/********************************************************************
+ *                      GfxMatApplyBox
+ ********************************************************************
+ * SYNOPSIS:      Return the bounding box of a transformed box.
+ *
+ * PARAMETERS:    *m                    Ptr to the matrix.
+ *                *box                  Ptr to the box [x0 y0 x1 y1].
+ *                *out                  Ptr to the result (out); may be box.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      08/22/26  JK        Initial Revision
+ *******************************************************************/
 void GfxMatApplyBox(const gdouble *m, const gdouble *box, gdouble *out)
 {
     gdouble x, y, b[4];
