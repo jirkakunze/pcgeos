@@ -307,6 +307,9 @@ void XRefFree(XRef *xref)
 /* Largest object stream with a cached offset table (4 bytes each) */
 #define XREF_OBJSTM_CACHE_MAX 1024
 
+/* Heap buffer to skip to an object in an object stream (XRefFetchFromObjStm) */
+#define XREF_OBJSTM_SKIP_BUF 512
+
 /* Bytes searched for "%PDF-" (garbage before the header) */
 #define headerSearchSize 512
 
@@ -1468,6 +1471,8 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
     Stream *str;
     Stream *subStr;
     GBool cacheHit;
+    Guchar *skipBuf;
+    word skipLen;
 
     /* One cached object stream header per document; large ones are not */
 
@@ -1582,16 +1587,41 @@ XRefFetchFromObjStm(XRef *xref, long objStmNum, long idxInStm, Obj *obj)
         return;
     }
 
+    str = getStream(&objStmObj);
+
+    /*
+     * Skip to the object: read blocks with StreamRead, not one byte at a
+     * time (one call per byte through the filter chain). StreamRead first
+     * takes the bytes that GetChar has prefetched, thus the position is the
+     * same. The buffer is on the heap: this function runs deep in nested
+     * object lookups and the stack is small. Without memory, skip byte by
+     * byte as before.
+     */
+    skipBuf = (Guchar *)gmalloc(XREF_OBJSTM_SKIP_BUF);
     while (consumed < first + targetOffset)
     {
-        if (ObjStreamGetChar(&objStmObj) == EOF)
+        if (skipBuf)
         {
-            break;
+            skipLen = (word)((first + targetOffset - consumed >
+                XREF_OBJSTM_SKIP_BUF) ? XREF_OBJSTM_SKIP_BUF :
+                first + targetOffset - consumed);
+            skipLen = StreamRead(str, skipBuf, skipLen);
+            if (skipLen == 0)
+            {
+                break;
+            }
+            consumed += skipLen;
         }
-        ++consumed;
+        else
+        {
+            if (ObjStreamGetChar(&objStmObj) == EOF)
+            {
+                break;
+            }
+            ++consumed;
+        }
     }
-
-    str = getStream(&objStmObj);
+    gfree(skipBuf);
 
     subStr = gmalloc(sizeof(Stream));
     lexer = gmalloc(sizeof(Lexer));
