@@ -1058,6 +1058,9 @@ void GfxStateInit(GfxState *state, Handle gstring)
     state->ctm[1] = state->ctm[2] = state->ctm[4] = state->ctm[5] = 0;
     state->clipBox[0] = state->clipBox[1] = -(2000L << 16);
     state->clipBox[2] = state->clipBox[3] = 2000L << 16;
+
+    /* PDF default line width is 1.0 (same as the GEOS default) */
+    state->lineWidth = IntToGdouble(1);
 }
 
 /********************************************************************

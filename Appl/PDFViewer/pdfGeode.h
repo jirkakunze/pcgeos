@@ -345,6 +345,12 @@ typedef struct GfxState
     gdouble ctm[6];
     gdouble clipBox[4];
 
+    /*
+     * Line width of the 'w' operator in user space. The GEOS line width
+     * is this value scaled by the CTM (GfxApplyLineWidth).
+     */
+    gdouble lineWidth;
+
 } GfxState;
 
 typedef struct GfxFontDict

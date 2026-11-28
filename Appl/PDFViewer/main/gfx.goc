@@ -96,6 +96,8 @@ static void GfxReadNumArray(Obj *arrObj, gdouble *out, short n, XRef *xref);
  * on the heap and a saved GState; deeper q are ignored with their Q.
  */
 #define GFX_MAX_SAVE_DEPTH                32
+/* Largest line width of GrSetLineWidth (kernel MAX_LINE_WIDTH) */
+#define GFX_MAX_LINE_WIDTH                4096
 static void buildImageStream(Gfx *gfx, Stream **str);
 static GBool GfxLookupXObject(Gfx *this, char *name, Obj *obj);
 static void GfxResourcesInit(GfxResources *this, GfxResources *next1);
@@ -176,6 +178,8 @@ static void GfxPathAdd(Gfx *gfx, byte type, sword x, sword y);
 static void GfxPathAddCurve(Gfx *gfx, const Point *p);
 static void GfxPathClose(Gfx *gfx);
 static void GfxStrokePath(Gfx *gfx);
+static void GfxApplyLineWidth(GfxState *state);
+static WWFixedAsDWord GfxApproxLength(sdword dx, sdword dy);
 static void GfxUpdatePathBounds(GfxState *state, gdouble x, gdouble y);
 static GBool GfxFillWithMinThickness(Gfx *gfx, RegionFillRule rule);
 static void GfxFillPath(Gfx *gfx, RegionFillRule rule);
@@ -1257,6 +1261,109 @@ static void GfxConcatCtm(GfxState *state, const gdouble *m)
 
     GfxMatMul(m, state->ctm, tmp);
     memcpy(state->ctm, tmp, sizeof(tmp));
+
+    /* The scale of the CTM changed: set the GEOS line width again */
+    GfxApplyLineWidth(state);
+}
+
+/********************************************************************
+ *                      GfxApplyLineWidth
+ ********************************************************************
+ * SYNOPSIS:      Set the GEOS line width from the PDF line width and the
+ *                scale of the CTM.
+ *
+ * PARAMETERS:    *state                Ptr to the graphics state.
+ *
+ * RETURNS:       void
+ *
+ * STRATEGY:      The kernel (ScaleScalar) scales the line width only with
+ *                the window matrix, not with the GState matrix. The CTM is
+ *                in the GState matrix, thus we must apply its scale here.
+ *                The scale is the average length of the transformed unit
+ *                vectors, with the same length approximation as the
+ *                kernel: (|dx| + |dy| + max(|dx|, |dy|)) / 2. This is
+ *                exact for a CTM without rotation.
+ *
+ * KNOWN BUGS/SIDE EFFECTS/CAVEATS/IDEAS:
+ *                ATTENTION: The text matrix and the font scale are also in
+ *                the GState matrix while text is drawn. Stroked text
+ *                (Tr 1, 2) thus does not get the correct width. Upgrade
+ *                path: apply the inverse text scale in doShowText.
+ *                ATTENTION: The scale of the print fit (PdfFitPrintPage)
+ *                is in the GState matrix of the target and is not applied
+ *                to the line width. Upgrade path: also apply it when the
+ *                GString is played to the printer.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/28/26  Claude/jkunze  Initial version
+ *******************************************************************/
+static void GfxApplyLineWidth(GfxState *state)
+{
+    WWFixedAsDWord scale, width;
+
+    EC(ECCheckBounds((void *)state));
+
+    scale = (GfxApproxLength(state->ctm[0], state->ctm[1]) >> 1) +
+        (GfxApproxLength(state->ctm[2], state->ctm[3]) >> 1);
+
+    /* A negative width is not valid: use the thinnest line */
+    if (state->lineWidth <= 0 || scale == 0)
+    {
+        width = 0;
+    }
+    else if (scale >= MakeWWFixed(1) &&
+        (WWFixedAsDWord)GdoubleToWWFixed(state->lineWidth) >=
+        GrUDivWWFixed(MakeWWFixed(GFX_MAX_LINE_WIDTH), scale))
+    {
+        /* Prevent an overflow of the multiplication */
+        width = MakeWWFixed(GFX_MAX_LINE_WIDTH);
+    }
+    else
+    {
+        width = GrMulWWFixed(GdoubleToWWFixed(state->lineWidth), scale);
+    }
+
+    /* The kernel accepts widths up to GFX_MAX_LINE_WIDTH only */
+    if (width > MakeWWFixed(GFX_MAX_LINE_WIDTH))
+    {
+        width = MakeWWFixed(GFX_MAX_LINE_WIDTH);
+    }
+    GrSetLineWidth(state->gstring, width);
+}
+
+/********************************************************************
+ *                      GfxApproxLength
+ ********************************************************************
+ * SYNOPSIS:      Return the approximate length of a vector.
+ *
+ * PARAMETERS:    dx                    x of the vector (16.16 fixed).
+ *                dy                    y of the vector (16.16 fixed).
+ *
+ * RETURNS:       WWFixedAsDWord        Length (16.16 fixed).
+ *
+ * STRATEGY:      Same approximation as the kernel (DistanceApprox):
+ *                (|dx| + |dy| + max(|dx|, |dy|)) / 2. Each term is halved
+ *                first, thus the sum cannot overflow.
+ *
+ * REVISION HISTORY:
+ *      Date      Name      Description
+ *      ----      ----      -----------
+ *      11/28/26  Claude/jkunze  Initial version
+ *******************************************************************/
+static WWFixedAsDWord GfxApproxLength(sdword dx, sdword dy)
+{
+    if (dx < 0)
+    {
+        dx = -dx;
+    }
+    if (dy < 0)
+    {
+        dy = -dy;
+    }
+    return (WWFixedAsDWord)((dx >> 1) + (dy >> 1) +
+        ((dx > dy ? dx : dy) >> 1));
 }
 
 /********************************************************************
@@ -1461,14 +1568,18 @@ static void _near opSetDash(Gfx *gfx, Obj args[], int numArgs)
     }
     else
     {
-        lineWidth = GrGetLineWidth(gstring);
-        
+        /*
+         * The PDF width, not the GEOS width: dash lengths and the PDF
+         * width are both in user space, the CTM scale cancels out.
+         */
+        lineWidth = gfx->state->lineWidth;
+
         /* GEOS dash lengths are in line widths */
         for (i = 0; i < length && i < MAX_DASH_ARRAY_PAIRS * 2; ++i)
         {
             ArrayGet(a, i, &obj, gfx->xref);
 #ifdef USE_NATIVE_FLOAT_TYPE
-            if (lineWidth)
+            if ((sdword)lineWidth > 0)
             {
                 dash[i] = (byte)((0x8000 + GrUDivWWFixed(getNum(&obj), lineWidth)) >> 16);
             }
@@ -1626,7 +1737,9 @@ static void _near opSetMiterLimit(Gfx *gfx, Obj args[], int numArgs)
  *******************************************************************/
 static void _near opSetLineWidth(Gfx *gfx, Obj args[], int numArgs)
 {
-    GrSetLineWidth(gfx->state->gstring, GdoubleToWWFixed(getNum(&args[0])));
+    /* Keep the user space width; GEOS gets it scaled by the CTM */
+    gfx->state->lineWidth = getNum(&args[0]);
+    GfxApplyLineWidth(gfx->state);
     (void)numArgs;
 }
 
